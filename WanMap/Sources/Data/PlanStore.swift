@@ -92,6 +92,62 @@ final class PlanStore {
         remove(id: plan.id)
     }
 
+    // MARK: - 自分の「今ここ」
+
+    private static let ownPresenceIdKey = "wanmap.ownPresenceId"
+
+    /// 自分が置いた「今ここ」（期限切れは除く）。端末内にだけ保持し、外部には送らない。
+    /// 仮想ユーザー等の他人の presence と取り違えないよう、自分の plan のIDを別に保持する。
+    var ownPresence: Plan? {
+        guard persists,
+              let idString = UserDefaults.standard.string(forKey: Self.ownPresenceIdKey),
+              let id = UUID(uuidString: idString),
+              let plan = plans.first(where: { $0.id == id && $0.isPresence }),
+              !plan.isExpiredPresence
+        else { return nil }
+    }
+
+    /// 「今ここ」を置く。既に置いてある場合は新しい位置に置き換える（前の場所は残さない）。
+    /// 場所名は付けない（未登録地点＝人アイコンのみ。自宅が出るのは本人が置いた時だけ）。
+    func placeOwnPresence(latitude: Double, longitude: Double) {
+        if ownPresence != nil {
+            moveOwnPresence(latitude: latitude, longitude: longitude)
+            return
+        }
+        clearOwnPresence()
+        let plan = Plan(id: UUID(), personName: "自分",
+                        dogName: lastDogName.isEmpty ? nil : lastDogName,
+                        placeName: "", latitude: latitude, longitude: longitude,
+                        date: Calendar.current.startOfDay(for: Date()),
+                        timeBand: .allDay, level: .going,
+                        isEvent: false, eventDeadline: nil,
+                        isPresence: true, createdAt: Date())
+        plans.append(plan)
+        UserDefaults.standard.set(plan.id.uuidString, forKey: Self.ownPresenceIdKey)
+        save()
+    }
+
+    /// 移動したら「今ここ」を新しい位置に置き換える（2時間の起点は置いた時刻のまま）
+    func moveOwnPresence(latitude: Double, longitude: Double) {
+        guard let existing = ownPresence,
+              existing.latitude != latitude || existing.longitude != longitude,
+              let index = plans.firstIndex(where: { $0.id == existing.id })
+        else { return }
+        plans[index].latitude = latitude
+        plans[index].longitude = longitude
+        save()
+    }
+
+    /// 「今ここ」を消す
+    func clearOwnPresence() {
+        if let idString = UserDefaults.standard.string(forKey: Self.ownPresenceIdKey),
+           let id = UUID(uuidString: idString) {
+            plans.removeAll { $0.id == id }
+        }
+        UserDefaults.standard.removeObject(forKey: Self.ownPresenceIdKey)
+        save()
+    }
+
     // MARK: - 内部処理
 
     /// 期限切れの「今ここ」を保存データからも取り除く

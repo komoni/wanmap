@@ -25,7 +25,9 @@ struct PlanFormView: View {
     @State private var placeQuery: String
     @State private var selectedFacility: Facility?
 
-    init(editing: Plan?, defaultDate: Date = Date(), defaultDogName: String = "") {
+    /// initialFacility：施設シートから開く時にその施設（名前・座標）を選択済みにする
+    init(editing: Plan?, defaultDate: Date = Date(), defaultDogName: String = "",
+         initialFacility: Facility? = nil) {
         self.editing = editing
         _date = State(initialValue: editing?.date ?? defaultDate)
         _timeBand = State(initialValue: editing?.timeBand ?? .allDay)
@@ -35,8 +37,8 @@ struct PlanFormView: View {
         _hasDeadline = State(initialValue: editing?.eventDeadline != nil)
         _deadline = State(initialValue: editing?.eventDeadline ?? (editing?.date ?? defaultDate))
         _hidesOwnLocation = State(initialValue: editing?.hidesOwnLocation ?? false)
-        _placeQuery = State(initialValue: editing?.placeName ?? "")
-        _selectedFacility = State(initialValue: nil)
+        _placeQuery = State(initialValue: editing?.placeName ?? initialFacility?.displayName ?? "")
+        _selectedFacility = State(initialValue: initialFacility)
     }
 
     private var candidates: [Facility] {
