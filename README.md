@@ -14,6 +14,7 @@ Webプロトタイプで固めた仕様を、iPhoneアプリとして実装す�
   （最新の書き出しは `../facility-data/facilities.json`、620件）
 - `.github/workflows/build.yml` — GitHub Actions（macOS）で署名なしビルド検証するCI
 - `DATA_UPDATE_DESIGN.md` — 施設データをアプリ再審査なしで更新する仕組みの設計
+- 利用ライブラリ：ClusterMap 3.0.0（https://github.com/vospennikov/ClusterMap、MIT License、SPMで導入）— 地図の施設マーカーのクラスタリング計算（`DogMapView` の施設表示を差分描画にしている。予定アイコンは対象外）
 
 ## ビルド方法
 

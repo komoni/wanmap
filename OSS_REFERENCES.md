@@ -4,6 +4,7 @@
 
 - **ClusterMap**（https://github.com/vospennikov/ClusterMap、MIT、⭐約125）
   QuadTree＋actorの `ClusterManager` で差分だけを適用する設計が、施設620件＋友達アイコンの更新に直結する。Example の iOS 17 Map 連携を主に参考にする。
+  **フェーズD（2026-11-05）でSPM導入済み**：`project.yml` に `from: 3.0.0` で追加し、`DogMapView` の施設マーカーを ClusterManager 経由の差分描画に切り替えた（対象は施設のみ。予定アイコンと「今ここ」はクラスタリングしない）。
 - **Meshtastic-Apple**（https://github.com/meshtastic/Meshtastic-Apple、GPL-3.0、⭐約961）
   製品レベルの地図アプリの全体構成（XcodeGen、多言語、CI）の見本。**GPLのため流用不可・閲覧参考のみ**。
 
@@ -35,6 +36,6 @@
 
 ## 土台コードへの反映方針
 
-- 地図の施設表示更新：ClusterMapの「差分適用」の考え方を FacilityStore の更新に取り入れる
+- 地図の施設表示更新：ClusterMapの「差分適用」をフェーズDで実装済み（施設マーカーのみ。`ClusterManager.reload` の Difference を表示配列へ反映）
 - カレンダー年表示：KVKのレイアウトを参考に自前実装（CalendarView の yearGrid）
 - 位置：LocationService は将来 SwiftLocation の significant-changes パターンへ寄せる（常時高精度GPSは使わない）

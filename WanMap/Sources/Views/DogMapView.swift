@@ -1,3 +1,5 @@
+import ClusterMap
+import ClusterMapSwiftUI
 import SwiftUI
 import MapKit
 
@@ -5,7 +7,12 @@ import MapKit
 /// 仕様：
 /// - 初期表示は現在地優先。取れない時だけ日本全体（フォールバックは初回だけ）。
 /// - 操作中に中心を勝手に戻さない。寄せるのは初回・現在地ボタン・友達レールタップ・検索候補タップの時だけ。
-/// - 施設マーカーはズームで切替：引いた表示は 🐶（ラン）／☕（カフェ）のみ、拡大（ズーム13以上）で施設名も。
+/// - 施設マーカーは ClusterMap でクラスタリングする：引いた表示では密集地点を件数バッジに集約し、
+///   拡大すると個別マーカーに戻る。個別マーカーはズームで切替：引いた表示は 🐶（ラン）／☕（カフェ）のみ、
+///   拡大（ズーム13以上）で施設名も。クラスタは施設名が出るズームより手前で必ず解けるよう、
+///   ClusterMap 側の maxZoomLevel を 12 にしている（ClusterMap の内部ズームは端末幅で本アプリ換算より
+///   約0.6〜2 大きくなるため、12 でも解ける地点はズーム13未満に収まる）。
+///   予定アイコンと「今ここ」はクラスタリング対象にしない。
 /// - 予定アイコンは選択中の日付＋時間帯で絞り込んで小さく出す（施設名を隠さない大きさ）。場所名は出さない。
 /// - 「今ここ」は日付・時間帯に関係なく常時表示。PlanStore に isPresence の予定として保持する（2時間で自動消去、移動したら置き換え）。
 /// - 日付切替はボタン式（横スクロール、今日から84日分）＋時間帯ボタン（終日／朝／昼／夜）。
@@ -36,6 +43,20 @@ struct DogMapView: View {
     @State private var searchText = ""
     @FocusState private var searchFocused: Bool
 
+    // 施設クラスタリング（ClusterMap）。計算は ClusterManager（actor）に任せ、
+    // 差分だけを visibleFacilities / visibleClusters に反映する（Example-SwiftUI の方式）。
+    @State private var clusterManager = ClusterManager<FacilityAnnotation>(
+        configuration: ClusterManager<FacilityAnnotation>.Configuration(maxZoomLevel: 12)
+    )
+    @State private var visibleFacilities: [FacilityAnnotation] = []
+    @State private var visibleClusters: [FacilityCluster] = []
+    @State private var mapSize: CGSize = .zero
+    /// クラスタ計算に使う現在リージョン。カメラ確定時と明示操作（center／fly／zoomIn）でだけ更新する。
+    @State private var currentRegion: MKCoordinateRegion = MKCoordinateRegion(
+        center: CLLocationCoordinate2D(latitude: 36.5, longitude: 138.0),
+        span: MKCoordinateSpan(latitudeDelta: 12, longitudeDelta: 12)
+    )
+
     init() {
         let today = Calendar.current.startOfDay(for: Date())
         _days = State(initialValue: (0..<84).compactMap {
@@ -47,6 +68,11 @@ struct DogMapView: View {
     /// 座標のある施設だけをマーカーにする
     private var pinnedFacilities: [Facility] {
         store.facilities.filter { $0.coordinate != nil }
+    }
+
+    /// クラスタリング用アノテーション（IDだけ保持）→ 施設本体への引き当て（名前表示・シート用）
+    private var facilityById: [String: Facility] {
+        Dictionary(pinnedFacilities.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
     }
 
     /// 地図に出す予定：「今ここ」（常時）＋選択中の日付・時間帯に合う予定のうち座標があるもの。
@@ -122,17 +148,26 @@ struct DogMapView: View {
 
     private var map: some View {
         Map(position: $position) {
-            // 施設マーカー（座標のあるものだけ）
-            ForEach(pinnedFacilities) { facility in
-                Annotation(facility.displayName, coordinate: facility.coordinate!) {
-                    Button {
-                        selectedFacility = facility
-                    } label: {
-                        facilityMarker(facility)
+            // 施設マーカー（ClusterMap で計算した表示分だけ。密集時はクラスタに集約される）
+            ForEach(visibleFacilities) { item in
+                if let facility = facilityById[item.id] {
+                    Annotation(facility.displayName, coordinate: item.coordinate) {
+                        Button {
+                            selectedFacility = facility
+                        } label: {
+                            facilityMarker(facility)
+                        }
                     }
                 }
             }
-            // 予定アイコン（選択中の日付・時間帯の予定＋「今ここ」）。タイトルは出さずアイコンだけ
+            // 施設クラスタ（件数バッジ）。タップで少し寄せる
+            ForEach(visibleClusters) { cluster in
+                Annotation("\(cluster.count)件", coordinate: cluster.coordinate) {
+                    clusterMarker(cluster)
+                }
+            }
+            // 予定アイコン（選択中の日付・時間帯の予定＋「今ここ」）。タイトルは出さずアイコンだけ。
+            // クラスタリング対象にはしない（従来どおり個別表示）。
             ForEach(mapPlans) { plan in
                 Annotation(plan.placeName, coordinate: plan.coordinate!) {
                     planMarker(plan)
@@ -140,11 +175,25 @@ struct DogMapView: View {
             }
         }
         .mapStyle(.standard(elevation: .flat, emphasis: .muted, pointsOfInterest: .excludingAll, showsTraffic: false))
+        .readSize(onChange: { newSize in
+            // ClusterMap の計算には地図の実サイズが要る（ClusterMapSwiftUI の .readSize）
+            mapSize = newSize
+            if newSize.width > 0 { requestClusterReload() }
+        })
+        .task {
+            await syncClusterAnnotations()
+        }
+        .onChange(of: store.facilities) { _, _ in
+            // 施設データが差し替わったら（リモート更新など）クラスタ側にも入れ直す
+            Task { await syncClusterAnnotations() }
+        }
         .onMapCameraChange(frequency: .onEnd) { context in
+            currentRegion = context.region
             // ズーム13以上で施設名も表示する（プロトタイプの閾値13を踏襲）。
             // region の経度幅からズームレベルを換算する。
             let delta = context.region.span.longitudeDelta
             isZoomedIn = delta > 0 && log2(360 / delta) >= 13
+            requestClusterReload()
         }
         .onAppear {
             // 初回表示だけ現在地へ寄せる（取れていなければ日本全体のまま）
@@ -188,6 +237,25 @@ struct DogMapView: View {
                     .clipShape(Capsule())
             }
         }
+    }
+
+    /// 施設クラスタ：件数バッジ（ClusterMap 標準に近い見た目）。タップでその地点へ少し寄せる
+    private func clusterMarker(_ cluster: FacilityCluster) -> some View {
+        Button {
+            zoomIn(on: cluster.coordinate)
+        } label: {
+            ZStack {
+                Circle()
+                    .fill(Color.orange)
+                    .frame(width: 34, height: 34)
+                    .overlay(Circle().stroke(Color.white, lineWidth: 2))
+                Text("\(cluster.count)")
+                    .font(.caption)
+                    .bold()
+                    .foregroundStyle(.white)
+            }
+        }
+        .buttonStyle(.plain)
     }
 
     /// 予定アイコン：施設名を隠さない小さな丸。「今ここ」は人アイコン、それ以外は犬の名前の頭文字
@@ -244,14 +312,76 @@ struct DogMapView: View {
     }
 
     private func center(on coordinate: CLLocationCoordinate2D) {
-        position = .region(MKCoordinateRegion(center: coordinate,
-                                              span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)))
+        let region = MKCoordinateRegion(center: coordinate,
+                                        span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02))
+        currentRegion = region
+        position = .region(region)
     }
 
     /// 明示操作専用：ズーム15相当まで寄せる（友達レール・検索候補のタップ時だけ呼ぶ）
     private func fly(to coordinate: CLLocationCoordinate2D) {
-        position = .region(MKCoordinateRegion(center: coordinate,
-                                              span: MKCoordinateSpan(latitudeDelta: 0.011, longitudeDelta: 0.011)))
+        let region = MKCoordinateRegion(center: coordinate,
+                                        span: MKCoordinateSpan(latitudeDelta: 0.011, longitudeDelta: 0.011))
+        currentRegion = region
+        position = .region(region)
+    }
+
+    /// 明示操作専用：クラスタタップで現在の表示幅の約4割まで寄せる（下限はズーム15相当）
+    private func zoomIn(on coordinate: CLLocationCoordinate2D) {
+        let delta = max(currentRegion.span.longitudeDelta * 0.4, 0.011)
+        let region = MKCoordinateRegion(center: coordinate,
+                                        span: MKCoordinateSpan(latitudeDelta: delta, longitudeDelta: delta))
+        currentRegion = region
+        position = .region(region)
+    }
+
+    // MARK: - 施設クラスタリング（ClusterMap）
+
+    /// 施設データを ClusterManager に入れ直して再計算する（初回表示とデータ差し替え時に呼ぶ）
+    @MainActor
+    private func syncClusterAnnotations() async {
+        let annotations = pinnedFacilities.compactMap { facility in
+            facility.coordinate.map { FacilityAnnotation(id: facility.id, coordinate: $0) }
+        }
+        await clusterManager.removeAll()
+        await clusterManager.add(annotations)
+        await reloadClusters()
+    }
+
+    private func requestClusterReload() {
+        Task { @MainActor in await reloadClusters() }
+    }
+
+    /// 現在のリージョンと地図サイズでクラスタを再計算し、差分だけを表示へ反映する
+    @MainActor
+    private func reloadClusters() async {
+        guard mapSize.width > 0 else { return }
+        let difference = await clusterManager.reload(mapViewSize: mapSize, coordinateRegion: currentRegion)
+        applyClusterChanges(difference)
+    }
+
+    @MainActor
+    private func applyClusterChanges(_ difference: ClusterManager<FacilityAnnotation>.Difference) {
+        for removal in difference.removals {
+            switch removal {
+            case .annotation(let annotation):
+                visibleFacilities.removeAll { $0 == annotation }
+            case .cluster(let clusterAnnotation):
+                visibleClusters.removeAll { $0.id == clusterAnnotation.id }
+            }
+        }
+        for insertion in difference.insertions {
+            switch insertion {
+            case .annotation(let newItem):
+                visibleFacilities.append(newItem)
+            case .cluster(let newItem):
+                visibleClusters.append(FacilityCluster(
+                    id: newItem.id,
+                    coordinate: newItem.coordinate,
+                    count: newItem.memberAnnotations.count
+                ))
+            }
+        }
     }
 
     // MARK: - 施設検索
@@ -498,6 +628,21 @@ struct DogMapView: View {
             statusMessage = nil
         }
     }
+}
+
+/// ClusterMap に渡す施設アノテーション。Facility 本体は coordinate が読み取り専用で
+/// CoordinateIdentifiable にできないため、IDと座標だけの軽量構造体にし、
+/// 表示時は FacilityStore 側の本体へ引き当てる。
+private struct FacilityAnnotation: CoordinateIdentifiable, Identifiable, Hashable, Sendable {
+    let id: String  // Facility.id
+    var coordinate: CLLocationCoordinate2D
+}
+
+/// 表示中の施設クラスタ（ClusterMap の計算結果から、表示に必要な分だけ抜き出した形）
+private struct FacilityCluster: Identifiable {
+    let id: UUID
+    let coordinate: CLLocationCoordinate2D
+    let count: Int
 }
 
 /// 友達レールの1人分（端末内データから組み立てる。実通信はまだ無い）

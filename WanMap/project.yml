@@ -1,5 +1,10 @@
 # XcodeGen 用プロジェクト定義（Mac で `xcodegen generate` すると .xcodeproj が生成される）
 name: WanMap
+packages:
+  # 施設マーカーのクラスタリング（MIT）。フェーズDで導入。バージョンはタグ固定。
+  ClusterMap:
+    url: https://github.com/vospennikov/ClusterMap
+    from: 3.0.0
 options:
   bundleIdPrefix: com.example
   deploymentTarget:
@@ -13,6 +18,11 @@ targets:
   WanMap:
     type: application
     platform: iOS
+    dependencies:
+      - package: ClusterMap
+        product: ClusterMap
+      - package: ClusterMap
+        product: ClusterMapSwiftUI
     sources:
       - Sources
     resources:
