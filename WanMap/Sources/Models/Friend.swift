@@ -4,6 +4,7 @@ import Foundation
 /// 表示・検索用IDは Instagram のユーザーネーム（連携時）。
 /// 内部IDは不変の数値IDで、ユーザーネーム変更でも友達関係は切れない（決定済み設計）。
 struct AppUser: Codable, Identifiable, Equatable {
+    var id: String { internalId }
     let internalId: String          // 不変の内部ID（例: usr-xxxx）
     var instagramUsername: String?  // 連携時の表示・検索用ID
     var appIssuedId: String         // 未連携時の表示・検索用ID（例: wan-xxxxxx）
