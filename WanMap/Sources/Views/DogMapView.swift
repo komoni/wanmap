@@ -31,6 +31,8 @@ struct DogMapView: View {
     @Environment(LocationService.self) private var location
     @State private var position: MapCameraPosition = .japanFallback
     @State private var selectedFacility: Facility?
+    @State private var showFriends = false
+    @State private var showSettings = false
     @State private var isZoomedIn = false
     @State private var didCenterInitially = false
     @State private var statusMessage: String?
@@ -160,6 +162,8 @@ struct DogMapView: View {
             yearSheet
                 .presentationDetents([.medium])
         }
+        .sheet(isPresented: $showFriends) { FriendsView() }
+        .sheet(isPresented: $showSettings) { SettingsView() }
     }
 
     private func mapView(proxy: MapProxy) -> some View {
@@ -348,6 +352,14 @@ struct DogMapView: View {
                 // TODO: 地点登録フォーム
             } label: {
                 Image(systemName: "plus")
+            }
+
+            Button { showFriends = true } label: {
+                Image(systemName: "person.2")
+            }
+
+            Button { showSettings = true } label: {
+                Image(systemName: "gearshape")
             }
         }
         .frame(height: 44)

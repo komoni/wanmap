@@ -92,6 +92,15 @@ final class PlanStore {
         remove(id: plan.id)
     }
 
+    /// 設定画面の「データをリセット」用：予定をすべて消し、付随する端末内状態も初期化する
+    func resetAllData() {
+        plans = []
+        lastDogName = ""
+        UserDefaults.standard.removeObject(forKey: Self.lastDogNameKey)
+        UserDefaults.standard.removeObject(forKey: Self.ownPresenceIdKey)
+        save()
+    }
+
     // MARK: - 自分の「今ここ」
 
     private static let ownPresenceIdKey = "wanmap.ownPresenceId"

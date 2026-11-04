@@ -4,6 +4,7 @@ import SwiftUI
 struct RootView: View {
     @State private var facilityStore = FacilityStore()
     @State private var planStore = PlanStore()
+    @State private var friendStore = FriendStore()
     @State private var location = LocationService()
 
     var body: some View {
@@ -19,6 +20,7 @@ struct RootView: View {
         }
         .environment(facilityStore)
         .environment(planStore)
+        .environment(friendStore)
         .environment(location)
         .task {
             await facilityStore.refreshFromRemote()

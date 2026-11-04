@@ -10,6 +10,8 @@ struct CalendarView: View {
     @State private var displayedMonth: Date = Date()
     @State private var showYear = false
     @State private var daySelection: DaySelection?
+    @State private var showFriends = false
+    @State private var showSettings = false
 
     private struct DaySelection: Identifiable {
         let id = UUID()
@@ -48,6 +50,8 @@ struct CalendarView: View {
         .sheet(item: $daySelection) { selection in
             DayPlansView(day: selection.day)
         }
+        .sheet(isPresented: $showFriends) { FriendsView() }
+        .sheet(isPresented: $showSettings) { SettingsView() }
     }
 
     private var header: some View {
@@ -65,6 +69,10 @@ struct CalendarView: View {
             }
             .pickerStyle(.segmented)
             .frame(width: 110)
+            HStack(spacing: 12) {
+                Button { showFriends = true } label: { Image(systemName: "person.2") }
+                Button { showSettings = true } label: { Image(systemName: "gearshape") }
+            }
         }
     }
 
