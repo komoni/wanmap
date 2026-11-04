@@ -3,6 +3,7 @@ import SwiftUI
 /// ルート：カレンダーがメイン画面（最初に開く画面）、地図とイベントはタブ（決定済み仕様）
 struct RootView: View {
     @State private var facilityStore = FacilityStore()
+    @State private var userPlaceStore = UserPlaceStore()
     @State private var planStore = PlanStore()
     @State private var friendStore = FriendStore()
     @State private var location = LocationService()
@@ -19,6 +20,7 @@ struct RootView: View {
                 .tabItem { Label("イベント", systemImage: "ticket") }
         }
         .environment(facilityStore)
+        .environment(userPlaceStore)
         .environment(planStore)
         .environment(friendStore)
         .environment(location)

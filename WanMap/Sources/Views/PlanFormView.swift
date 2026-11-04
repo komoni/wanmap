@@ -4,12 +4,14 @@ import SwiftUI
 ///
 /// 仕様（決定済み）：
 /// - 場所は登録済み施設からの候補検索で選ぶか、住所テキストとして直接入力する（緯度経度の数値入力はしない）
+/// - 自分で追加した場所（UserPlace）も候補に出し、公式施設より優先して先に並べる。選ぶと座標付きの予定になる
 /// - 場所のエリア（地域）入力欄は作らない
 /// - 「自分の位置を見せない」トグルはこのフォーム内にだけ置く（カレンダー／地図のバーには置かない）
 /// - 犬の名前は前回使った名前を初期値にする（PlanStore.lastDogName）
 struct PlanFormView: View {
     @Environment(PlanStore.self) private var planStore
     @Environment(FacilityStore.self) private var facilityStore
+    @Environment(UserPlaceStore.self) private var userPlaceStore
     @Environment(\.dismiss) private var dismiss
 
     let editing: Plan?
@@ -24,10 +26,12 @@ struct PlanFormView: View {
     @State private var hidesOwnLocation: Bool
     @State private var placeQuery: String
     @State private var selectedFacility: Facility?
+    @State private var selectedUserPlace: UserPlace?
 
     /// initialFacility：施設シートから開く時にその施設（名前・座標）を選択済みにする
+    /// initialUserPlace：自分の場所のシートから開く時にその場所を選択済みにする
     init(editing: Plan?, defaultDate: Date = Date(), defaultDogName: String = "",
-         initialFacility: Facility? = nil) {
+         initialFacility: Facility? = nil, initialUserPlace: UserPlace? = nil) {
         self.editing = editing
         _date = State(initialValue: editing?.date ?? defaultDate)
         _timeBand = State(initialValue: editing?.timeBand ?? .allDay)
@@ -37,12 +41,23 @@ struct PlanFormView: View {
         _hasDeadline = State(initialValue: editing?.eventDeadline != nil)
         _deadline = State(initialValue: editing?.eventDeadline ?? (editing?.date ?? defaultDate))
         _hidesOwnLocation = State(initialValue: editing?.hidesOwnLocation ?? false)
-        _placeQuery = State(initialValue: editing?.placeName ?? initialFacility?.displayName ?? "")
+        _placeQuery = State(initialValue: editing?.placeName
+            ?? initialFacility?.displayName ?? initialUserPlace?.name ?? "")
         _selectedFacility = State(initialValue: initialFacility)
+        _selectedUserPlace = State(initialValue: initialUserPlace)
+    }
+
+    /// 何か選択済みの間は候補を出さない
+    private var hasSelection: Bool { selectedFacility != nil || selectedUserPlace != nil }
+
+    /// 自分で追加した場所の候補（公式施設より優先して先に出す）
+    private var userPlaceCandidates: [UserPlace] {
+        guard !hasSelection else { return [] }
+        return Array(userPlaceStore.search(placeQuery).prefix(4))
     }
 
     private var candidates: [Facility] {
-        guard selectedFacility == nil else { return [] }
+        guard !hasSelection else { return [] }
         return Array(facilityStore.search(placeQuery).prefix(8))
     }
 
@@ -66,11 +81,14 @@ struct PlanFormView: View {
                     Button("保存") { save() }.bold()
                 }
             }
-            .onAppear(perform: resolveFacilityFromEditingPlan)
+            .onAppear(perform: resolvePlaceFromEditingPlan)
             .onChange(of: placeQuery) { _, newValue in
-                // 手で書き換えたら施設選択は解除する（そのまま住所テキストとして扱う）
+                // 手で書き換えたら選択は解除する（そのまま住所テキストとして扱う）
                 if let facility = selectedFacility, newValue != facility.displayName {
                     selectedFacility = nil
+                }
+                if let place = selectedUserPlace, newValue != place.name {
+                    selectedUserPlace = nil
                 }
             }
         }
@@ -93,7 +111,36 @@ struct PlanFormView: View {
                     }
                     .buttonStyle(.plain)
                 }
+            } else if let place = selectedUserPlace {
+                HStack {
+                    Label(place.name, systemImage: "mappin.circle.fill")
+                        .foregroundStyle(.orange)
+                    Spacer()
+                    Button {
+                        selectedUserPlace = nil
+                        placeQuery = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
             } else {
+                ForEach(userPlaceCandidates) { place in
+                    Button {
+                        selectedUserPlace = place
+                        placeQuery = place.name
+                    } label: {
+                        HStack {
+                            Text(place.kind.markerEmoji)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(place.name).foregroundStyle(.primary)
+                                Text("自分で登録した場所")
+                                    .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
                 ForEach(candidates) { facility in
                     Button {
                         selectedFacility = facility
@@ -189,10 +236,18 @@ struct PlanFormView: View {
         }
     }
 
-    /// 編集時、保存済みの場所名が登録施設と一致したら施設選択状態を復元する
-    private func resolveFacilityFromEditingPlan() {
-        guard selectedFacility == nil, let editing, !editing.placeName.isEmpty else { return }
+    /// 編集時、保存済みの場所名が自分の場所／登録施設と一致したら選択状態を復元する
+    /// （自分で追加した情報の方が優先度が高いので、自分の場所から先に照合する）
+    private func resolvePlaceFromEditingPlan() {
+        guard !hasSelection, let editing, !editing.placeName.isEmpty else { return }
         let target = FacilityStore.normalize(editing.placeName)
+        if let place = userPlaceStore.places.first(where: {
+            FacilityStore.normalize($0.name) == target
+        }) {
+            selectedUserPlace = place
+            placeQuery = place.name
+            return
+        }
         if let facility = facilityStore.facilities.first(where: {
             FacilityStore.normalize($0.displayName) == target || FacilityStore.normalize($0.name) == target
         }) {
@@ -206,7 +261,11 @@ struct PlanFormView: View {
         let placeName: String
         let latitude: Double?
         let longitude: Double?
-        if let facility = selectedFacility {
+        if let place = selectedUserPlace {
+            placeName = place.name
+            latitude = place.latitude
+            longitude = place.longitude
+        } else if let facility = selectedFacility {
             placeName = facility.displayName
             latitude = facility.lat
             longitude = facility.lng

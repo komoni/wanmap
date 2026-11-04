@@ -5,10 +5,11 @@ import SwiftUI
 /// - 「見せない相手」リスト：友達画面と同じ FriendStore のデータを触るので連動する
 /// - Instagram連携はモックである旨を正直に表示する
 /// - 位置情報の扱い（端末内のみ・「今ここ」は2時間で消去）の説明と非表示モード
-/// - ローカルデータ（予定・友達）のリセット（確認ダイアログ付き）
+/// - ローカルデータ（予定・友達・追加した場所）のリセット（確認ダイアログ付き）
 struct SettingsView: View {
     @Environment(FriendStore.self) private var friendStore
     @Environment(PlanStore.self) private var planStore
+    @Environment(UserPlaceStore.self) private var userPlaceStore
     @Environment(LocationService.self) private var location
     @Environment(\.dismiss) private var dismiss
 
@@ -100,11 +101,12 @@ struct SettingsView: View {
                 Button("すべて消す", role: .destructive) {
                     planStore.resetAllData()
                     friendStore.resetAll()
+                    userPlaceStore.resetAll()
                     resetDone = true
                 }
                 Button("キャンセル", role: .cancel) {}
             } message: {
-                Text("この端末に保存した予定と友達のデータをすべて消します。自分のIDも新しく作り直されます。")
+                Text("この端末に保存した予定・友達・追加した場所のデータをすべて消します。自分のIDも新しく作り直されます。")
             }
         }
     }
@@ -114,5 +116,6 @@ struct SettingsView: View {
     SettingsView()
         .environment(FriendStore.preview)
         .environment(PlanStore(samplePlans: []))
+        .environment(UserPlaceStore(samplePlaces: []))
         .environment(LocationService())
 }

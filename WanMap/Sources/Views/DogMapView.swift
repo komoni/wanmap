@@ -24,13 +24,23 @@ import MapKit
 ///   選択中の日付はユーザー操作でのみ変わる。タイマー・位置取得・再表示などで勝手に戻す処理は置かない（強制リバート禁止）。
 /// - 友達レール（右端）：予定／presence を持つ人の小さなアイコン。タップでその人の地点へズーム15で飛ぶ。
 /// - 施設検索：候補タップではシートを開かず、ズーム15で地点へ寄るだけ。シートはマーカー／施設名タップの時だけ。
+/// - 地点登録：上部バーの＋から入る。地図の中心ピンで地点を決める方式（開始・終了でカメラは動かさない）。
+///   追加した場所（UserPlace）は公式施設とは別枠で端末内に持ち、表示・検索では施設より優先して扱う。
+///   公開範囲のデフォルトは「招待した人だけ」で、共有されるのは場所名のみ（座標は公開しない）。
 /// - ベースマップの飲食店などのPOIは出さない。
 struct DogMapView: View {
     @Environment(FacilityStore.self) private var store
+    @Environment(UserPlaceStore.self) private var userPlaceStore
     @Environment(PlanStore.self) private var planStore
     @Environment(LocationService.self) private var location
     @State private var position: MapCameraPosition = .japanFallback
     @State private var selectedFacility: Facility?
+    @State private var selectedUserPlace: UserPlace?
+
+    // 地点登録モード（中心ピン）。入る時・出る時もカメラには触らない。
+    @State private var isPlacingUserPlace = false
+    @State private var pendingPlaceCoordinate: CLLocationCoordinate2D?
+    @State private var showUserPlaceForm = false
     @State private var showFriends = false
     @State private var showSettings = false
     @State private var isZoomedIn = false
@@ -119,10 +129,15 @@ struct DogMapView: View {
         }
     }
 
-    /// 検索候補：正規化検索でヒットした、座標のある施設だけ（タップで飛ぶため）
-    private var searchResults: [Facility] {
+    /// 検索候補：正規化検索でヒットした地点（タップで飛ぶため座標があるものだけ）。
+    /// 自分で追加した場所を公式施設より優先して先に出す（決定済み仕様）。
+    private var searchResults: [PlaceHit] {
         guard !searchText.trimmingCharacters(in: .whitespaces).isEmpty else { return [] }
-        return Array(store.search(searchText).filter { $0.coordinate != nil }.prefix(8))
+        let places = userPlaceStore.search(searchText).map(PlaceHit.userPlace)
+        let facilities = store.search(searchText)
+            .filter { $0.coordinate != nil }
+            .map(PlaceHit.facility)
+        return Array((places + facilities).prefix(8))
     }
 
     var body: some View {
@@ -141,7 +156,10 @@ struct DogMapView: View {
                     mapView(proxy: proxy)
                 }
                 friendRail
-                if !searchResults.isEmpty {
+                if isPlacingUserPlace {
+                    placingOverlay
+                }
+                if !searchResults.isEmpty && !isPlacingUserPlace {
                     searchResultsList
                 }
                 if let statusMessage {
@@ -164,6 +182,15 @@ struct DogMapView: View {
         }
         .sheet(isPresented: $showFriends) { FriendsView() }
         .sheet(isPresented: $showSettings) { SettingsView() }
+        .sheet(item: $selectedUserPlace) { place in
+            UserPlaceSheet(place: place)
+                .presentationDetents([.medium, .large])
+        }
+        .sheet(isPresented: $showUserPlaceForm) {
+            if let coordinate = pendingPlaceCoordinate {
+                UserPlaceFormView(editing: nil, coordinate: coordinate)
+            }
+        }
     }
 
     private func mapView(proxy: MapProxy) -> some View {
@@ -184,6 +211,16 @@ struct DogMapView: View {
             ForEach(visibleClusters) { cluster in
                 Annotation("\(cluster.count)件", coordinate: cluster.coordinate) {
                     clusterMarker(cluster)
+                }
+            }
+            // 自分で追加した場所（公式施設とは別枠。件数が少ないのでクラスタリングしない）
+            ForEach(userPlaceStore.places) { place in
+                Annotation(place.name, coordinate: place.coordinate) {
+                    Button {
+                        selectedUserPlace = place
+                    } label: {
+                        userPlaceMarker(place)
+                    }
                 }
             }
             // 予定アイコン（選択中の日付・時間帯の予定＋「今ここ」）。タイトルは出さずアイコンだけ。
@@ -280,6 +317,23 @@ struct DogMapView: View {
         .buttonStyle(.plain)
     }
 
+    /// 自分の場所のマーカー：施設と同じ流儀（引いた表示は絵文字のみ、拡大時は名前も）
+    private func userPlaceMarker(_ place: UserPlace) -> some View {
+        VStack(spacing: 0) {
+            Text(place.kind.markerEmoji)
+                .font(.title3)
+            if isZoomedIn {
+                Text(place.name)
+                    .font(.caption2)
+                    .lineLimit(1)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1)
+                    .background(Color.white.opacity(0.85))
+                    .clipShape(Capsule())
+            }
+        }
+    }
+
     /// 予定アイコン：施設名を隠さない小さな丸（浮遊＋指から逃げる動き付きは FloatingPlanMarker 側）
     private func planMarker(_ plan: Plan) -> some View {
         FloatingPlanMarker(plan: plan,
@@ -349,7 +403,8 @@ struct DogMapView: View {
             .buttonStyle(.borderedProminent)
 
             Button {
-                // TODO: 地点登録フォーム
+                // 地点登録モードに入る（中心ピンで地点を決める。カメラは動かさない）
+                isPlacingUserPlace = true
             } label: {
                 Image(systemName: "plus")
             }
@@ -364,6 +419,43 @@ struct DogMapView: View {
         }
         .frame(height: 44)
         .padding(.horizontal, 8)
+    }
+
+    // MARK: - 地点登録（中心ピン）
+
+    /// 登録モード中の重ね表示：中心ピン（当たり判定なし）＋下部の確定バー。
+    /// ピン先端が画面中心に来るよう少し上にずらす。地図のドラッグはそのまま効く。
+    private var placingOverlay: some View {
+        ZStack {
+            Image(systemName: "mappin")
+                .font(.system(size: 38))
+                .foregroundStyle(.red)
+                .shadow(radius: 2)
+                .offset(y: -19)
+                .allowsHitTesting(false)
+            VStack {
+                Spacer()
+                HStack(spacing: 12) {
+                    Button("キャンセル") { isPlacingUserPlace = false }
+                        .buttonStyle(.bordered)
+                    Button("ここにする") { confirmPlacing() }
+                        .buttonStyle(.borderedProminent)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(.thinMaterial)
+                .clipShape(Capsule())
+                .padding(.bottom, 12)
+            }
+        }
+    }
+
+    /// 中心ピンの地点（現在のリージョン中心）を確定し、追加フォームを開く。
+    /// カメラ自体は動かさない（開始・終了で中心／ズームを変えない方針）。
+    private func confirmPlacing() {
+        pendingPlaceCoordinate = currentRegion.center
+        isPlacingUserPlace = false
+        showUserPlaceForm = true
     }
 
     private func center(on coordinate: CLLocationCoordinate2D) {
@@ -465,23 +557,28 @@ struct DogMapView: View {
     private var searchResultsList: some View {
         VStack(spacing: 0) {
             VStack(spacing: 0) {
-                ForEach(searchResults) { facility in
+                ForEach(searchResults) { hit in
                     Button {
-                        if let coord = facility.coordinate { fly(to: coord) }
+                        fly(to: hit.coordinate)
                         searchText = ""
                         searchFocused = false
                     } label: {
                         HStack {
-                            Text(facility.isDogRun ? "🐶" : "☕")
-                            Text(facility.displayName).lineLimit(1)
+                            Text(hit.emoji)
+                            Text(hit.label).lineLimit(1)
                             Spacer()
+                            if hit.isUserPlace {
+                                Text("自分の場所")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                         .padding(.horizontal, 12)
                         .padding(.vertical, 9)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    if facility.id != searchResults.last?.id {
+                    if hit.id != searchResults.last?.id {
                         Divider().padding(.leading, 12)
                     }
                 }
@@ -682,6 +779,46 @@ struct DogMapView: View {
             guard !Task.isCancelled else { return }
             statusMessage = nil
         }
+    }
+}
+
+/// 検索候補の1件（自分の場所と公式施設を1つのリストに並べるための統合型）。
+/// 自分の場所を先に並べるのが優先ルールで、並び替えは呼び出し側で行う。
+private enum PlaceHit: Identifiable {
+    case userPlace(UserPlace)
+    case facility(Facility)
+
+    var id: String {
+        switch self {
+        case .userPlace(let place): return "user-\(place.id.uuidString)"
+        case .facility(let facility): return "facility-\(facility.id)"
+        }
+    }
+
+    var coordinate: CLLocationCoordinate2D {
+        switch self {
+        case .userPlace(let place): return place.coordinate
+        case .facility(let facility): return facility.coordinate ?? CLLocationCoordinate2D()
+        }
+    }
+
+    var label: String {
+        switch self {
+        case .userPlace(let place): return place.name
+        case .facility(let facility): return facility.displayName
+        }
+    }
+
+    var emoji: String {
+        switch self {
+        case .userPlace(let place): return place.kind.markerEmoji
+        case .facility(let facility): return facility.isDogRun ? "🐶" : "☕"
+        }
+    }
+
+    var isUserPlace: Bool {
+        if case .userPlace = self { return true }
+        return false
     }
 }
 
