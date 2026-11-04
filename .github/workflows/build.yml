@@ -1,0 +1,25 @@
+# Mac が無くてもクラウド（GitHub Actions の macOS ランナー）でビルド検証できるようにする。
+# 手元でテストできなくても、コンパイルエラーとユニットテストはここで潰す。
+name: build
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate project
+        working-directory: WanMap
+        run: xcodegen generate
+      - name: Build (no signing)
+        working-directory: WanMap
+        run: |
+          xcodebuild build \
+            -project WanMap.xcodeproj \
+            -scheme WanMap \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGNING_ALLOWED=NO
