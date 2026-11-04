@@ -4,10 +4,14 @@ import MapKit
 /// 地図タブ
 /// 仕様：
 /// - 初期表示は現在地優先。取れない時だけ日本全体（フォールバックは初回だけ）。
-/// - 操作中に中心を勝手に戻さない。寄せるのは初回・現在地ボタン・友達タップ・検索候補タップの時だけ。
+/// - 操作中に中心を勝手に戻さない。寄せるのは初回・現在地ボタン・友達レールタップ・検索候補タップの時だけ。
 /// - 施設マーカーはズームで切替：引いた表示は 🐶（ラン）／☕（カフェ）のみ、拡大（ズーム13以上）で施設名も。
-/// - 予定アイコンは「今日の予定＋今ここ」だけを小さく出す（施設名を隠さない大きさ）。場所名は出さない。
-/// - 「今ここ」は PlanStore に isPresence の予定として保持する（2時間で自動消去、移動したら置き換え）。
+/// - 予定アイコンは選択中の日付＋時間帯で絞り込んで小さく出す（施設名を隠さない大きさ）。場所名は出さない。
+/// - 「今ここ」は日付・時間帯に関係なく常時表示。PlanStore に isPresence の予定として保持する（2時間で自動消去、移動したら置き換え）。
+/// - 日付切替はボタン式（横スクロール、今日から84日分）＋時間帯ボタン（終日／朝／昼／夜）。
+///   選択中の日付はユーザー操作でのみ変わる。タイマー・位置取得・再表示などで勝手に戻す処理は置かない（強制リバート禁止）。
+/// - 友達レール（右端）：予定／presence を持つ人の小さなアイコン。タップでその人の地点へズーム15で飛ぶ。
+/// - 施設検索：候補タップではシートを開かず、ズーム15で地点へ寄るだけ。シートはマーカー／施設名タップの時だけ。
 /// - ベースマップの飲食店などのPOIは出さない。
 struct DogMapView: View {
     @Environment(FacilityStore.self) private var store
@@ -20,34 +24,99 @@ struct DogMapView: View {
     @State private var statusMessage: String?
     @State private var statusTask: Task<Void, Never>?
 
+    // 日付ストリップの状態。selectedDate を書き換えるのは日付ボタンと年ジャンプだけ
+    // （onAppear／onChange／タイマーは一切触らない＝選択が勝手に戻る経路が無い）。
+    @State private var days: [Date]
+    @State private var selectedDate: Date
+    @State private var selectedBand: TimeBand = .allDay
+    @State private var showYearSheet = false
+    @State private var pendingScrollDate: Date?
+
+    // 施設検索
+    @State private var searchText = ""
+    @FocusState private var searchFocused: Bool
+
+    init() {
+        let today = Calendar.current.startOfDay(for: Date())
+        _days = State(initialValue: (0..<84).compactMap {
+            Calendar.current.date(byAdding: .day, value: $0, to: today)
+        })
+        _selectedDate = State(initialValue: today)
+    }
+
     /// 座標のある施設だけをマーカーにする
     private var pinnedFacilities: [Facility] {
         store.facilities.filter { $0.coordinate != nil }
     }
 
-    /// 地図に出す予定：「今ここ」（常時）＋今日の予定のうち座標があるもの
+    /// 地図に出す予定：「今ここ」（常時）＋選択中の日付・時間帯に合う予定のうち座標があるもの。
+    /// 時間帯が「終日」の予定は、どの時間帯を選んでも出す。
     private var mapPlans: [Plan] {
-        let calendar = Calendar.current
-        return planStore.activePlans.filter { plan in
-            plan.coordinate != nil && (plan.isPresence || calendar.isDateInToday(plan.date))
+        planStore.activePlans.filter { plan in
+            guard plan.coordinate != nil else { return false }
+            if plan.isPresence { return true }
+            guard Calendar.current.isDate(plan.date, inSameDayAs: selectedDate) else { return false }
+            return selectedBand == .allDay || plan.timeBand == .allDay || plan.timeBand == selectedBand
         }
+    }
+
+    /// 友達レールに出す人：座標のある予定／presence を持つ人（personName 単位、端末内データのみ）。
+    /// 飛び先は presence があればその座標、無ければ今日以降で一番近い予定の座標（全部過去なら一番新しい予定）。
+    private var mapPeople: [MapPerson] {
+        let withCoord = planStore.activePlans.filter { $0.coordinate != nil }
+        let grouped = Dictionary(grouping: withCoord, by: { $0.personName })
+        let today = Calendar.current.startOfDay(for: Date())
+        return grouped.compactMap { name, plans -> MapPerson? in
+            let presence = plans.first { $0.isPresence }
+            let targetPlan = presence
+                ?? plans.filter { $0.date >= today }.min(by: { $0.date < $1.date })
+                ?? plans.max(by: { $0.date < $1.date })
+            guard let targetPlan, let coord = targetPlan.coordinate else { return nil }
+            return MapPerson(personName: name,
+                             label: String((targetPlan.dogName ?? name).prefix(1)),
+                             hasPresence: presence != nil,
+                             target: coord)
+        }
+        .sorted {
+            ($0.hasPresence ? 0 : 1, $0.personName) < ($1.hasPresence ? 0 : 1, $1.personName)
+        }
+    }
+
+    /// 検索候補：正規化検索でヒットした、座標のある施設だけ（タップで飛ぶため）
+    private var searchResults: [Facility] {
+        guard !searchText.trimmingCharacters(in: .whitespaces).isEmpty else { return [] }
+        return Array(store.search(searchText).filter { $0.coordinate != nil }.prefix(8))
     }
 
     var body: some View {
         VStack(spacing: 0) {
             topBar
-            ZStack(alignment: .bottom) {
+            searchBar
+            dateStrip
+            bandRow
+            ZStack {
                 map
+                friendRail
+                if !searchResults.isEmpty {
+                    searchResultsList
+                }
                 if let statusMessage {
-                    Text(statusMessage)
-                        .font(.caption)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(.thinMaterial)
-                        .clipShape(Capsule())
-                        .padding(.bottom, 10)
+                    VStack {
+                        Spacer()
+                        Text(statusMessage)
+                            .font(.caption)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(.thinMaterial)
+                            .clipShape(Capsule())
+                            .padding(.bottom, 10)
+                    }
                 }
             }
+        }
+        .sheet(isPresented: $showYearSheet) {
+            yearSheet
+                .presentationDetents([.medium])
         }
     }
 
@@ -63,7 +132,7 @@ struct DogMapView: View {
                     }
                 }
             }
-            // 予定アイコン（今日の予定＋「今ここ」）。タイトルは出さずアイコンだけ
+            // 予定アイコン（選択中の日付・時間帯の予定＋「今ここ」）。タイトルは出さずアイコンだけ
             ForEach(mapPlans) { plan in
                 Annotation(plan.placeName, coordinate: plan.coordinate!) {
                     planMarker(plan)
@@ -179,6 +248,226 @@ struct DogMapView: View {
                                               span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)))
     }
 
+    /// 明示操作専用：ズーム15相当まで寄せる（友達レール・検索候補のタップ時だけ呼ぶ）
+    private func fly(to coordinate: CLLocationCoordinate2D) {
+        position = .region(MKCoordinateRegion(center: coordinate,
+                                              span: MKCoordinateSpan(latitudeDelta: 0.011, longitudeDelta: 0.011)))
+    }
+
+    // MARK: - 施設検索
+
+    private var searchBar: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+            TextField("施設名で検索", text: $searchText)
+                .focused($searchFocused)
+                .submitLabel(.search)
+            if !searchText.isEmpty {
+                Button {
+                    searchText = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+                }
+            }
+        }
+        .font(.subheadline)
+        .padding(.horizontal, 10)
+        .frame(height: 36)
+        .background(Color(.secondarySystemBackground))
+    }
+
+    /// 候補リスト（地図の上端に重ねる）。タップしてもシートは開かず、地点へ飛ぶだけ。
+    private var searchResultsList: some View {
+        VStack(spacing: 0) {
+            VStack(spacing: 0) {
+                ForEach(searchResults) { facility in
+                    Button {
+                        if let coord = facility.coordinate { fly(to: coord) }
+                        searchText = ""
+                        searchFocused = false
+                    } label: {
+                        HStack {
+                            Text(facility.isDogRun ? "🐶" : "☕")
+                            Text(facility.displayName).lineLimit(1)
+                            Spacer()
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 9)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    if facility.id != searchResults.last?.id {
+                        Divider().padding(.leading, 12)
+                    }
+                }
+            }
+            .background(.regularMaterial)
+            Spacer()
+        }
+    }
+
+    // MARK: - 日付ストリップ・時間帯
+
+    /// 日付ボタン（横スクロール）＋年ボタン。バー自体は地図の外に置くのでドラッグの邪魔にならない。
+    private var dateStrip: some View {
+        HStack(spacing: 4) {
+            Button {
+                showYearSheet = true
+            } label: {
+                Text("\(Calendar.current.component(.year, from: selectedDate))年")
+                    .font(.caption).bold()
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                    .background(Color(.secondarySystemBackground))
+                    .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
+
+            ScrollViewReader { proxy in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(spacing: 6) {
+                        ForEach(days, id: \.self) { day in
+                            dayButton(day)
+                                .id(day)
+                        }
+                    }
+                    .padding(.horizontal, 2)
+                }
+                .onAppear {
+                    // 初回だけ今日の位置から見せる（選択状態は変えない）
+                    proxy.scrollTo(selectedDate, anchor: .leading)
+                }
+                .onChange(of: pendingScrollDate) { _, target in
+                    if let target { proxy.scrollTo(target, anchor: .leading) }
+                }
+            }
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
+    }
+
+    private func dayButton(_ day: Date) -> some View {
+        let cal = Calendar.current
+        let selected = cal.isDate(day, inSameDayAs: selectedDate)
+        let weekday = cal.component(.weekday, from: day)
+        return Button {
+            selectedDate = cal.startOfDay(for: day)
+        } label: {
+            VStack(spacing: 1) {
+                Text(dayLabel(day, weekday: weekday))
+                    .font(.caption)
+                    .bold(selected)
+                    .foregroundStyle(selected ? Color.white
+                                     : weekday == 1 ? Color.red
+                                     : weekday == 7 ? Color.blue
+                                     : Color.primary)
+                if cal.isDateInToday(day) {
+                    Circle()
+                        .fill(selected ? Color.white : Color.orange)
+                        .frame(width: 4, height: 4)
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(selected ? Color.orange : Color(.secondarySystemBackground))
+            .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// 「11/1(月)」形式
+    private func dayLabel(_ day: Date, weekday: Int) -> String {
+        let cal = Calendar.current
+        let symbols = ["日", "月", "火", "水", "木", "金", "土"]
+        return "\(cal.component(.month, from: day))/\(cal.component(.day, from: day))(\(symbols[weekday - 1]))"
+    }
+
+    /// 時間帯ボタン（終日／朝／昼／夜）
+    private var bandRow: some View {
+        HStack(spacing: 6) {
+            ForEach(TimeBand.allCases, id: \.self) { band in
+                Button {
+                    selectedBand = band
+                } label: {
+                    Text(band.rawValue)
+                        .font(.caption)
+                        .bold(selectedBand == band)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(selectedBand == band ? Color.orange : Color(.secondarySystemBackground))
+                        .foregroundStyle(selectedBand == band ? Color.white : Color.primary)
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 8)
+        .padding(.bottom, 4)
+    }
+
+    /// 年ジャンプ（最小実装）：範囲内（今日から84日）に含まれる年を選び、その年の先頭の日へ移動する
+    private var yearSheet: some View {
+        let cal = Calendar.current
+        let years = Array(Set(days.map { cal.component(.year, from: $0) })).sorted()
+        return NavigationStack {
+            List(years, id: \.self) { year in
+                Button {
+                    // 今年は今日、それ以外の年は範囲内のその年の最初の日を選ぶ
+                    if year == cal.component(.year, from: Date()) {
+                        selectedDate = cal.startOfDay(for: Date())
+                        pendingScrollDate = selectedDate
+                    } else if let target = days.first(where: { cal.component(.year, from: $0) == year }) {
+                        selectedDate = target
+                        pendingScrollDate = target
+                    }
+                    showYearSheet = false
+                } label: {
+                    HStack {
+                        Text("\(year)年")
+                        Spacer()
+                        if year == cal.component(.year, from: selectedDate) {
+                            Image(systemName: "checkmark").foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("年を選ぶ")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+
+    // MARK: - 友達レール
+
+    /// 右端の縦並びアイコン（28pt）。ボタン部分だけが当たるので地図操作の邪魔にならない。
+    private var friendRail: some View {
+        VStack {
+            Spacer()
+            VStack(spacing: 8) {
+                ForEach(mapPeople) { person in
+                    Button {
+                        fly(to: person.target)
+                    } label: {
+                        ZStack {
+                            Circle()
+                                .fill(person.hasPresence ? Color.pink : Color.orange)
+                                .frame(width: 28, height: 28)
+                                .overlay(Circle().stroke(Color.white, lineWidth: 1.5))
+                                .shadow(radius: 1)
+                            Text(person.label)
+                                .font(.caption2).bold()
+                                .foregroundStyle(.white)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, alignment: .trailing)
+        .padding(.trailing, 6)
+    }
+
     private func togglePresence() {
         if planStore.ownPresence != nil {
             planStore.clearOwnPresence()
@@ -209,6 +498,15 @@ struct DogMapView: View {
             statusMessage = nil
         }
     }
+}
+
+/// 友達レールの1人分（端末内データから組み立てる。実通信はまだ無い）
+private struct MapPerson: Identifiable {
+    let personName: String
+    let label: String                  // アイコンに出す頭文字（犬の名前優先）
+    let hasPresence: Bool              // 「今ここ」が出ている人か
+    let target: CLLocationCoordinate2D // タップで飛ぶ先
+    var id: String { personName }
 }
 
 extension MapCameraPosition {

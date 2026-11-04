@@ -9,7 +9,7 @@ Webプロトタイプで固めた仕様を、iPhoneアプリとして実装す�
 - `WanMap/Sources/Data/PlanStore.swift` — 予定の端末内保存（Documents/plans.json）とCRUD、「今ここ」の保持（isPresence の予定として保存、2時間除外・移動で置き換え）、犬の名前の使い回し
 - `WanMap/Sources/Data/SeedData.swift` — 仮想ユーザーの予定データ（DEBUG専用、プレビュー／検証用）
 - `WanMap/Sources/Location/LocationService.swift` — 現在地の取得（非表示モード・GPS揺らぎ抑制）
-- `WanMap/Sources/Views/` — RootView（カレンダー／地図／イベントのタブ）、CalendarView、DogMapView（＋施設シート）
+- `WanMap/Sources/Views/` — RootView（カレンダー／地図／イベントのタブ）、CalendarView、DogMapView（＋施設シート、日付ストリップ＋時間帯での予定絞り込み、友達レール、施設検索）
 - `WanMap/project.yml` — XcodeGen 用の定義。施設JSONは `WanMap/Resources/facilities.json` に置く
   （最新の書き出しは `../facility-data/facilities.json`、620件）
 - `.github/workflows/build.yml` — GitHub Actions（macOS）で署名なしビルド検証するCI
