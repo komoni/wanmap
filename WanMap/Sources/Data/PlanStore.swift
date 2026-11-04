@@ -105,6 +105,7 @@ final class PlanStore {
               let plan = plans.first(where: { $0.id == id && $0.isPresence }),
               !plan.isExpiredPresence
         else { return nil }
+        return plan
     }
 
     /// 「今ここ」を置く。既に置いてある場合は新しい位置に置き換える（前の場所は残さない）。
