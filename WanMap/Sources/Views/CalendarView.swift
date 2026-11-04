@@ -30,6 +30,8 @@ struct CalendarView: View {
 
     var body: some View {
         VStack(spacing: 8) {
+            // 広告／イベント告知バナー（地図画面と共通の枠。フロー内・固定高で操作の邪魔にならない）
+            InfoBannerView(items: InfoBannerView.items(upcomingEvents: planStore.upcomingEvents()))
             header
             if showYear {
                 yearGrid

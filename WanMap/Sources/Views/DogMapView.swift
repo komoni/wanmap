@@ -14,6 +14,11 @@ import MapKit
 ///   約0.6〜2 大きくなるため、12 でも解ける地点はズーム13未満に収まる）。
 ///   予定アイコンと「今ここ」はクラスタリング対象にしない。
 /// - 予定アイコンは選択中の日付＋時間帯で絞り込んで小さく出す（施設名を隠さない大きさ）。場所名は出さない。
+///   アイコンはゆっくり浮遊し、地図をタッチしている間は指の周辺のものが指から逃げ、離すとゆっくり戻る
+///   （Webプロトタイプで実機確認済みの動きの iOS 版）。逃げる動きは地図本体と同時認識の観察専用ジェスチャで
+///   指位置だけを拾い、タッチ位置に連動するオフセットで表現するので、ドラッグ／ピンチは妨げない。
+/// - 上部には広告／イベント告知バナー（InfoBannerView）をレイアウトフロー内に置く。地図領域が狭まるだけで
+///   カメラには触らない。
 /// - 「今ここ」は日付・時間帯に関係なく常時表示。PlanStore に isPresence の予定として保持する（2時間で自動消去、移動したら置き換え）。
 /// - 日付切替はボタン式（横スクロール、今日から84日分）＋時間帯ボタン（終日／朝／昼／夜）。
 ///   選択中の日付はユーザー操作でのみ変わる。タイマー・位置取得・再表示などで勝手に戻す処理は置かない（強制リバート禁止）。
@@ -42,6 +47,10 @@ struct DogMapView: View {
     // 施設検索
     @State private var searchText = ""
     @FocusState private var searchFocused: Bool
+
+    // 予定アイコンの「指から逃げる」オフセット（plan.id → 画面上のずらし量）。
+    // 指を離したら空に戻し、各アイコン側の spring でゆっくり戻す。
+    @State private var fleeOffsets: [UUID: CGSize] = [:]
 
     // 施設クラスタリング（ClusterMap）。計算は ClusterManager（actor）に任せ、
     // 差分だけを visibleFacilities / visibleClusters に反映する（Example-SwiftUI の方式）。
@@ -116,12 +125,19 @@ struct DogMapView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            // 広告／イベント告知バナー（フロー内・固定高。地図のカメラには影響しない）
+            InfoBannerView(items: InfoBannerView.items(upcomingEvents: planStore.upcomingEvents()))
+                .padding(.horizontal, 8)
+                .padding(.top, 4)
+                .padding(.bottom, 2)
             topBar
             searchBar
             dateStrip
             bandRow
             ZStack {
-                map
+                MapReader { proxy in
+                    mapView(proxy: proxy)
+                }
                 friendRail
                 if !searchResults.isEmpty {
                     searchResultsList
@@ -146,7 +162,7 @@ struct DogMapView: View {
         }
     }
 
-    private var map: some View {
+    private func mapView(proxy: MapProxy) -> some View {
         Map(position: $position) {
             // 施設マーカー（ClusterMap で計算した表示分だけ。密集時はクラスタに集約される）
             ForEach(visibleFacilities) { item in
@@ -175,6 +191,8 @@ struct DogMapView: View {
             }
         }
         .mapStyle(.standard(elevation: .flat, emphasis: .muted, pointsOfInterest: .excludingAll, showsTraffic: false))
+        // 指位置の観察専用（地図本体のジェスチャと同時認識させるので、ドラッグ／ピンチは妨げない）
+        .simultaneousGesture(fleeGesture(proxy: proxy))
         .readSize(onChange: { newSize in
             // ClusterMap の計算には地図の実サイズが要る（ClusterMapSwiftUI の .readSize）
             mapSize = newSize
@@ -258,25 +276,50 @@ struct DogMapView: View {
         .buttonStyle(.plain)
     }
 
-    /// 予定アイコン：施設名を隠さない小さな丸。「今ここ」は人アイコン、それ以外は犬の名前の頭文字
+    /// 予定アイコン：施設名を隠さない小さな丸（浮遊＋指から逃げる動き付きは FloatingPlanMarker 側）
     private func planMarker(_ plan: Plan) -> some View {
-        let isOwn = plan.id == planStore.ownPresence?.id
-        return ZStack {
-            Circle()
-                .fill(isOwn ? Color.pink : Color.orange)
-                .frame(width: 26, height: 26)
-                .overlay(Circle().stroke(Color.white, lineWidth: 1.5))
-            if plan.isPresence {
-                Image(systemName: "person.fill")
-                    .font(.caption)
-                    .foregroundStyle(.white)
-            } else {
-                Text(String((plan.dogName ?? plan.personName).prefix(1)))
-                    .font(.caption)
-                    .bold()
-                    .foregroundStyle(.white)
+        FloatingPlanMarker(plan: plan,
+                           isOwn: plan.id == planStore.ownPresence?.id,
+                           fleeOffset: fleeOffsets[plan.id] ?? .zero)
+    }
+
+    /// 指位置の観察専用ジェスチャ。地図本体のジェスチャと同時認識させるため、
+    /// ドラッグ／ピンチ／アノテーションのタップは妨げない。指の動きに合わせて
+    /// 周辺アイコンの逃げオフセットを更新し、離れたら空に戻す（戻りはアイコン側の spring 任せ）。
+    private func fleeGesture(proxy: MapProxy) -> some Gesture {
+        DragGesture(minimumDistance: 0, coordinateSpace: .local)
+            .onChanged { value in
+                updateFleeOffsets(proxy: proxy, touch: value.location)
             }
+            .onEnded { _ in
+                fleeOffsets = [:]
+            }
+    }
+
+    /// 指の周辺（半径90pt以内）にある予定アイコンについて、指から離れる方向へのオフセットを計算する。
+    /// 座標→画面位置の変換は MapProxy（地図のローカル座標＝ジェスチャの .local と同空間）。
+    private func updateFleeOffsets(proxy: MapProxy, touch: CGPoint) {
+        let radius: CGFloat = 90
+        var offsets: [UUID: CGSize] = [:]
+        for plan in mapPlans {
+            guard let coordinate = plan.coordinate,
+                  let point = proxy.convert(coordinate, to: .local) else { continue }
+            let dx = point.x - touch.x
+            let dy = point.y - touch.y
+            let distance = hypot(dx, dy)
+            guard distance < radius else { continue }
+            // 指に近いほど大きく逃げる（最大44pt）
+            let strength = (1 - distance / radius) * 44
+            let angle: CGFloat
+            if distance > 0.5 {
+                angle = atan2(dy, dx)
+            } else {
+                // 指の真下で方向が定まらない時は、アイコンごとに決まった方向へ逃がす
+                angle = CGFloat(abs(plan.id.hashValue % 360)) * .pi / 180
+            }
+            offsets[plan.id] = CGSize(width: cos(angle) * strength, height: sin(angle) * strength)
         }
+        fleeOffsets = offsets
     }
 
     private var topBar: some View {
@@ -652,6 +695,49 @@ private struct MapPerson: Identifiable {
     let hasPresence: Bool              // 「今ここ」が出ている人か
     let target: CLLocationCoordinate2D // タップで飛ぶ先
     var id: String { personName }
+}
+
+/// 予定アイコン：ゆっくり上下に浮遊し、指が近づくと逃げる
+/// （Webプロトタイプで本人が実機確認して「完璧」と評価した仕様の iOS 版）。
+/// 浮遊は repeatForever のアニメーション（レンダリング側で回るのでタイマーは持たない）。
+/// 周期はアイコンごとに少しずらし、全アイコンが同期して同じ動きにならないようにする。
+/// 逃げる動きは fleeOffset のオフセット＋spring で、指を離すとゆっくり元の位置へ戻る。
+/// 当たり判定はアイコン本体（26pt）のみで、浮遊・逃避で当たり範囲は広げない。
+private struct FloatingPlanMarker: View {
+    let plan: Plan
+    let isOwn: Bool
+    let fleeOffset: CGSize
+    @State private var bob: CGFloat = -2.5
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(isOwn ? Color.pink : Color.orange)
+                .frame(width: 26, height: 26)
+                .overlay(Circle().stroke(Color.white, lineWidth: 1.5))
+            if plan.isPresence {
+                Image(systemName: "person.fill")
+                    .font(.caption)
+                    .foregroundStyle(.white)
+            } else {
+                Text(String((plan.dogName ?? plan.personName).prefix(1)))
+                    .font(.caption)
+                    .bold()
+                    .foregroundStyle(.white)
+            }
+        }
+        // 逃げる動き（指を離して fleeOffset が .zero に戻ると spring でゆっくり戻る）
+        .offset(x: fleeOffset.width, y: fleeOffset.height)
+        .animation(.spring(response: 0.35, dampingFraction: 0.6), value: fleeOffset)
+        // 浮遊（このオフセットは逃げ側の .animation の対象外に置き、repeatForever 側で回す）
+        .offset(y: bob)
+        .onAppear {
+            let duration = 1.3 + Double(abs(plan.id.hashValue % 80)) / 100.0  // 1.3〜2.1秒
+            withAnimation(.easeInOut(duration: duration).repeatForever(autoreverses: true)) {
+                bob = 2.5
+            }
+        }
+    }
 }
 
 extension MapCameraPosition {
