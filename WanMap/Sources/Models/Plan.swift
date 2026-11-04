@@ -31,6 +31,8 @@ struct Plan: Codable, Identifiable, Equatable {
     var eventDeadline: Date?        // イベントの締め切り（任意）
     var isPresence: Bool            // 「今ここにいます」かどうか
     var createdAt: Date
+    /// この予定では自分の位置を見せない（トグルは予定フォーム内だけに置く。決定済み仕様）
+    var hidesOwnLocation: Bool = false
 
     var coordinate: CLLocationCoordinate2D? {
         guard let latitude, let longitude else { return nil }
