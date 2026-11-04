@@ -12,6 +12,7 @@ struct CalendarView: View {
     @State private var daySelection: DaySelection?
     @State private var showFriends = false
     @State private var showSettings = false
+    @State private var showStoryImport = false
 
     private struct DaySelection: Identifiable {
         let id = UUID()
@@ -52,6 +53,7 @@ struct CalendarView: View {
         }
         .sheet(isPresented: $showFriends) { FriendsView() }
         .sheet(isPresented: $showSettings) { SettingsView() }
+        .sheet(isPresented: $showStoryImport) { StoryImportView() }
     }
 
     private var header: some View {
@@ -70,6 +72,7 @@ struct CalendarView: View {
             .pickerStyle(.segmented)
             .frame(width: 110)
             HStack(spacing: 12) {
+                Button { showStoryImport = true } label: { Image(systemName: "doc.on.clipboard") }
                 Button { showFriends = true } label: { Image(systemName: "person.2") }
                 Button { showSettings = true } label: { Image(systemName: "gearshape") }
             }

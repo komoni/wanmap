@@ -30,11 +30,13 @@ struct PlanFormView: View {
 
     /// initialFacility：施設シートから開く時にその施設（名前・座標）を選択済みにする
     /// initialUserPlace：自分の場所のシートから開く時にその場所を選択済みにする
+    /// initialTimeBand：推測ドラフトなど、時間帯を決め打ちで開きたい時に使う
     init(editing: Plan?, defaultDate: Date = Date(), defaultDogName: String = "",
+         initialTimeBand: TimeBand? = nil,
          initialFacility: Facility? = nil, initialUserPlace: UserPlace? = nil) {
         self.editing = editing
         _date = State(initialValue: editing?.date ?? defaultDate)
-        _timeBand = State(initialValue: editing?.timeBand ?? .allDay)
+        _timeBand = State(initialValue: editing?.timeBand ?? initialTimeBand ?? .allDay)
         _level = State(initialValue: editing?.level ?? .going)
         _dogName = State(initialValue: editing?.dogName ?? defaultDogName)
         _isEvent = State(initialValue: editing?.isEvent ?? false)
