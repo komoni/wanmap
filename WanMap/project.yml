@@ -82,3 +82,25 @@ targets:
             NSExtensionActivationRule:
               NSExtensionActivationSupportsText: true
               NSExtensionActivationSupportsWebURLWithMaxCount: 1
+
+  # 単体テスト（フェーズK）
+  # UIに依存しない純粋ロジック（テキスト解析・検索の正規化・「今ここ」の期限判定）を守る。
+  # アプリ本体をホストとして走る（テスト側は @testable import WanMap で内部APIを使う）。
+  WanMapTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - Tests
+    dependencies:
+      - target: WanMap
+
+# WanMapスキームはテスト対象を明示する（xcodebuild test が WanMapTests を拾えるように）
+schemes:
+  WanMap:
+    build:
+      targets:
+        WanMap: all
+        WanMapShare: all
+    test:
+      targets:
+        - WanMapTests

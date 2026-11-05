@@ -27,3 +27,22 @@ jobs:
             -scheme WanMap \
             -destination 'generic/platform=iOS' \
             CODE_SIGNING_ALLOWED=NO
+      # テスト用のシミュレータは機種名を固定せず、利用可能な iPhone から動的に選ぶ
+      # （Xcode の世代が変わって機種名が入れ替わっても壊れないようにするため）
+      - name: Pick an available iPhone simulator
+        id: sim
+        run: |
+          UDID=$(xcrun simctl list devices available | grep -m 1 'iPhone' | grep -Eo '[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}' | head -n 1)
+          test -n "$UDID"
+          echo "Simulator UDID: $UDID"
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+      # ビルド（実機向け汎用）とテスト（シミュレータ）はステップを分け、
+      # 失敗した時にどちらで落ちたか分かるようにする
+      - name: Test (unit tests on simulator)
+        working-directory: WanMap
+        run: |
+          xcodebuild test \
+            -project WanMap.xcodeproj \
+            -scheme WanMap \
+            -destination 'platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}' \
+            CODE_SIGNING_ALLOWED=NO

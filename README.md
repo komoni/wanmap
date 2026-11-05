@@ -19,7 +19,8 @@ Webプロトタイプで固めた仕様を、iPhoneアプリとして実装す�
   - **正直な線引き**：これは iOS の共有シート経由の取り込みであり、**Instagram アプリ内の拡張ではない**。Instagram と自動でつながって投稿を取得する仕組みでもない。対象になるのは、本人が共有操作をした文面だけ
 - `WanMap/project.yml` — XcodeGen 用の定義。施設JSONは `WanMap/Resources/facilities.json` に置く
   （最新の書き出しは `../facility-data/facilities.json`、620件）
-- `.github/workflows/build.yml` — GitHub Actions（macOS）で署名なしビルド検証するCI
+- `WanMap/Tests/` — 単体テスト（WanMapTestsターゲット、アプリ本体をホストに実行）。UIに依存しない純粋ロジックを守る：StoryTextParser の日付・時間帯・場所照合と確度、FacilityStore の正規化と検索（過去バグ「bで BamBoo's が出ない」の回帰防止）、Plan／PlanStore の「今ここ」2時間失効と移動での置き換え、UserPlaceStore のCRUD・検索
+- `.github/workflows/build.yml` — GitHub Actions（macOS）で署名なしビルド検証＋シミュレータでの単体テスト実行をするCI（シミュレータは機種名固定でなく利用可能な iPhone から動的に選択）
 - `DATA_UPDATE_DESIGN.md` — 施設データをアプリ再審査なしで更新する仕組みの設計
 - 利用ライブラリ：ClusterMap 3.0.0（https://github.com/vospennikov/ClusterMap、MIT License、SPMで導入）— 地図の施設マーカーのクラスタリング計算（`DogMapView` の施設表示を差分描画にしている。予定アイコンは対象外）
 - 利用ライブラリ：SwiftLocation 6.0（https://github.com/malcommac/SwiftLocation、MIT License、Copyright (c) Daniele Margutti、SPMで導入）— CoreLocation の async/await ラッパー（`LocationService` の継続取得・有意な位置変化・許可リクエスト。フェーズIで導入）
