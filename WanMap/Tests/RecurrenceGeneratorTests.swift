@@ -36,16 +36,16 @@ final class RecurrenceGeneratorTests: XCTestCase {
         let cal = tokyo
         let start = makeDate(2026, 11, 1, calendar: cal)  // 日曜
         let dates = generate(kind: .weekly, start: start, calendar: cal)
-        XCTAssertEqual(dates.map { labels([$0], calendar: cal) },
-                       [["2026/11/1"], ["2026/11/8"], ["2026/11/15"]])
+        XCTAssertEqual(labels(dates ?? [], calendar: cal),
+                       ["2026/11/1", "2026/11/8", "2026/11/15"])
     }
 
     func testWeekly_年をまたぐ() {
         let cal = tokyo
         let start = makeDate(2026, 12, 27, calendar: cal)  // 日曜
         let dates = generate(kind: .weekly, start: start, calendar: cal)
-        XCTAssertEqual(dates.map { labels([$0], calendar: cal) },
-                       [["2026/12/27"], ["2027/1/3"], ["2027/1/10"]])
+        XCTAssertEqual(labels(dates ?? [], calendar: cal),
+                       ["2026/12/27", "2027/1/3", "2027/1/10"])
     }
 
     func testWeekly_夏時間をまたいでも曜日が維持される() {
@@ -53,8 +53,8 @@ final class RecurrenceGeneratorTests: XCTestCase {
         cal.timeZone = TimeZone(identifier: "America/New_York")!
         let start = makeDate(2026, 3, 1, calendar: cal)  // 日曜。DST開始（3/8）をまたぐ
         let dates = generate(kind: .weekly, start: start, calendar: cal)
-        XCTAssertEqual(dates.map { labels([$0], calendar: cal) },
-                       [["2026/3/1"], ["2026/3/8"], ["2026/3/15"]])
+        XCTAssertEqual(labels(dates ?? [], calendar: cal),
+                       ["2026/3/1", "2026/3/8", "2026/3/15"])
         XCTAssertEqual(dates?.map { cal.component(.weekday, from: $0) }, [1, 1, 1])
     }
 
@@ -64,24 +64,24 @@ final class RecurrenceGeneratorTests: XCTestCase {
         let cal = tokyo
         let start = makeDate(2027, 1, 31, calendar: cal)
         let dates = generate(kind: .monthlyDay, start: start, calendar: cal)
-        XCTAssertEqual(dates.map { labels([$0], calendar: cal) },
-                       [["2027/1/31"], ["2027/2/28"], ["2027/3/31"]])
+        XCTAssertEqual(labels(dates ?? [], calendar: cal),
+                       ["2027/1/31", "2027/2/28", "2027/3/31"])
     }
 
     func testMonthlyDay_30日指定でも2月だけ末日になり3月は30日に戻る() {
         let cal = tokyo
         let start = makeDate(2027, 1, 30, calendar: cal)
         let dates = generate(kind: .monthlyDay, start: start, calendar: cal)
-        XCTAssertEqual(dates.map { labels([$0], calendar: cal) },
-                       [["2027/1/30"], ["2027/2/28"], ["2027/3/30"]])
+        XCTAssertEqual(labels(dates ?? [], calendar: cal),
+                       ["2027/1/30", "2027/2/28", "2027/3/30"])
     }
 
     func testMonthlyDay_うるう年は2月29日になる() {
         let cal = tokyo
         let start = makeDate(2028, 1, 31, calendar: cal)
         let dates = generate(kind: .monthlyDay, start: start, calendar: cal)
-        XCTAssertEqual(dates.map { labels([$0], calendar: cal) },
-                       [["2028/1/31"], ["2028/2/29"], ["2028/3/31"]])
+        XCTAssertEqual(labels(dates ?? [], calendar: cal),
+                       ["2028/1/31", "2028/2/29", "2028/3/31"])
     }
 
     func testMonthlyDay_月末でない日は重ねてもずれない() {
@@ -97,16 +97,16 @@ final class RecurrenceGeneratorTests: XCTestCase {
         let cal = tokyo
         let start = makeDate(2026, 11, 1, calendar: cal)  // 第1日曜
         let dates = generate(kind: .monthlyOrdinalWeekday, start: start, calendar: cal)
-        XCTAssertEqual(dates.map { labels([$0], calendar: cal) },
-                       [["2026/11/1"], ["2026/12/6"], ["2027/1/3"]])
+        XCTAssertEqual(labels(dates ?? [], calendar: cal),
+                       ["2026/11/1", "2026/12/6", "2027/1/3"])
     }
 
     func testMonthlyOrdinal_第2火曜() {
         let cal = tokyo
         let start = makeDate(2026, 11, 10, calendar: cal)  // 第2火曜
         let dates = generate(kind: .monthlyOrdinalWeekday, start: start, calendar: cal)
-        XCTAssertEqual(dates.map { labels([$0], calendar: cal) },
-                       [["2026/11/10"], ["2026/12/8"], ["2027/1/12"]])
+        XCTAssertEqual(labels(dates ?? [], calendar: cal),
+                       ["2026/11/10", "2026/12/8", "2027/1/12"])
     }
 
     func testMonthlyOrdinal_第5曜日がない月はその月の最後の同じ曜日になる() {
@@ -114,8 +114,8 @@ final class RecurrenceGeneratorTests: XCTestCase {
         let start = makeDate(2026, 11, 29, calendar: cal)  // 第5日曜
         let dates = generate(kind: .monthlyOrdinalWeekday, start: start, calendar: cal)
         // 2026年12月は日曜が4回しかないので最終日曜（27日）に倒れる。翌1月は第5日曜（31日）に戻る
-        XCTAssertEqual(dates.map { labels([$0], calendar: cal) },
-                       [["2026/11/29"], ["2026/12/27"], ["2027/1/31"]])
+        XCTAssertEqual(labels(dates ?? [], calendar: cal),
+                       ["2026/11/29", "2026/12/27", "2027/1/31"])
     }
 
     // MARK: - 回数
@@ -136,7 +136,7 @@ final class RecurrenceGeneratorTests: XCTestCase {
         // 毎週×12 の最終回は初回＋77日
         let weekly = generate(kind: .weekly, start: makeDate(2026, 11, 1, calendar: cal),
                               count: 12, calendar: cal)
-        XCTAssertEqual(weekly.flatMap { labels([$0], calendar: cal).first }, "2027/1/17")
+        XCTAssertEqual(labels(weekly ?? [], calendar: cal).last, "2027/1/17")
     }
 
     // MARK: - 不正条件の拒否
