@@ -69,7 +69,7 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                 } footer: {
-                    Text("連携はモックです。本物のInstagramとは接続していません（連携すると表示IDがユーザーネームになります）。")
+                    Text("連携はモックです。本物のInstagramとは接続していません（連携すると表示IDがユーザーネームになります）。投稿の取り込みは、共有シートや文面の貼り付けで本人が持ち込んだものだけです。自動で投稿を取得することはありません。")
                 }
 
                 Section {

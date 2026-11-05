@@ -29,10 +29,20 @@ targets:
         product: ClusterMapSwiftUI
       - package: SwiftLocation
         product: SwiftLocation
+      # 共有シート拡張（アプリに埋め込まれる。フェーズJ）
+      - target: WanMapShare
     sources:
       - Sources
+      # 拡張と本体で共有するコード（App Groups経由の受け渡し）
+      - Shared
     resources:
       - Resources/facilities.json
+    # App Groups：共有シート拡張との受け渡し場所を使うために必要（フェーズJ）
+    entitlements:
+      path: WanMap.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.jp.wanmap.app
     info:
       path: Sources/Info.plist
       properties:
@@ -42,3 +52,33 @@ targets:
         # 実際に効くのは「常に許可（Always）」が取れている時だけ。
         UIBackgroundModes:
           - location
+
+  # 共有シート取り込み（フェーズJ）
+  # iOSの共有シート経由でテキスト（およびURL付きテキスト）だけを受ける拡張。
+  # Instagramアプリ内の拡張ではなく、投稿の自動取得もしない（本人が共有操作した文面のみ）。
+  # 拡張側は共有UserDefaultsに保留を置くだけで、解析・保存は本体側が行う。
+  WanMapShare:
+    type: app-extension
+    platform: iOS
+    sources:
+      - ShareExtension
+      - Shared
+    entitlements:
+      path: WanMapShare.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.jp.wanmap.app
+    settings:
+      base:
+        # アプリ本体（com.example.WanMap）の配下になるよう明示
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.WanMap.WanMapShare
+    info:
+      path: ShareExtension/Info.plist
+      properties:
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
+          NSExtensionAttributes:
+            NSExtensionActivationRule:
+              NSExtensionActivationSupportsText: true
+              NSExtensionActivationSupportsWebURLWithMaxCount: 1

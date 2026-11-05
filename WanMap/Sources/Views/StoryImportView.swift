@@ -4,6 +4,8 @@ import SwiftUI
 ///
 /// 仕様（決定済み・最重要）：
 /// - Instagramの自動巡回はしない。ユーザーが自分で見つけた文面を持ち込む機能。
+///   入口はこの画面への貼り付けと、iOSの共有シート（フェーズJ：initialText で渡される）の2つ。
+///   どちらも「本人が共有操作をした文面」だけが対象で、自動で投稿を取得する仕組みではない。
 /// - 抽出結果は絶対に自動保存しない。下書き（StoryTextDraft）として提示し、
 ///   候補をタップして予定フォームで確認・保存した時に初めて予定になる。
 /// - 下書きは画面内の一時データで、どこにも永続化しない（破棄＝配列から消すだけ）。
@@ -19,6 +21,12 @@ struct StoryImportView: View {
     @State private var formDraft: StoryTextDraft?
     /// フォームを開いた下書きのID（onDismiss 時点では formDraft が nil になり得るため別に保持）
     @State private var openedDraftID: UUID?
+
+    /// initialText：共有シート経由で渡された文面の初期値（フェーズJ）。
+    /// 既存の呼び出し（引数なし）はそのまま使える。
+    init(initialText: String = "") {
+        _sourceText = State(initialValue: initialText)
+    }
 
     var body: some View {
         NavigationStack {

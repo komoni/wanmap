@@ -8,6 +8,15 @@ struct RootView: View {
     @State private var friendStore = FriendStore()
     @State private var location = LocationService()
 
+    @Environment(\.scenePhase) private var scenePhase
+    /// 共有シートから保留された取り込み（フェーズJ）。開いたら中身は破棄済み
+    @State private var sharedImport: SharedImportRequest?
+
+    private struct SharedImportRequest: Identifiable {
+        let id = UUID()
+        let text: String
+    }
+
     var body: some View {
         TabView {
             CalendarView()
@@ -36,6 +45,22 @@ struct RootView: View {
             }
             location.requestPermissionAndStart()
         }
+        // 共有シート経由の取り込み（フェーズJ）：起動時とフォアグラウンド復帰時に
+        // 保留があれば取り込み画面を開く。開く前に保留を消し、同じ文面が
+        // 何度も開かないようにする（解析・保存はあくまで取り込み画面側の確認を経る）。
+        .onAppear { checkSharedInbox() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { checkSharedInbox() }
+        }
+        .sheet(item: $sharedImport) { request in
+            StoryImportView(initialText: request.text)
+        }
+    }
+
+    private func checkSharedInbox() {
+        guard sharedImport == nil, let text = SharedImportInbox.pendingText() else { return }
+        SharedImportInbox.clear()
+        sharedImport = SharedImportRequest(text: text)
     }
 }
 
