@@ -609,7 +609,7 @@ struct DogMapView: View {
             Button {
                 showYearSheet = true
             } label: {
-                Text("\(Calendar.current.component(.year, from: selectedDate))年")
+                Text(String(Calendar.current.component(.year, from: selectedDate)) + "年")
                     .font(.caption).bold()
                     .padding(.horizontal, 8)
                     .padding(.vertical, 6)
@@ -722,7 +722,7 @@ struct DogMapView: View {
                     showYearSheet = false
                 } label: {
                     HStack {
-                        Text("\(year)年")
+                        Text(String(year) + "年")
                         Spacer()
                         if year == cal.component(.year, from: selectedDate) {
                             Image(systemName: "checkmark").foregroundStyle(.secondary)

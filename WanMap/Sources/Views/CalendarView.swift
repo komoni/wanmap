@@ -62,6 +62,8 @@ struct CalendarView: View {
         // ピッカー幅と間隔を詰めてタイトル分の幅を確保する。
         HStack(spacing: 6) {
             Button("今日") { displayedMonth = Date(); showYear = false }
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
             Spacer()
             Button { shift(by: -1) } label: { Image(systemName: "chevron.left") }
             Text(headerTitle)
