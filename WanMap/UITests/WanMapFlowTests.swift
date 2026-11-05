@@ -264,6 +264,86 @@ final class WanMapFlowTests: XCTestCase {
         resetFriendStateForLaterTests()
     }
 
+    // MARK: - フロー6：繰り返し予定の作成
+
+    /// 予定追加フォームで「毎週」×3回を選び、プレビュー（全3回）を確認して保存 →
+    /// 今日の日別一覧に反映され、開き直しても残っていることを確認する。
+    /// 2回目・3回目の日付そのものの検証は単体テスト（RecurrenceGeneratorTests／
+    /// PlanStoreSeriesTests）で担保し、ここではフォームと保存の配線を見る。
+    func test06_createWeeklySeries() throws {
+        launchAndSettleOnCalendar()
+        openTodayDayPlans()
+
+        let addButton = app.buttons["dayPlansAddButton"]
+        XCTAssertTrue(addButton.waitForExistence(timeout: 10),
+                      "予定追加ボタンが見つかりませんでした")
+        addButton.tap()
+        XCTAssertTrue(app.navigationBars["予定を追加"].waitForExistence(timeout: 10),
+                      "予定追加フォームが開きませんでした")
+
+        // 場所：候補地検索で既存施設「ドッグウィズ」を選ぶ（フロー1と同じ経路）
+        let placeField = app.textFields["場所を検索"]
+        XCTAssertTrue(placeField.waitForExistence(timeout: 10),
+                      "場所の検索欄が見つかりませんでした")
+        placeField.tap()
+        placeField.typeText("ドッグウィズ")
+        let candidate = app.buttons.matching(
+            NSPredicate(format: "label CONTAINS 'ドッグウィズ'")).firstMatch
+        XCTAssertTrue(candidate.waitForExistence(timeout: 10),
+                      "施設の候補が出ませんでした")
+        candidate.tap()
+
+        // 繰り返し：「毎週」を選ぶ（回数はデフォルトの3回のまま）
+        let weeklySegment = app.buttons["毎週"]
+        var attempts = 0
+        while !weeklySegment.isHittable && attempts < 5 {
+            app.swipeUp()
+            attempts += 1
+        }
+        XCTAssertTrue(weeklySegment.exists && weeklySegment.isHittable,
+                      "繰り返しの「毎週」が見つかりませんでした")
+        weeklySegment.tap()
+
+        // プレビューに全3回分の日付が出る
+        XCTAssertTrue(app.staticTexts["全3回"].waitForExistence(timeout: 10),
+                      "繰り返しのプレビュー（全3回）が表示されませんでした")
+
+        // 犬の名前（他のフロー・シードと被らない名前を使う）
+        let dogField = app.textFields["犬の名前"]
+        attempts = 0
+        while !dogField.isHittable && attempts < 5 {
+            app.swipeUp()
+            attempts += 1
+        }
+        XCTAssertTrue(dogField.waitForExistence(timeout: 10),
+                      "犬の名前欄が見つかりませんでした")
+        dogField.tap()
+        if let value = dogField.value as? String, !value.isEmpty {
+            dogField.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue,
+                                     count: value.count))
+        }
+        dogField.typeText("ムサシ")
+
+        // 保存 → 今日の日別一覧にシリーズの初回（犬名ムサシ）が出る
+        app.buttons["保存"].tap()
+        XCTAssertTrue(app.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS 'ムサシ'")).firstMatch
+            .waitForExistence(timeout: 10),
+            "保存した繰り返し予定が日別一覧に反映されませんでした")
+        attachScreenshot("flow06-weekly-series")
+
+        // カレンダーに戻って開き直しても残っていること
+        dismissTopSheetByDrag()
+        XCTAssertTrue(app.buttons["今日"].waitForExistence(timeout: 10),
+                      "カレンダーに戻れませんでした")
+        openTodayDayPlans()
+        XCTAssertTrue(app.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS 'ムサシ'")).firstMatch
+            .waitForExistence(timeout: 10),
+            "開き直した日別一覧に繰り返し予定が残っていませんでした")
+        dismissTopSheetByDrag()
+    }
+
     // MARK: - 共通処理
 
     /// シード付きで起動し、カレンダー表示で落ち着かせる（画面撮影側と同じ手順）
