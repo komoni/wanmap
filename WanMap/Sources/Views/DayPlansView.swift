@@ -53,9 +53,9 @@ struct DayPlansView: View {
     private func row(for plan: Plan) -> some View {
         HStack(spacing: 10) {
             ZStack {
-                Circle().fill(Color.orange.opacity(0.15)).frame(width: 34, height: 34)
+                Circle().fill(WanStyle.lavender.opacity(0.55)).frame(width: 34, height: 34)
                 if plan.isPresence {
-                    Image(systemName: "person.fill").foregroundStyle(.orange)
+                    Image(systemName: "person.fill").foregroundStyle(WanStyle.coral)
                 } else {
                     Text("🐶")
                 }
@@ -70,7 +70,7 @@ struct DayPlansView: View {
                             .font(.caption2)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(Color.orange.opacity(0.2))
+                            .background(WanStyle.apricot.opacity(0.45))
                             .clipShape(Capsule())
                     }
                 }

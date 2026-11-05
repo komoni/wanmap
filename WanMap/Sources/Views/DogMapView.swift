@@ -179,6 +179,7 @@ struct DogMapView: View {
             dateStrip
             bandRow
         }
+        .background(WanStyle.canvas)
         .sheet(isPresented: $showYearSheet) {
             yearSheet
                 .presentationDetents([.medium])
@@ -304,7 +305,7 @@ struct DogMapView: View {
                     .lineLimit(1)
                     .padding(.horizontal, 4)
                     .padding(.vertical, 1)
-                    .background(Color.white.opacity(0.85))
+                    .background(WanStyle.card.opacity(0.85))
                     .clipShape(Capsule())
             }
         }
@@ -317,7 +318,7 @@ struct DogMapView: View {
         } label: {
             ZStack {
                 Circle()
-                    .fill(Color.orange)
+                    .fill(WanStyle.cocoa)
                     .frame(width: 34, height: 34)
                     .overlay(Circle().stroke(Color.white, lineWidth: 2))
                 Text("\(cluster.count)")
@@ -341,7 +342,7 @@ struct DogMapView: View {
                     .lineLimit(1)
                     .padding(.horizontal, 4)
                     .padding(.vertical, 1)
-                    .background(Color.white.opacity(0.85))
+                    .background(WanStyle.card.opacity(0.85))
                     .clipShape(Capsule())
             }
         }
@@ -414,6 +415,7 @@ struct DogMapView: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
+            .tint(WanStyle.coral)
 
             Button {
                 // 地点登録モードに入る（中心ピンで地点を決める。カメラは動かさない）
@@ -442,7 +444,7 @@ struct DogMapView: View {
         ZStack {
             Image(systemName: "mappin")
                 .font(.system(size: 38))
-                .foregroundStyle(.red)
+                .foregroundStyle(WanStyle.coral)
                 .shadow(radius: 2)
                 .offset(y: -19)
                 .allowsHitTesting(false)
@@ -453,6 +455,7 @@ struct DogMapView: View {
                         .buttonStyle(.bordered)
                     Button("ここにする") { confirmPlacing() }
                         .buttonStyle(.borderedProminent)
+                        .tint(WanStyle.coral)
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
@@ -563,7 +566,7 @@ struct DogMapView: View {
         .font(.subheadline)
         .padding(.horizontal, 10)
         .frame(height: 36)
-        .background(Color(.secondarySystemBackground))
+        .background(WanStyle.lavender.opacity(0.4))
     }
 
     /// 候補リスト（地図の上端に重ねる）。タップしてもシートは開かず、地点へ飛ぶだけ。
@@ -613,7 +616,7 @@ struct DogMapView: View {
                     .font(.caption).bold()
                     .padding(.horizontal, 8)
                     .padding(.vertical, 6)
-                    .background(Color(.secondarySystemBackground))
+                    .background(WanStyle.lavender.opacity(0.4))
                     .clipShape(Capsule())
             }
             .buttonStyle(.plain)
@@ -656,18 +659,18 @@ struct DogMapView: View {
                     .font(.caption)
                     .bold(selected)
                     .foregroundStyle(selected ? Color.white
-                                     : weekday == 1 ? Color.red
-                                     : weekday == 7 ? Color.blue
+                                     : weekday == 1 ? WanStyle.coral
+                                     : weekday == 7 ? WanStyle.saturday
                                      : Color.primary)
                 if cal.isDateInToday(day) {
                     Circle()
-                        .fill(selected ? Color.white : Color.orange)
+                        .fill(selected ? Color.white : WanStyle.coral)
                         .frame(width: 4, height: 4)
                 }
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 5)
-            .background(selected ? Color.orange : Color(.secondarySystemBackground))
+            .background(selected ? WanStyle.coral : WanStyle.lavender.opacity(0.4))
             .clipShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -692,7 +695,7 @@ struct DogMapView: View {
                         .bold(selectedBand == band)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 4)
-                        .background(selectedBand == band ? Color.orange : Color(.secondarySystemBackground))
+                        .background(selectedBand == band ? WanStyle.coral : WanStyle.lavender.opacity(0.4))
                         .foregroundStyle(selectedBand == band ? Color.white : Color.primary)
                         .clipShape(Capsule())
                 }
@@ -748,13 +751,14 @@ struct DogMapView: View {
                     } label: {
                         ZStack {
                             Circle()
-                                .fill(person.hasPresence ? Color.pink : Color.orange)
+                                .fill(person.hasPresence ? WanStyle.coral : WanStyle.lavender)
                                 .frame(width: 28, height: 28)
                                 .overlay(Circle().stroke(Color.white, lineWidth: 1.5))
                                 .shadow(radius: 1)
                             Text(person.label)
                                 .font(.caption2).bold()
-                                .foregroundStyle(.white)
+                                // ラベンダー地は薄いので文字はココア（白では読めない）
+                                .foregroundStyle(person.hasPresence ? Color.white : WanStyle.cocoa)
                         }
                     }
                     .buttonStyle(.plain)
@@ -877,7 +881,7 @@ private struct FloatingPlanMarker: View {
     var body: some View {
         ZStack {
             Circle()
-                .fill(isOwn ? Color.pink : Color.orange)
+                .fill(isOwn ? WanStyle.coral : WanStyle.cocoa)
                 .frame(width: 26, height: 26)
                 .overlay(Circle().stroke(Color.white, lineWidth: 1.5))
             if plan.isPresence {

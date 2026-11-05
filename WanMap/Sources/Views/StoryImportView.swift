@@ -111,7 +111,7 @@ struct StoryImportView: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
                 Image(systemName: "mappin.circle.fill")
-                    .foregroundStyle(draft.placeName.isEmpty ? Color.secondary : Color.orange)
+                    .foregroundStyle(draft.placeName.isEmpty ? Color.secondary : WanStyle.coral)
                 Text(draft.placeName.isEmpty ? "場所未定" : draft.placeName)
                     .font(.subheadline)
                     .bold()
@@ -120,7 +120,7 @@ struct StoryImportView: View {
                     .font(.caption2)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
-                    .background(Color.orange.opacity(0.15))
+                    .background(WanStyle.lavender.opacity(0.55))
                     .clipShape(Capsule())
                     .foregroundStyle(.secondary)
             }

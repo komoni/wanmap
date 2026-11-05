@@ -47,7 +47,7 @@ struct CalendarView: View {
             }
         }
         .padding(.horizontal, 12)
-        .background(Color(.systemGroupedBackground))
+        .background(WanStyle.canvas)
         .sheet(item: $daySelection) { selection in
             DayPlansView(day: selection.day)
         }
@@ -112,8 +112,8 @@ struct CalendarView: View {
             ForEach(["日", "月", "火", "水", "木", "金", "土"], id: \.self) { label in
                 Text(label)
                     .font(.caption)
-                    .foregroundStyle(label == "日" ? Color.red.opacity(0.75)
-                                     : label == "土" ? Color.blue.opacity(0.75) : Color.secondary)
+                    .foregroundStyle(label == "日" ? WanStyle.coral.opacity(0.75)
+                                     : label == "土" ? WanStyle.saturday.opacity(0.75) : Color.secondary)
             }
         }
     }
@@ -147,7 +147,7 @@ struct CalendarView: View {
         return VStack(spacing: 2) {
             ZStack {
                 if isToday {
-                    Circle().fill(Color.orange).frame(width: 24, height: 24)
+                    Circle().fill(WanStyle.coral).frame(width: 24, height: 24)
                 }
                 Text("\(calendar.component(.day, from: day))")
                     .font(.subheadline)
@@ -157,14 +157,15 @@ struct CalendarView: View {
                 Text("🐾").font(.system(size: 8))
             }
             // アイコン＋場所名だけ（最大2件）。未登録地点の「今ここ」は人アイコンのみで場所名なし
+            // フェーズN：予定行はラベンダーのカプセル＋ココア文字のチップ表現にする
             ForEach(dayPlans.prefix(2)) { plan in
                 HStack(spacing: 2) {
                     ZStack {
-                        Circle().fill(Color.orange.opacity(0.18)).frame(width: 12, height: 12)
+                        Circle().fill(WanStyle.card).frame(width: 12, height: 12)
                         if plan.isPresence {
                             Image(systemName: "person.fill")
                                 .font(.system(size: 7))
-                                .foregroundStyle(.orange)
+                                .foregroundStyle(WanStyle.coral)
                         } else {
                             Text("🐶").font(.system(size: 8))
                         }
@@ -172,17 +173,21 @@ struct CalendarView: View {
                     if !plan.placeName.isEmpty {
                         Text(plan.placeName)
                             .font(.caption2)
+                            .foregroundStyle(WanStyle.cocoa)
                             .lineLimit(1)
                     }
                 }
+                .padding(.horizontal, 3)
+                .padding(.vertical, 1)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .background(WanStyle.lavender, in: Capsule())
             }
             Spacer(minLength: 0)
         }
         .padding(.vertical, 4)
         // 高さは週の行いっぱいに伸ばす（中身は末尾の Spacer と alignment で上寄せを維持）
         .frame(maxWidth: .infinity, minHeight: 60, maxHeight: .infinity, alignment: .top)
-        .background(Color.white)
+        .background(WanStyle.card)
         .clipShape(RoundedRectangle(cornerRadius: 10))
         .onTapGesture { daySelection = DaySelection(day: day) }
     }
@@ -222,7 +227,7 @@ struct CalendarView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(6)
-        .background(Color.white)
+        .background(WanStyle.card)
         .clipShape(RoundedRectangle(cornerRadius: 10))
         .onTapGesture {
             displayedMonth = first
@@ -234,11 +239,11 @@ struct CalendarView: View {
         ZStack {
             if let day {
                 if let plans = plansByDay[calendar.startOfDay(for: day)], !plans.isEmpty {
-                    Circle().fill(Color.orange.opacity(0.35))
+                    Circle().fill(WanStyle.lavender)
                 }
                 Text("\(calendar.component(.day, from: day))")
                     .font(.system(size: 8))
-                    .foregroundStyle(calendar.isDateInToday(day) ? Color.orange : color(for: day))
+                    .foregroundStyle(calendar.isDateInToday(day) ? WanStyle.coral : color(for: day))
                     .bold(calendar.isDateInToday(day))
             }
         }
@@ -266,9 +271,9 @@ struct CalendarView: View {
 
     private func color(for day: Date) -> Color {
         switch calendar.component(.weekday, from: day) {
-        case 1: return .red.opacity(0.75)      // 日曜＝コーラル
-        case 7: return .blue.opacity(0.75)     // 土曜＝スカイ
-        default: return .primary
+        case 1: return WanStyle.coral.opacity(0.75)      // 日曜＝コーラル
+        case 7: return WanStyle.saturday.opacity(0.75)   // 土曜＝ソフトブルー
+        default: return WanStyle.cocoa                   // 本文＝ココア
         }
     }
 }

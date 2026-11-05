@@ -27,6 +27,16 @@ Webプロトタイプで固めた仕様を、iPhoneアプリとして実装す�
 - 利用ライブラリ：ClusterMap 3.0.0（https://github.com/vospennikov/ClusterMap、MIT License、SPMで導入）— 地図の施設マーカーのクラスタリング計算（`DogMapView` の施設表示を差分描画にしている。予定アイコンは対象外）
 - 利用ライブラリ：SwiftLocation 6.0（https://github.com/malcommac/SwiftLocation、MIT License、Copyright (c) Daniele Margutti、SPMで導入）— CoreLocation の async/await ラッパー（`LocationService` の継続取得・有意な位置変化・許可リクエスト。フェーズIで導入）
 
+## フェーズN：「可愛い全面」デザインパターンの配色適用
+
+デザイン案4案（現行／ティール統一／高級感／可愛い全面）を比較し、本人が「可愛い全面」を選択（2026-11-05）。まず配色だけを実アプリへ適用した。色値は `../codex-design-2026-11-05/patterns-notes.md` のパターン2のHEXを正とする。
+
+- 追加：`WanMap/Sources/Views/WanStyle.swift` — 共通カラートークン（canvas ミルク #FFF8EF／card クリームホワイト #FFFEFC／coral コーラル #EE7869／apricot アプリコット #FFC879／lavender パウダーラベンダー #DCD5F2／cocoa ココア #533E38／saturday ソフトブルー #709DC6）。画面側の色はここを経由する
+- 適用範囲：今日の円・選択日・選択ピル・主要ボタン（地図の「今ここ」等）はコーラル、地図クラスターはココア地＋白文字＋白フチ、カレンダーの予定行はラベンダー地のカプセル＋ココア文字のチップ表現、予定マーカーはココア／自分の「今ここ」はコーラル、友達レールは presence＝コーラル／通常＝ラベンダー（文字はココア）、日曜はコーラル・土曜はソフトブルー、バナーはアプリコット基調のグラデーション、カレンダーと地図の最背面はミルク、セル・カード面はクリームホワイト。アプリ全体と TabView の tint はコーラル（シートで開く設定・フォーム類のアクセントもこれで揃う）
+- 変更していないもの：レイアウト・挙動・データ・文言は一切変更なし（予定チップの背景形状追加を除く）
+- **未適用（装飾フェーズは未実施）**：犬のイラスト、ギンガムチェック、肉球の散りばめ等の装飾要素は今回入れていない。モックアップ（cute-calendar.png／cute-map.png）の装飾を再現する場合は別フェーズで検討する
+- **実機での見え方は未確認**：コンパイルと画面の目視確認は CI のビルド／スクリーンショットで行い、実機確認は TestFlight 段階（従来どおり）。ダークモードは別設計が必要なため今回の対象外
+
 ## ビルド方法
 
 1. 本人のMac：XcodeGen を入れて `WanMap/` で `xcodegen generate` → Xcodeで開く

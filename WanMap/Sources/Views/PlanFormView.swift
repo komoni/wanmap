@@ -103,7 +103,7 @@ struct PlanFormView: View {
             if let facility = selectedFacility {
                 HStack {
                     Label(facility.displayName, systemImage: "mappin.circle.fill")
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(WanStyle.coral)
                     Spacer()
                     Button {
                         selectedFacility = nil
@@ -116,7 +116,7 @@ struct PlanFormView: View {
             } else if let place = selectedUserPlace {
                 HStack {
                     Label(place.name, systemImage: "mappin.circle.fill")
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(WanStyle.coral)
                     Spacer()
                     Button {
                         selectedUserPlace = nil
@@ -149,7 +149,7 @@ struct PlanFormView: View {
                         placeQuery = facility.displayName
                     } label: {
                         HStack {
-                            Image(systemName: "pawprint.fill").foregroundStyle(.orange)
+                            Image(systemName: "pawprint.fill").foregroundStyle(WanStyle.coral)
                             VStack(alignment: .leading, spacing: 1) {
                                 Text(facility.displayName).foregroundStyle(.primary)
                                 if let address = facility.address {

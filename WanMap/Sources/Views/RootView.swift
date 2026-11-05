@@ -41,6 +41,7 @@ struct RootView: View {
             EventsView()
                 .tabItem { Label("イベント", systemImage: "ticket") }
         }
+        .tint(WanStyle.coral)
         .environment(facilityStore)
         .environment(userPlaceStore)
         .environment(planStore)
@@ -88,7 +89,7 @@ struct EventsView: View {
                 ForEach(planStore.upcomingEvents()) { plan in
                     HStack(spacing: 10) {
                         ZStack {
-                            Circle().fill(Color.orange.opacity(0.15)).frame(width: 34, height: 34)
+                            Circle().fill(WanStyle.lavender.opacity(0.55)).frame(width: 34, height: 34)
                             Text("🐶")
                         }
                         VStack(alignment: .leading, spacing: 2) {

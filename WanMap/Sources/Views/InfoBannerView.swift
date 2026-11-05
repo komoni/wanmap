@@ -22,7 +22,7 @@ struct InfoBannerView: View {
             if !items.isEmpty {
                 HStack(spacing: 6) {
                     Image(systemName: current.systemImage)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(WanStyle.coral)
                     Text(current.text)
                         .lineLimit(1)
                 }
@@ -34,7 +34,7 @@ struct InfoBannerView: View {
         .frame(maxWidth: .infinity)
         .frame(height: 30)
         .background(
-            LinearGradient(colors: [Color.orange.opacity(0.16), Color.pink.opacity(0.10)],
+            LinearGradient(colors: [WanStyle.apricot.opacity(0.6), WanStyle.apricot.opacity(0.25)],
                            startPoint: .leading, endPoint: .trailing)
         )
         .clipShape(RoundedRectangle(cornerRadius: 8))
