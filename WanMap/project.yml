@@ -64,6 +64,8 @@ targets:
         # the app requires full screen.」の警告が出る。
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
+        # 縦向きのみにする代わりにフルスクリーン必須を宣言する（これが無いと向きの警告が残る。CI #19で判明）
+        UIRequiresFullScreen: true
         # バックグラウンド位置更新の宣言（フェーズI）。
         # 有意な位置変化でアプリが起こされ、「今ここ」を置き換えるために使う。
         # 実際に効くのは「常に許可（Always）」が取れている時だけ。

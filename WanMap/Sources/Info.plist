@@ -11,6 +11,8 @@
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
 	</array>
+	<key>UIRequiresFullScreen</key>
+	<true/>
 	<!-- バックグラウンド位置更新の宣言（フェーズI）。
 	     有意な位置変化（significant-change）でアプリが起こされ、
 	     置いてある「今ここ」を新しい位置に置き換えるために使う。
