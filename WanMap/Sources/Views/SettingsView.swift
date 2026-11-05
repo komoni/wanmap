@@ -74,10 +74,21 @@ struct SettingsView: View {
 
                 Section {
                     Toggle("自分の位置を表示しない", isOn: $location.hideMode)
+                    HStack {
+                        Text("位置情報の許可")
+                        Spacer()
+                        Text(authorizationStatusText)
+                            .foregroundStyle(.secondary)
+                    }
+                    if location.authorizationStatus == .authorizedWhenInUse {
+                        Button("アプリを閉じている間も反映する（常に許可）") {
+                            Task { await location.requestAlwaysUpgrade() }
+                        }
+                    }
                 } header: {
                     Text("位置情報")
                 } footer: {
-                    Text("位置はこの端末の中だけに保存され、外に送られることはありません。「今ここ」は置いてから2時間で自動的に消え、新しい位置を置くと前の場所は残りません。")
+                    Text(locationFooterText)
                 }
 
                 Section("データ") {
@@ -92,6 +103,10 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("設定")
+            .onChange(of: location.hideMode) { _, hidden in
+                // 非表示をやめたら、本人の操作として取得を再開する
+                if !hidden { location.requestPermissionAndStart() }
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("閉じる") { dismiss() }
@@ -109,6 +124,33 @@ struct SettingsView: View {
                 Text("この端末に保存した予定・友達・追加した場所のデータをすべて消します。自分のIDも新しく作り直されます。")
             }
         }
+    }
+
+    /// 許可状態の表示名（現状を正直に書く。許可されていないのに
+    /// バックグラウンドで動くとは書かない）
+    private var authorizationStatusText: String {
+        switch location.authorizationStatus {
+        case .authorizedAlways: return "常に許可"
+        case .authorizedWhenInUse: return "アプリ使用中のみ"
+        case .denied, .restricted: return "許可されていません"
+        case .notDetermined: return "未設定"
+        @unknown default: return "不明"
+        }
+    }
+
+    private var locationFooterText: String {
+        var text = "位置はこの端末の中だけに保存され、外に送られることはありません。「今ここ」は置いてから2時間で自動的に消え、新しい位置を置くと前の場所は残りません。"
+        switch location.authorizationStatus {
+        case .authorizedAlways:
+            text += "「常に許可」なので、アプリを閉じている間も大きな移動があった時に「今ここ」が置き換わります（常時GPSではなく、大きな移動の検知ベースです）。"
+        case .authorizedWhenInUse:
+            text += "今の許可では、位置が反映されるのはアプリを開いている間だけです。閉じている間も反映するには「常に許可」が必要です。"
+        case .denied, .restricted:
+            text += "位置情報が許可されていないため、「今ここ」は使えません。端末の設定アプリから許可できます。"
+        default:
+            break
+        }
+        return text
     }
 }
 

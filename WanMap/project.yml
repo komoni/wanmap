@@ -5,6 +5,10 @@ packages:
   ClusterMap:
     url: https://github.com/vospennikov/ClusterMap
     from: 3.0.0
+  # 位置情報の async/await ラッパー（MIT）。フェーズIで導入。現行6.x系で固定（解決先はタグ 6.0）。
+  SwiftLocation:
+    url: https://github.com/malcommac/SwiftLocation
+    from: 6.0.0
 options:
   bundleIdPrefix: com.example
   deploymentTarget:
@@ -23,6 +27,8 @@ targets:
         product: ClusterMap
       - package: ClusterMap
         product: ClusterMapSwiftUI
+      - package: SwiftLocation
+        product: SwiftLocation
     sources:
       - Sources
     resources:
@@ -31,3 +37,8 @@ targets:
       path: Sources/Info.plist
       properties:
         UILaunchScreen: {}
+        # バックグラウンド位置更新の宣言（フェーズI）。
+        # 有意な位置変化でアプリが起こされ、「今ここ」を置き換えるために使う。
+        # 実際に効くのは「常に許可（Always）」が取れている時だけ。
+        UIBackgroundModes:
+          - location

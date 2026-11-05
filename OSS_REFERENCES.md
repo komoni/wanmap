@@ -26,6 +26,7 @@
 
 - **SwiftLocation**（https://github.com/malcommac/SwiftLocation、MIT、⭐約3,419）
   CLLocationManager の async/await ラッパー。significant location changes（大きな移動のみ）中心に組む。モック付きテストも参考になる。
+  **フェーズI（2026-11-05）でSPM導入済み**：`project.yml` に `from: 6.0.0`（解決先はタグ `6.0`）で追加し、`LocationService` を SwiftLocation 経由に置き換えた（継続取得は `startMonitoringLocations()`、再開は `startMonitoringSignificantLocationChanges()`、許可は `requestPermission(_:)`、状態監視は `startMonitoringAuthorization()`）。同梱の MockedLocationManager はパッケージのテストターゲット内にありアプリから import できないため、公開プロトコル `LocationManagerProtocol` を実装したDEBUG専用モック（`Sources/Location/MockLocationManager.swift`）を同プロトコルへの差し替え口（`Location(locationManager:)`）で自前用意した。ライセンス表記は README の利用ライブラリ欄にも記載。
 - Apple公式サンプル「Monitoring location changes with Core Location」（CLMonitor / liveUpdates）はジオフェンスの正典として併読する。
 
 ## 認証

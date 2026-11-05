@@ -11,13 +11,15 @@ Webプロトタイプで固めた仕様を、iPhoneアプリとして実装す�
 - `WanMap/Sources/Data/FriendStore.swift` — 友達データの端末内保存（Documents/friends.json）。自分のID（表示ID／内部ID）、ID検索・申請（モック：自動承認）、受信申請の承認・拒否、「見せない」リスト。実通信はまだ無い
 - `WanMap/Sources/Data/StoryTextParser.swift` — ストーリー／投稿テキストの貼り付け取り込み用パーサー（UIから分離した純粋ロジック）。場所（施設名・自分の場所名の正規化照合）・日付表現・時間帯の語から下書き（StoryTextDraft）を作る。確度（上限「中」）と根拠メモは下書きだけの情報で、Planには持ち込まない
 - `WanMap/Sources/Data/SeedData.swift` — 仮想ユーザーの予定データ（DEBUG専用、プレビュー／検証用）
-- `WanMap/Sources/Location/LocationService.swift` — 現在地の取得（非表示モード・GPS揺らぎ抑制）
+- `WanMap/Sources/Location/LocationService.swift` — 現在地の取得（SwiftLocation経由：フォアグラウンドは精度10m級の継続取得、バックグラウンド／終了後の再開は有意な位置変化ベース。非表示モード・GPS揺らぎ抑制（25m／2分）・段階的な許可リクエスト（WhenInUse→Always格上げは設定画面から）・許可状態の公開を実装。新規の位置は `onLocationFix` 経由で PlanStore の「今ここ」置き換えに流れる）
+- `WanMap/Sources/Location/MockLocationManager.swift` — DEBUG専用の位置モック（`LocationManagerProtocol` 実装）。仮想の座標を流し込んで「移動→今ここが置き換わる」を実機なしで確認するための差し替え口と確認用プレビュー
 - `WanMap/Sources/Views/` — RootView（カレンダー／地図／イベントのタブ）、CalendarView、DogMapView（＋施設シート、日付ストリップ＋時間帯での予定絞り込み、友達レール、施設検索、予定アイコンの浮遊＋指から逃げる動き、地点登録＝中心ピンで場所を追加）、UserPlaceFormView（場所の追加・編集フォームと、自分の場所の情報シート。予定フォームの候補にも自分の場所が優先で出る）、StoryImportView（テキスト貼り付け取り込み：文面＋投稿日から下書き候補を作り、タップで予定フォームを開く。自動保存はせず、保存はフォーム経由のみ。カレンダー画面のアイコンボタンから開く）、InfoBannerView（広告／イベント告知バナー。地図・カレンダーの上部に共通の枠）、FriendsView（友達モック：ID表示・検索・申請・QR生成とコード追加）、SettingsView（自分のID、見せない相手＝友達画面と連動、位置情報の説明、データリセット）。友達画面と設定画面はカレンダー／地図の両方からアイコンボタンで開ける
 - `WanMap/project.yml` — XcodeGen 用の定義。施設JSONは `WanMap/Resources/facilities.json` に置く
   （最新の書き出しは `../facility-data/facilities.json`、620件）
 - `.github/workflows/build.yml` — GitHub Actions（macOS）で署名なしビルド検証するCI
 - `DATA_UPDATE_DESIGN.md` — 施設データをアプリ再審査なしで更新する仕組みの設計
 - 利用ライブラリ：ClusterMap 3.0.0（https://github.com/vospennikov/ClusterMap、MIT License、SPMで導入）— 地図の施設マーカーのクラスタリング計算（`DogMapView` の施設表示を差分描画にしている。予定アイコンは対象外）
+- 利用ライブラリ：SwiftLocation 6.0（https://github.com/malcommac/SwiftLocation、MIT License、Copyright (c) Daniele Margutti、SPMで導入）— CoreLocation の async/await ラッパー（`LocationService` の継続取得・有意な位置変化・許可リクエスト。フェーズIで導入）
 
 ## ビルド方法
 
@@ -28,7 +30,7 @@ Webプロトタイプで固めた仕様を、iPhoneアプリとして実装す�
 
 - アカウント基盤（Sign in with Apple／Instagram連携ログイン）とサーバー同期
 - 友達機能の実通信（モックUIは実装済み。申請・承認・通知の実通信）とQR実カメラ読み取り（現状はコード手入力で追加）
-- バックグラウンド位置（許可フローと審査対応含む）
+- バックグラウンド位置の実機挙動確認と審査対応（土台はフェーズIで実装済み：SwiftLocation組み込み、有意な位置変化による再開、`UIBackgroundModes: location`、段階的な許可リクエスト（WhenInUse→Always）、設定画面への許可状態の正直な表示、DEBUGモックでの差し替え口。**コンパイル確認済み／実機での再開・反映の挙動は未確認**で、TestFlight段階で確認する。App Store審査向けの説明文整備も残り）
 - 施設連携（施設オーナーのInstagram投稿→下書き→確認公開）
 - イベント募集への参加・承認機能（イベント一覧の表示自体は実装済み）
 - 予定データのサーバー同期（現状は端末内保存のみ）

@@ -26,6 +26,14 @@ struct RootView: View {
         .environment(location)
         .task {
             await facilityStore.refreshFromRemote()
+            // 新しい位置が適用されるたびに「今ここ」も置き換える。
+            // 地図側の onChange でも同じ呼び出しをしているが、こちらに繋ぐことで
+            // 地図を開いていない時（バックグラウンドで起こされた時）でも流れる。
+            // moveOwnPresence は座標が変わっていないと何もしないので二重適用にはならない。
+            location.onLocationFix = { [planStore] fix in
+                planStore.moveOwnPresence(latitude: fix.coordinate.latitude,
+                                          longitude: fix.coordinate.longitude)
+            }
             location.requestPermissionAndStart()
         }
     }
