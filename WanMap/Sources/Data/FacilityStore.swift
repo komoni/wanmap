@@ -25,6 +25,12 @@ final class FacilityStore {
         loadLocal()
     }
 
+    /// テスト・プレビュー用：施設データを直接渡す（キャッシュ・同梱JSONの読み込みを経由しない）
+    init(facilities: [Facility], version: Int = 1) {
+        self.facilities = facilities
+        self.version = version
+    }
+
     private func loadLocal() {
         if let data = try? Data(contentsOf: cacheURL),
            let dataset = try? JSONDecoder().decode(FacilityDataset.self, from: data) {

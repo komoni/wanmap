@@ -29,31 +29,47 @@ final class FacilityStoreTests: XCTestCase {
                        FacilityStore.normalize("bamboos"))
     }
 
-    // MARK: - 検索（同梱施設データに対する回帰テスト）
+    // MARK: - 検索（フィクスチャに対する回帰テスト）
+
+    /// 過去の実バグ「検索欄に b と打っても BamBoo's が出ない」の再現条件を、固定フィクスチャで守る
+    private func fixtureStore() -> FacilityStore {
+        FacilityStore(facilities: [
+            makeFacility(name: "BamBoo's", displayName: "BamBoo's（バンブーズ）"),
+            makeFacility(name: "BAMBOO DOGS"),
+            makeFacility(name: "ドッグウィズ"),
+        ])
+    }
 
     func testSearch_bの一文字でBamBoosが引ける() {
-        // テストホスト（アプリ本体）の同梱JSONに BamBoo's が含まれる前提の回帰テスト
-        let store = FacilityStore()
-        let results = store.search("b")
+        let results = fixtureStore().search("b")
         XCTAssertTrue(results.contains { $0.name == "BamBoo's" },
-                      "「b」の検索で BamBoo's が出ませんでした（過去バグの再発）")
+                      "「b」の検索で BamBoo's が出ませんでした（過去バグの再現）")
     }
 
     func testSearch_全角の大文字でもBamBoosが引ける() {
-        let store = FacilityStore()
-        let results = store.search("ＢＡＭＢＯＯ")
+        let results = fixtureStore().search("ＢＡＭＢＯＯ")
         XCTAssertTrue(results.contains { $0.name == "BamBoo's" })
     }
 
     func testSearch_アポストロフィ無しでもBamBoosが引ける() {
-        let store = FacilityStore()
-        let results = store.search("bamboos")
+        let results = fixtureStore().search("bamboos")
         XCTAssertTrue(results.contains { $0.name == "BamBoo's" })
     }
 
     func testSearch_空文字と空白だけの検索は空を返す() {
-        let store = FacilityStore()
+        let store = fixtureStore()
         XCTAssertTrue(store.search("").isEmpty)
         XCTAssertTrue(store.search("　").isEmpty)
+    }
+
+    // MARK: - 同梱データの統合テスト
+
+    /// アプリ同梱の facilities.json が実際に読み込めていることの確認。
+    /// ここが落ちる場合は「検索」ではなく「同梱データの読み込み」自体の問題（実機でも施設が0件になる重大不具合）。
+    func testBundledJSON_同梱データが読み込めてBamBoosが検索できる() {
+        let store = FacilityStore()
+        XCTAssertEqual(store.facilities.count, 620,
+                       "同梱JSONが読み込めていません（読み込み件数: \(store.facilities.count)）")
+        XCTAssertTrue(store.search("b").contains { $0.name == "BamBoo's" })
     }
 }
