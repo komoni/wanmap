@@ -10,6 +10,8 @@ struct DayPlansView: View {
 
     @State private var editingPlan: Plan?
     @State private var showNewForm = false
+    /// 削除範囲ダイアログの対象（シリーズの子をスワイプ削除する時だけ使う）
+    @State private var deletionTarget: Plan?
 
     private var plans: [Plan] { planStore.plans(on: day) }
 
@@ -31,7 +33,15 @@ struct DayPlansView: View {
                         }
                 }
                 .onDelete { offsets in
-                    offsets.map { plans[$0] }.forEach { planStore.remove($0) }
+                    let targets = offsets.map { plans[$0] }
+                    // 繰り返しの回は、範囲（この回だけ／シリーズ全体）を選んでから消す
+                    // （フォーム内削除と共通のダイアログを使う）
+                    if let seriesPlan = targets.first(where: { $0.seriesID != nil }) {
+                        targets.filter { $0.seriesID == nil }.forEach { planStore.remove($0) }
+                        deletionTarget = seriesPlan
+                    } else {
+                        targets.forEach { planStore.remove($0) }
+                    }
                 }
             }
             .navigationTitle(title)
@@ -43,6 +53,7 @@ struct DayPlansView: View {
                         .accessibilityIdentifier("dayPlansAddButton")
                 }
             }
+            .seriesDeletionDialog(target: $deletionTarget, store: planStore)
             .sheet(item: $editingPlan) { plan in
                 PlanFormView(editing: plan, defaultDate: day, defaultDogName: planStore.lastDogName)
             }

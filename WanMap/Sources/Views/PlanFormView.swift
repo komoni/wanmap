@@ -27,6 +27,14 @@ struct PlanFormView: View {
     @State private var placeQuery: String
     @State private var selectedFacility: Facility?
     @State private var selectedUserPlace: UserPlace?
+    /// 繰り返しの種類（新規作成時のみ。nil＝繰り返しなし）
+    @State private var recurrenceKind: RecurrenceKind?
+    /// 繰り返しの回数（初回を含む。3／6／12）
+    @State private var occurrenceCount: Int = 3
+    /// シリーズの子を編集中の対象範囲（この回だけ／シリーズ全体）
+    @State private var editScope: PlanEditScope = .occurrence
+    /// 削除範囲ダイアログの対象（シリーズの子を削除する時だけ使う）
+    @State private var deletionTarget: Plan?
 
     /// initialFacility：施設シートから開く時にその施設（名前・座標）を選択済みにする
     /// initialUserPlace：自分の場所のシートから開く時にその場所を選択済みにする
@@ -63,11 +71,19 @@ struct PlanFormView: View {
         return Array(facilityStore.search(placeQuery).prefix(8))
     }
 
+    /// 編集対象が属するシリーズ（通常予定・新規作成では nil）
+    private var editingSeries: RecurrenceSeries? {
+        guard let editing else { return nil }
+        return planStore.seriesFor(editing)
+    }
+
     var body: some View {
         NavigationStack {
             Form {
                 placeSection
+                if editingSeries != nil { scopeSection }
                 dateSection
+                if editing == nil { recurrenceSection }
                 dogSection
                 typeSection
                 privacySection
@@ -83,6 +99,7 @@ struct PlanFormView: View {
                     Button("保存") { save() }.bold()
                 }
             }
+            .seriesDeletionDialog(target: $deletionTarget, store: planStore) { dismiss() }
             .onAppear(perform: resolvePlaceFromEditingPlan)
             .onChange(of: placeQuery) { _, newValue in
                 // 手で書き換えたら選択は解除する（そのまま住所テキストとして扱う）
@@ -168,10 +185,43 @@ struct PlanFormView: View {
         }
     }
 
+    /// シリーズの子の編集で、対象範囲を選ぶ（この回だけ／シリーズ全体）。
+    /// 切り替えると入力欄は、選んだ範囲の内容（この回／シリーズの共通内容）で読み直される。
+    private var scopeSection: some View {
+        Section {
+            Picker("", selection: $editScope) {
+                Text("この回だけ").tag(PlanEditScope.occurrence)
+                Text("シリーズ全体").tag(PlanEditScope.series)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .onChange(of: editScope) { _, scope in applyScope(scope) }
+            if editScope == .series, let series = editingSeries {
+                Text("残っている\(planStore.occurrences(of: series.id).count)件すべてに、変更した項目だけが反映されます。個別に変更した同じ項目も上書きされます。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        } header: {
+            Label("変更する範囲", systemImage: "repeat")
+        } footer: {
+            Text("繰り返しの規則・開始日・回数は変更できません。変える場合は削除して作り直してください。")
+        }
+    }
+
     private var dateSection: some View {
         Section {
-            DatePicker(selection: $date, displayedComponents: .date) {
-                Label("日付", systemImage: "calendar")
+            if editingSeries == nil || editScope == .occurrence {
+                DatePicker(selection: $date, displayedComponents: .date) {
+                    Label(editing == nil && recurrenceKind != nil ? "初回の日付" : "日付",
+                          systemImage: "calendar")
+                }
+            } else {
+                // シリーズ全体の変更では、日付は対象外
+                HStack {
+                    Label("日付", systemImage: "calendar")
+                    Spacer()
+                    Text("全体変更の対象外").foregroundStyle(.secondary)
+                }
             }
             VStack(alignment: .leading, spacing: 6) {
                 Label("時間帯", systemImage: "clock")
@@ -192,12 +242,118 @@ struct PlanFormView: View {
         }
     }
 
+    /// 繰り返しの設定（新規作成時のみ）。種類と回数を選ぶと、
+    /// 保存前に生成される全日付をプレビュー表示する。
+    private var recurrenceSection: some View {
+        Section {
+            Picker("", selection: $recurrenceKind) {
+                Text("なし").tag(nil as RecurrenceKind?)
+                Text("毎週").tag(RecurrenceKind.weekly as RecurrenceKind?)
+                Text("同日").tag(RecurrenceKind.monthlyDay as RecurrenceKind?)
+                Text("第○曜日").tag(RecurrenceKind.monthlyOrdinalWeekday as RecurrenceKind?)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .accessibilityIdentifier("recurrencePicker")
+            if let kind = recurrenceKind {
+                Text(recurrenceDetailText(kind))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Picker("", selection: $occurrenceCount) {
+                    ForEach(RecurrenceGenerator.allowedCounts, id: \.self) { count in
+                        Text("\(count)回").tag(count)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .accessibilityIdentifier("occurrenceCountPicker")
+                if !previewDates.isEmpty {
+                    Text("全\(previewDates.count)回")
+                        .font(.subheadline)
+                        .bold()
+                    ForEach(previewDates, id: \.self) { day in
+                        Text(Self.dateLabel(day)).font(.subheadline)
+                    }
+                    if let last = previewDates.last {
+                        Text("最終日は \(Self.dateLabel(last)) です")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        } header: {
+            Label("繰り返し", systemImage: "repeat")
+        } footer: {
+            if let text = recurrenceFooterText {
+                Text(text)
+            }
+        }
+    }
+
+    private static let weekdayNames = ["日", "月", "火", "水", "木", "金", "土"]
+
+    /// 選択中の日付を基準にした、繰り返しの具体的な読み（例：毎月第1木曜日）
+    private func recurrenceDetailText(_ kind: RecurrenceKind) -> String {
+        let weekday = Calendar.current.component(.weekday, from: date)
+        let weekdayName = Self.weekdayNames[weekday - 1]
+        switch kind {
+        case .weekly:
+            return "毎週\(weekdayName)曜日"
+        case .monthlyDay:
+            return "毎月\(Calendar.current.component(.day, from: date))日"
+        case .monthlyOrdinalWeekday:
+            return "毎月第\(selectedOrdinal)\(weekdayName)曜日"
+        }
+    }
+
+    /// 選択した日付が「第○曜日」の何番目か
+    private var selectedOrdinal: Int {
+        (Calendar.current.component(.day, from: date) - 1) / 7 + 1
+    }
+
+    private var recurrenceFooterText: String? {
+        switch recurrenceKind {
+        case .monthlyDay:
+            return "その月にない日は、月末になります"
+        case .monthlyOrdinalWeekday where selectedOrdinal == 5:
+            let weekday = Calendar.current.component(.weekday, from: date)
+            return "第5曜日がない月は、その月の最後の\(Self.weekdayNames[weekday - 1])曜日になります"
+        default:
+            return nil
+        }
+    }
+
+    /// 繰り返しを選んだ時に生成される開催日（プレビュー用）
+    private var previewDates: [Date] {
+        guard let kind = recurrenceKind else { return [] }
+        let rule = RecurrenceRule(kind: kind, startDate: date, calendar: .current)
+        return RecurrenceGenerator.dates(rule: rule, start: date,
+                                         count: occurrenceCount, calendar: .current) ?? []
+    }
+
+    private static func dateLabel(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "ja_JP")
+        f.dateFormat = "M月d日（EEE）"
+        return f.string(from: date)
+    }
+
     private var dogSection: some View {
         Section {
             TextField("犬の名前", text: $dogName)
         } header: {
             Label("犬の名前", systemImage: "pawprint.fill")
         }
+    }
+
+    /// 締切を直接編集できる場面かどうか。
+    /// 締切は各回で個別に設定するものなので、繰り返しの新規作成と
+    /// シリーズ全体の変更では扱わない（各回だけの変更では従来どおり編集できる）。
+    private var showsDeadlineControls: Bool {
+        if editing != nil {
+            return editingSeries == nil || editScope == .occurrence
+        }
+        return recurrenceKind == nil
     }
 
     private var typeSection: some View {
@@ -209,9 +365,15 @@ struct PlanFormView: View {
             .pickerStyle(.segmented)
             .labelsHidden()
             if isEvent {
-                Toggle("締め切りを設定", isOn: $hasDeadline)
-                if hasDeadline {
-                    DatePicker("締め切り", selection: $deadline, displayedComponents: [.date, .hourAndMinute])
+                if showsDeadlineControls {
+                    Toggle("締め切りを設定", isOn: $hasDeadline)
+                    if hasDeadline {
+                        DatePicker("締め切り", selection: $deadline, displayedComponents: [.date, .hourAndMinute])
+                    }
+                } else {
+                    Text("締め切りは各回の予定で個別に設定できます")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
         } header: {
@@ -230,19 +392,72 @@ struct PlanFormView: View {
     private var deleteSection: some View {
         Section {
             Button(role: .destructive) {
-                if let editing { planStore.remove(editing) }
-                dismiss()
+                guard let editing else { return }
+                if editing.seriesID != nil {
+                    // シリーズの子は範囲を選んでから消す（日別一覧のスワイプ削除と共通）
+                    deletionTarget = editing
+                } else {
+                    planStore.remove(editing)
+                    dismiss()
+                }
             } label: {
                 HStack { Spacer(); Label("この予定を削除", systemImage: "trash"); Spacer() }
             }
         }
     }
 
+    /// 対象範囲の切り替えに合わせて、入力欄をその範囲の内容で読み直す
+    /// （この回だけ＝その回の予定、シリーズ全体＝親の共通内容。
+    ///   個別回の例外的な内容を、シリーズ全体の初期値にはしない）
+    private func applyScope(_ scope: PlanEditScope) {
+        guard let editing, let series = editingSeries else { return }
+        switch scope {
+        case .occurrence:
+            loadFields(from: editing)
+        case .series:
+            loadFields(from: series.template)
+        }
+    }
+
+    private func loadFields(from plan: Plan) {
+        date = plan.date
+        timeBand = plan.timeBand
+        level = plan.level
+        dogName = plan.dogName ?? ""
+        isEvent = plan.isEvent
+        hasDeadline = plan.eventDeadline != nil
+        deadline = plan.eventDeadline ?? plan.date
+        hidesOwnLocation = plan.hidesOwnLocation
+        placeQuery = plan.placeName
+        selectedFacility = nil
+        selectedUserPlace = nil
+        resolvePlace(named: plan.placeName)
+    }
+
+    private func loadFields(from template: PlanTemplate) {
+        timeBand = template.timeBand
+        level = template.level
+        dogName = template.dogName ?? ""
+        isEvent = template.isEvent
+        hasDeadline = false
+        hidesOwnLocation = template.hidesOwnLocation
+        placeQuery = template.placeName
+        selectedFacility = nil
+        selectedUserPlace = nil
+        resolvePlace(named: template.placeName)
+    }
+
     /// 編集時、保存済みの場所名が自分の場所／登録施設と一致したら選択状態を復元する
-    /// （自分で追加した情報の方が優先度が高いので、自分の場所から先に照合する）
     private func resolvePlaceFromEditingPlan() {
         guard !hasSelection, let editing, !editing.placeName.isEmpty else { return }
-        let target = FacilityStore.normalize(editing.placeName)
+        resolvePlace(named: editing.placeName)
+    }
+
+    /// 場所名が自分の場所／登録施設と一致したら選択状態を復元する
+    /// （自分で追加した情報の方が優先度が高いので、自分の場所から先に照合する）
+    private func resolvePlace(named name: String) {
+        guard !hasSelection, !name.isEmpty else { return }
+        let target = FacilityStore.normalize(name)
         if let place = userPlaceStore.places.first(where: {
             FacilityStore.normalize($0.name) == target
         }) {
@@ -283,6 +498,24 @@ struct PlanFormView: View {
         }
 
         let trimmedDog = dogName.trimmingCharacters(in: .whitespaces)
+        let resolvedDogName: String? = trimmedDog.isEmpty ? nil : trimmedDog
+
+        // シリーズ全体の共通内容変更：日付と締切は対象外なので、雛形だけを組み立てて渡す
+        // （変わった項目だけが全回へ反映される。PlanStore.updateSeriesContent 側で差分を取る）
+        if let editing, editing.seriesID != nil, editScope == .series,
+           let series = editingSeries {
+            let newTemplate = PlanTemplate(
+                personName: resolvedDogName ?? "自分",
+                dogName: resolvedDogName,
+                placeName: placeName, latitude: latitude, longitude: longitude,
+                timeBand: timeBand, level: level, isEvent: isEvent,
+                hidesOwnLocation: hidesOwnLocation
+            )
+            planStore.updateSeriesContent(seriesID: series.id, newTemplate: newTemplate)
+            dismiss()
+            return
+        }
+
         var plan = editing ?? Plan(
             id: UUID(), personName: "", dogName: nil, placeName: "",
             latitude: nil, longitude: nil, date: day,
@@ -290,7 +523,7 @@ struct PlanFormView: View {
             isEvent: false, eventDeadline: nil, isPresence: false, createdAt: Date()
         )
         plan.personName = editing?.personName ?? (trimmedDog.isEmpty ? "自分" : trimmedDog)
-        plan.dogName = trimmedDog.isEmpty ? nil : trimmedDog
+        plan.dogName = resolvedDogName
         plan.placeName = placeName
         plan.latitude = latitude
         plan.longitude = longitude
@@ -302,10 +535,25 @@ struct PlanFormView: View {
         plan.hidesOwnLocation = hidesOwnLocation
 
         if editing == nil {
-            planStore.add(plan)
+            if let kind = recurrenceKind {
+                // 繰り返し：全回を実体化してシリーズとして保存する。
+                // 締切は各回で個別に設定するものなので、ここでは付けない。
+                plan.eventDeadline = nil
+                let rule = RecurrenceRule(kind: kind, startDate: day, calendar: .current)
+                if planStore.addSeries(rule: rule, occurrenceCount: occurrenceCount,
+                                       templatePlan: plan) != nil {
+                    dismiss()
+                }
+            } else {
+                planStore.add(plan)
+                dismiss()
+            }
+        } else if editing?.seriesID != nil {
+            planStore.updateOccurrence(plan)
+            dismiss()
         } else {
             planStore.update(plan)
+            dismiss()
         }
-        dismiss()
     }
 }
