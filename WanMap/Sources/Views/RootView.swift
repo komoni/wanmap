@@ -4,9 +4,22 @@ import SwiftUI
 struct RootView: View {
     @State private var facilityStore = FacilityStore()
     @State private var userPlaceStore = UserPlaceStore()
-    @State private var planStore = PlanStore()
+    @State private var planStore: PlanStore
     @State private var friendStore = FriendStore()
     @State private var location = LocationService()
+
+    init() {
+        // UIテスト（画面撮影）専用の起動経路：起動引数 -UITestingSeedData の時だけ
+        // 仮想ユーザーのシード予定で起動し、撮影対象の画面に予定が見える状態にする。
+        // DEBUGのみの分岐で、通常起動の実データ（端末内保存）には一切混ぜない。
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-UITestingSeedData") {
+            _planStore = State(initialValue: PlanStore(samplePlans: SeedData.samplePlans()))
+            return
+        }
+        #endif
+        _planStore = State(initialValue: PlanStore())
+    }
 
     @Environment(\.scenePhase) private var scenePhase
     /// 共有シートから保留された取り込み（フェーズJ）。開いたら中身は破棄済み

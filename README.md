@@ -21,7 +21,8 @@ Webプロトタイプで固めた仕様を、iPhoneアプリとして実装す�
   （最新の書き出しは `../facility-data/facilities.json`、620件）
 - `WanMap/Resources/Assets.xcassets` — アプリアイコン（AppIcon、フェーズL）。販促用アイコン（看板犬オレオ）を仮素材として配置してあるが、**現素材は640×640で提出用の1024×1024に足りない**。正式アイコンの差し替えは TestFlight 手順側の残作業（下記）
 - `WanMap/Tests/` — 単体テスト（WanMapTestsターゲット、アプリ本体をホストに実行）。UIに依存しない純粋ロジックを守る：StoryTextParser の日付・時間帯・場所照合と確度、FacilityStore の正規化と検索（過去バグ「bで BamBoo's が出ない」の回帰防止）、Plan／PlanStore の「今ここ」2時間失効と移動での置き換え、UserPlaceStore のCRUD・検索
-- `.github/workflows/build.yml` — GitHub Actions（macOS）で署名なしビルド検証＋シミュレータでの単体テスト実行をするCI（シミュレータは機種名固定でなく利用可能な iPhone から動的に選択）
+- `WanMap/UITests/` — 画面撮影用UIテスト（WanMapUITestsターゲット）。実機（TestFlight）前にシミュレータの実画面を目で確認するためのもの。起動引数 `-UITestingSeedData`（RootView の DEBUG 専用分岐）でシード予定が見える状態で起動し、主要5画面（カレンダー月表示／地図／イベント／日別予定／設定）を巡回してスクリーンショットを XCTAttachment（keepAlways）に残す。地図マーカーのタップ（施設シート）は座標依存で不安定なため撮影対象外。CI では単体テストと別ステップ（continue-on-error）で実行し、画像はアーティファクト `wanmap-screenshots` として保存される
+- `.github/workflows/build.yml` — GitHub Actions（macOS）で署名なしビルド検証＋シミュレータでの単体テスト実行＋UIテストでの画面撮影をするCI（シミュレータは機種名固定でなく利用可能な iPhone から動的に選択）
 - `DATA_UPDATE_DESIGN.md` — 施設データをアプリ再審査なしで更新する仕組みの設計
 - 利用ライブラリ：ClusterMap 3.0.0（https://github.com/vospennikov/ClusterMap、MIT License、SPMで導入）— 地図の施設マーカーのクラスタリング計算（`DogMapView` の施設表示を差分描画にしている。予定アイコンは対象外）
 - 利用ライブラリ：SwiftLocation 6.0（https://github.com/malcommac/SwiftLocation、MIT License、Copyright (c) Daniele Margutti、SPMで導入）— CoreLocation の async/await ラッパー（`LocationService` の継続取得・有意な位置変化・許可リクエスト。フェーズIで導入）

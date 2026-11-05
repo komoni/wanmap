@@ -75,6 +75,8 @@ struct CalendarView: View {
                 Button { showStoryImport = true } label: { Image(systemName: "doc.on.clipboard") }
                 Button { showFriends = true } label: { Image(systemName: "person.2") }
                 Button { showSettings = true } label: { Image(systemName: "gearshape") }
+                    // アイコンのみのボタンはUIテストから確実に押せるよう識別子を付ける（見た目・挙動は不変）
+                    .accessibilityIdentifier("calendarSettingsButton")
             }
         }
     }

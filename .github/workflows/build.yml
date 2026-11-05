@@ -37,7 +37,8 @@ jobs:
           echo "Simulator UDID: $UDID"
           echo "udid=$UDID" >> "$GITHUB_OUTPUT"
       # ビルド（実機向け汎用）とテスト（シミュレータ）はステップを分け、
-      # 失敗した時にどちらで落ちたか分かるようにする
+      # 失敗した時にどちらで落ちたか分かるようにする。
+      # スキームには UI テストも登録されているため、単体テストは -only-testing で限定する
       - name: Test (unit tests on simulator)
         working-directory: WanMap
         run: |
@@ -45,4 +46,41 @@ jobs:
             -project WanMap.xcodeproj \
             -scheme WanMap \
             -destination 'platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}' \
+            -only-testing:WanMapTests \
             CODE_SIGNING_ALLOWED=NO
+      # UIテスト（画面撮影）：実機前にシミュレータの実画面を目で確認するためのもの。
+      # UIテストは不安定になりやすいので、失敗してもビルド／単体テストの成否と
+      # 混ざらないよう別ステップ＋continue-on-error にする（ステップ自体は赤く表示され、
+      # 失敗したことは分かる）。スクリーンショットは成否によらずアーティファクトに残す。
+      - name: UI tests (screenshots)
+        continue-on-error: true
+        working-directory: WanMap
+        run: |
+          # 地図がドッグウィズ周辺で開けるよう、シミュレータの現在地を best effort で寄せる
+          # （失敗しても撮影自体は続行する。位置が無ければ日本全体表示で撮れる）
+          xcrun simctl boot '${{ steps.sim.outputs.udid }}' || true
+          xcrun simctl location '${{ steps.sim.outputs.udid }}' set 35.1649375,137.08455 || true
+          xcodebuild test \
+            -project WanMap.xcodeproj \
+            -scheme WanMap \
+            -destination 'platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}' \
+            -only-testing:WanMapUITests \
+            -resultBundlePath build/UITestResults.xcresult \
+            CODE_SIGNING_ALLOWED=NO
+      # XCTAttachment で残したスクリーンショットを .xcresult から画像として取り出す
+      - name: Extract screenshots from UI test result
+        if: always()
+        continue-on-error: true
+        working-directory: WanMap
+        run: |
+          mkdir -p build/screenshots
+          xcrun xcresulttool export attachments \
+            --path build/UITestResults.xcresult \
+            --output-path build/screenshots
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wanmap-screenshots
+          path: WanMap/build/screenshots
+          if-no-files-found: warn

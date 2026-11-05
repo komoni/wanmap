@@ -113,7 +113,20 @@ targets:
     dependencies:
       - target: WanMap
 
-# WanMapスキームはテスト対象を明示する（xcodebuild test が WanMapTests を拾えるように）
+  # UIテスト（画面撮影用）
+  # 実機（TestFlight）前に、シミュレータ上で実際の画面を撮影して目で確認するためのもの。
+  # 起動引数 -UITestingSeedData でシード予定が表示された状態で起動し、
+  # 主要画面のスクリーンショットを XCTAttachment（keepAlways）として残す。
+  # CIでは単体テストと別ステップで実行する（-only-testing で振り分ける）。
+  WanMapUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - UITests
+    dependencies:
+      - target: WanMap
+
+# WanMapスキームはテスト対象を明示する（xcodebuild test が拾えるように）
 schemes:
   WanMap:
     build:
@@ -123,3 +136,4 @@ schemes:
     test:
       targets:
         - WanMapTests
+        - WanMapUITests
