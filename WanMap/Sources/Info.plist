@@ -2,6 +2,15 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- ホーム画面の表示名（フェーズL） -->
+	<key>CFBundleDisplayName</key>
+	<string>WanMap</string>
+	<!-- 縦向き前提のため、サポート向きは Portrait のみ（フェーズL）。
+	     project.yml の info.properties と揃えている。 -->
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+	</array>
 	<!-- バックグラウンド位置更新の宣言（フェーズI）。
 	     有意な位置変化（significant-change）でアプリが起こされ、
 	     置いてある「今ここ」を新しい位置に置き換えるために使う。
