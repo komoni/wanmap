@@ -79,14 +79,26 @@ final class WanMapScreenshotTests: XCTestCase {
     /// ④ カレンダーで予定のある日をタップした日別予定
     func test04_dayPlans() throws {
         launchAndSettleOnCalendar()
-        // シードでは「今日」と「直近の土曜」のセルに SKドッグラン が出る。どちらでもよい
-        let planText = app.staticTexts["SKドッグラン"].firstMatch
+        // シードでは「今日」と「直近の土曜」のセルに SKドッグラン が出る。どちらでもよい。
+        // セル内では場所名が「SK...」のように省略表示されるため、完全一致ではなく
+        // 前方一致で探す（省略表示でも省略されていないラベルでも拾える）。
+        let planText = app.staticTexts.matching(
+            NSPredicate(format: "label BEGINSWITH 'SK'")).firstMatch
         XCTAssertTrue(planText.waitForExistence(timeout: 15),
                       "予定のある日のセル（SKドッグラン）が見つかりませんでした")
-        planText.tap()
-        // 日別予定シートのナビタイトルは「M月d日（E）」形式
-        let dayTitle = app.navigationBars.matching(
-            NSPredicate(format: "label CONTAINS '月'")).element(boundBy: 0)
+        // 小さいキャプション文字でヒット可能と判定されない場合は、中心座標でタップする
+        if planText.isHittable {
+            planText.tap()
+        } else {
+            planText.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        }
+        // 日別予定シートのタイトルは「M月d日（E）」形式（例：11月5日（水））。
+        // ナビゲーションバーの label 属性での照合は実装依存で不安定なため、
+        // タイトル文字列そのもので待つ。「月」と「日」を両方含むテキストは
+        // カレンダー画面側には無い（年タイトルは「2026年11月」で「日」を含まず、
+        // バナーは「11/8（日）」で「月」を含まない）ので、シート出現の判定に使える。
+        let dayTitle = app.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS '月' AND label CONTAINS '日'")).firstMatch
         XCTAssertTrue(dayTitle.waitForExistence(timeout: 15),
                       "日別予定シートが開きませんでした")
         attachScreenshot("04-day-plans")

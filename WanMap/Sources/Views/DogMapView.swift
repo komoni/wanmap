@@ -196,31 +196,40 @@ struct DogMapView: View {
     private func mapView(proxy: MapProxy) -> some View {
         Map(position: $position) {
             // 施設マーカー（ClusterMap で計算した表示分だけ。密集時はクラスタに集約される）
+            // ※タイトルに施設名を入れると、ズーム13以上で名前カプセルと二重表示になるため空にする
+            //   （クラスタ側で確認済みの事象。名前表示は facilityMarker 内のカプセルが担う）
             ForEach(visibleFacilities) { item in
                 if let facility = facilityById[item.id] {
-                    Annotation(facility.displayName, coordinate: item.coordinate) {
+                    Annotation("", coordinate: item.coordinate) {
                         Button {
                             selectedFacility = facility
                         } label: {
                             facilityMarker(facility)
                         }
+                        .accessibilityLabel(facility.displayName)
                     }
                 }
             }
             // 施設クラスタ（件数バッジ）。タップで少し寄せる
+            // ※タイトルに件数を入れると、その文字列がアノテーション下部に
+            //   テキストラベルとしても描画され、バッジ内の数字と二重表示になる。
+            //   タイトルは空にし、件数はバッジ内だけに出す（読み上げ用は
+            //   clusterMarker 側の accessibilityLabel で担保する）。
             ForEach(visibleClusters) { cluster in
-                Annotation("\(cluster.count)件", coordinate: cluster.coordinate) {
+                Annotation("", coordinate: cluster.coordinate) {
                     clusterMarker(cluster)
                 }
             }
             // 自分で追加した場所（公式施設とは別枠。件数が少ないのでクラスタリングしない）
+            // ※タイトルは施設と同じ理由で空にする（名前は userPlaceMarker 内のカプセルが担う）
             ForEach(userPlaceStore.places) { place in
-                Annotation(place.name, coordinate: place.coordinate) {
+                Annotation("", coordinate: place.coordinate) {
                     Button {
                         selectedUserPlace = place
                     } label: {
                         userPlaceMarker(place)
                     }
+                    .accessibilityLabel(place.name)
                 }
             }
             // 予定アイコン（選択中の日付・時間帯の予定＋「今ここ」）。タイトルは出さずアイコンだけ。
@@ -315,6 +324,7 @@ struct DogMapView: View {
             }
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("\(cluster.count)件")
     }
 
     /// 自分の場所のマーカー：施設と同じ流儀（引いた表示は絵文字のみ、拡大時は名前も）
@@ -625,7 +635,10 @@ struct DogMapView: View {
             }
         }
         .padding(.horizontal, 6)
-        .padding(.vertical, 4)
+        // 高さを固定する。横ScrollViewは縦方向に伸縮可能で、固定しないと
+        // VStackの余り高さを地図と分け合い、ストリップだけ縦に膨らんで
+        // 地図の上に大きな白い空白ができる（実機スクリーンショットで確認）。
+        .frame(height: 40)
     }
 
     private func dayButton(_ day: Date) -> some View {

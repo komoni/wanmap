@@ -57,11 +57,18 @@ struct CalendarView: View {
     }
 
     private var header: some View {
-        HStack {
+        // 要素数が多く合計幅が画面幅を超えやすい。タイトルは圧縮抵抗が低く
+        // 真っ先に潰れて折り返すため、1行固定＋レイアウト優先度を上げ、
+        // ピッカー幅と間隔を詰めてタイトル分の幅を確保する。
+        HStack(spacing: 6) {
             Button("今日") { displayedMonth = Date(); showYear = false }
             Spacer()
             Button { shift(by: -1) } label: { Image(systemName: "chevron.left") }
-            Text(headerTitle).font(.headline)
+            Text(headerTitle)
+                .font(.headline)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .layoutPriority(1)
             Text("🐶")
             Button { shift(by: 1) } label: { Image(systemName: "chevron.right") }
             Spacer()
@@ -70,8 +77,8 @@ struct CalendarView: View {
                 Text("年").tag(true)
             }
             .pickerStyle(.segmented)
-            .frame(width: 110)
-            HStack(spacing: 12) {
+            .frame(width: 84)
+            HStack(spacing: 8) {
                 Button { showStoryImport = true } label: { Image(systemName: "doc.on.clipboard") }
                 Button { showFriends = true } label: { Image(systemName: "person.2") }
                 Button { showSettings = true } label: { Image(systemName: "gearshape") }
@@ -87,7 +94,7 @@ struct CalendarView: View {
         }
         let f = DateFormatter()
         f.locale = Locale(identifier: "ja_JP")
-        f.dateFormat = "yyyy年 M月"
+        f.dateFormat = "yyyy年M月"
         return f.string(from: displayedMonth)
     }
 
