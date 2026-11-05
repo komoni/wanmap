@@ -13,8 +13,8 @@ final class FacilityStore {
     private(set) var facilities: [Facility] = []
     private(set) var version: Int = 0
 
-    /// 配信JSONのURL（ホスティング先が決まったら差し替える）
-    var remoteURL: URL? = nil  // 例: https://example.github.io/wanmap/facilities.json
+    /// 配信JSONのURL（公開リポジトリ komoni/wanmap-data、2026-11-05に本人の決定で配信開始）
+    var remoteURL: URL? = URL(string: "https://raw.githubusercontent.com/komoni/wanmap-data/main/facilities.json")
 
     private var cacheURL: URL {
         FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
