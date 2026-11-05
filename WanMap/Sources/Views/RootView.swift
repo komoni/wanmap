@@ -6,6 +6,7 @@ struct RootView: View {
     @State private var userPlaceStore = UserPlaceStore()
     @State private var planStore: PlanStore
     @State private var friendStore = FriendStore()
+    @State private var themeStore = ThemeStore()
     @State private var location = LocationService()
 
     init() {
@@ -46,6 +47,7 @@ struct RootView: View {
         .environment(userPlaceStore)
         .environment(planStore)
         .environment(friendStore)
+        .environment(themeStore)
         .environment(location)
         .task {
             await facilityStore.refreshFromRemote()

@@ -9,6 +9,7 @@ Webプロトタイプで固めた仕様を、iPhoneアプリとして実装す�
 - `WanMap/Sources/Data/UserPlaceStore.swift` — ユーザーが追加した場所の端末内保存（Documents/user_places.json）とCRUD。公式施設JSONとは分離し、表示・検索の層でのみマージする（ユーザーの情報が優先）。公開範囲のデフォルトは「招待した人だけ」で、共有されるのは場所名のみ
 - `WanMap/Sources/Data/PlanStore.swift` — 予定の端末内保存（Documents/plans.json）とCRUD、「今ここ」の保持（isPresence の予定として保存、2時間除外・移動で置き換え）、犬の名前の使い回し
 - `WanMap/Sources/Data/FriendStore.swift` — 友達データの端末内保存（Documents/friends.json）。自分のID（表示ID／内部ID）、ID検索・申請（モック：自動承認）、受信申請の承認・拒否、「見せない」リスト。実通信はまだ無い
+- `WanMap/Sources/Data/ThemeStore.swift` — テーマ設定の置き場（フェーズO）。ユーザーが選べる配色をここに集約する。今は予定チップの色（プリセット5色、デフォルトはラベンダー）だけを UserDefaults（キー `wanmap.chipColorID`）に保存。将来的にアクセントカラー等をユーザー選択に広げる場合はここに足す（画面側はここの値を読むだけ）
 - `WanMap/Sources/Data/StoryTextParser.swift` — ストーリー／投稿テキストの貼り付け取り込み用パーサー（UIから分離した純粋ロジック）。場所（施設名・自分の場所名の正規化照合）・日付表現・時間帯の語から下書き（StoryTextDraft）を作る。確度（上限「中」）と根拠メモは下書きだけの情報で、Planには持ち込まない
 - `WanMap/Sources/Data/SeedData.swift` — 仮想ユーザーの予定データ（DEBUG専用、プレビュー／検証用）
 - `WanMap/Sources/Location/LocationService.swift` — 現在地の取得（SwiftLocation経由：フォアグラウンドは精度10m級の継続取得、バックグラウンド／終了後の再開は有意な位置変化ベース。非表示モード・GPS揺らぎ抑制（25m／2分）・段階的な許可リクエスト（WhenInUse→Always格上げは設定画面から）・許可状態の公開を実装。新規の位置は `onLocationFix` 経由で PlanStore の「今ここ」置き換えに流れる）
@@ -20,7 +21,7 @@ Webプロトタイプで固めた仕様を、iPhoneアプリとして実装す�
 - `WanMap/project.yml` — XcodeGen 用の定義。施設JSONは `WanMap/Resources/facilities.json` に置く
   （最新の書き出しは `../facility-data/facilities.json`、620件）
 - `WanMap/Resources/Assets.xcassets` — アプリアイコン（AppIcon、フェーズL）。販促用アイコン（看板犬オレオ）を仮素材として配置してあるが、**現素材は640×640で提出用の1024×1024に足りない**。正式アイコンの差し替えは TestFlight 手順側の残作業（下記）
-- `WanMap/Tests/` — 単体テスト（WanMapTestsターゲット、アプリ本体をホストに実行）。UIに依存しない純粋ロジックを守る：StoryTextParser の日付・時間帯・場所照合と確度、FacilityStore の正規化と検索（過去バグ「bで BamBoo's が出ない」の回帰防止）、Plan／PlanStore の「今ここ」2時間失効と移動での置き換え、UserPlaceStore のCRUD・検索
+- `WanMap/Tests/` — 単体テスト（WanMapTestsターゲット、アプリ本体をホストに実行）。UIに依存しない純粋ロジックを守る：StoryTextParser の日付・時間帯・場所照合と確度、FacilityStore の正規化と検索（過去バグ「bで BamBoo's が出ない」の回帰防止）、Plan／PlanStore の「今ここ」2時間失効と移動での置き換え、UserPlaceStore のCRUD・検索、ThemeStore のチップ色の既定・保存・不明IDフォールバック
 - `WanMap/UITests/` — 画面撮影用UIテスト（WanMapUITestsターゲット）。実機（TestFlight）前にシミュレータの実画面を目で確認するためのもの。起動引数 `-UITestingSeedData`（RootView の DEBUG 専用分岐）でシード予定が見える状態で起動し、主要5画面（カレンダー月表示／地図／イベント／日別予定／設定）を巡回してスクリーンショットを XCTAttachment（keepAlways）に残す。地図マーカーのタップ（施設シート）は座標依存で不安定なため撮影対象外。CI では単体テストと別ステップ（continue-on-error）で実行し、画像はアーティファクト `wanmap-screenshots` として保存される
 - `.github/workflows/build.yml` — GitHub Actions（macOS）で署名なしビルド検証＋シミュレータでの単体テスト実行＋UIテストでの画面撮影をするCI（シミュレータは機種名固定でなく利用可能な iPhone から動的に選択）
 - `DATA_UPDATE_DESIGN.md` — 施設データをアプリ再審査なしで更新する仕組みの設計
@@ -36,6 +37,15 @@ Webプロトタイプで固めた仕様を、iPhoneアプリとして実装す�
 - 変更していないもの：レイアウト・挙動・データ・文言は一切変更なし（予定チップの背景形状追加を除く）
 - **未適用（装飾フェーズは未実施）**：犬のイラスト、ギンガムチェック、肉球の散りばめ等の装飾要素は今回入れていない。モックアップ（cute-calendar.png／cute-map.png）の装飾を再現する場合は別フェーズで検討する
 - **実機での見え方は未確認**：コンパイルと画面の目視確認は CI のビルド／スクリーンショットで行い、実機確認は TestFlight 段階（従来どおり）。ダークモードは別設計が必要なため今回の対象外
+
+## フェーズO：予定チップの色をユーザーが変更可能に
+
+- 追加：`WanMap/Sources/Data/ThemeStore.swift` — テーマ設定の置き場（@Observable）。RootView で生成し、FriendStore と同じ流儀で environment に載せる。ユーザーが選べる配色はここに集約し、将来アクセントカラー等を追加する時はこのクラスにプロパティとプリセットを足して拡張する
+- 設定項目：設定画面に「デザイン」セクションを追加し、「予定チップの色」としてプリセット5色の円形スウォッチを横一列に表示。ラベンダー #DCD5F2（デフォルト、WanStyle のトークンと同値）／ミント #BDE5D5／ピーチ #F7E4CE／スカイ #C7DEF0／レモン #F5E7B8。選択中はコーラルのリング＋チェックで示し、スウォッチの下に現在の色名を表示する。タップで即変更・即保存（保存ボタンなし）
+- 保存先：UserDefaults のキー `wanmap.chipColorID` にプリセットIDのみを保存する。保存値が不明なIDの場合はラベンダーにフォールバックする
+- 反映範囲：カレンダー月セルの予定チップの地色だけ（文字色のココアは維持）。年表示の「予定あり」円など、他のラベンダー使用箇所は今回の対象外
+- テスト：`WanMap/Tests/ThemeStoreTests.swift` を追加（デフォルトがラベンダー／選択の保存と読み戻し／不明IDのフォールバック。UserDefaults(suiteName:) で hermetic に実施）
+- **実機での見え方は未確認**：確認は CI のビルド／スクリーンショットと TestFlight 段階（従来どおり）
 
 ## ビルド方法
 

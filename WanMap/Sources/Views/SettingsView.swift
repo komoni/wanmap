@@ -2,12 +2,14 @@ import SwiftUI
 
 /// 設定画面
 /// - 自分のID（表示ID・内部ID）の確認
+/// - 予定チップの色（テーマ設定 ThemeStore。タップで即変更・即保存）
 /// - 「見せない相手」リスト：友達画面と同じ FriendStore のデータを触るので連動する
 /// - Instagram連携はモックである旨を正直に表示する
 /// - 位置情報の扱い（端末内のみ・「今ここ」は2時間で消去）の説明と非表示モード
 /// - ローカルデータ（予定・友達・追加した場所）のリセット（確認ダイアログ付き）
 struct SettingsView: View {
     @Environment(FriendStore.self) private var friendStore
+    @Environment(ThemeStore.self) private var themeStore
     @Environment(PlanStore.self) private var planStore
     @Environment(UserPlaceStore.self) private var userPlaceStore
     @Environment(LocationService.self) private var location
@@ -36,6 +38,21 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                             .textSelection(.enabled)
                     }
+                }
+
+                Section("デザイン") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("予定チップの色")
+                        HStack(spacing: 14) {
+                            ForEach(ThemeStore.chipColorPresets) { preset in
+                                chipSwatch(preset)
+                            }
+                        }
+                        Text(themeStore.chipColorPreset.name)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 4)
                 }
 
                 Section {
@@ -126,6 +143,34 @@ struct SettingsView: View {
         }
     }
 
+    /// チップ色のスウォッチ（円）。選択中はコーラルのリング＋チェックで示す。
+    /// タップで即変更・即保存される（ThemeStore 側で UserDefaults に書く）。
+    private func chipSwatch(_ preset: ThemeStore.ChipColorPreset) -> some View {
+        let isSelected = themeStore.chipColorPreset.id == preset.id
+        return Button {
+            themeStore.selectChipColor(id: preset.id)
+        } label: {
+            Circle()
+                .fill(preset.color)
+                .frame(width: 36, height: 36)
+                .overlay {
+                    if isSelected {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(WanStyle.cocoa)
+                    }
+                }
+                .overlay {
+                    Circle()
+                        .strokeBorder(isSelected ? WanStyle.coral : Color.black.opacity(0.08),
+                                      lineWidth: isSelected ? 2.5 : 1)
+                }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(preset.name)
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+    }
+
     /// 許可状態の表示名（現状を正直に書く。許可されていないのに
     /// バックグラウンドで動くとは書かない）
     private var authorizationStatusText: String {
@@ -157,6 +202,7 @@ struct SettingsView: View {
 #Preview {
     SettingsView()
         .environment(FriendStore.preview)
+        .environment(ThemeStore())
         .environment(PlanStore(samplePlans: []))
         .environment(UserPlaceStore(samplePlaces: []))
         .environment(LocationService())

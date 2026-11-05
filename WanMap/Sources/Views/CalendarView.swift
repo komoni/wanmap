@@ -6,6 +6,7 @@ import SwiftUI
 /// 予定は PlanStore の実データを表示し、日タップでその日の予定一覧シートを開く。
 struct CalendarView: View {
     @Environment(PlanStore.self) private var planStore
+    @Environment(ThemeStore.self) private var themeStore
 
     @State private var displayedMonth: Date = Date()
     @State private var showYear = false
@@ -157,7 +158,8 @@ struct CalendarView: View {
                 Text("🐾").font(.system(size: 8))
             }
             // アイコン＋場所名だけ（最大2件）。未登録地点の「今ここ」は人アイコンのみで場所名なし
-            // フェーズN：予定行はラベンダーのカプセル＋ココア文字のチップ表現にする
+            // フェーズN：予定行はカプセル＋ココア文字のチップ表現にする
+            // フェーズO：チップの地色は設定で選べる ThemeStore の値（デフォルトはラベンダー）
             ForEach(dayPlans.prefix(2)) { plan in
                 HStack(spacing: 2) {
                     ZStack {
@@ -180,7 +182,7 @@ struct CalendarView: View {
                 .padding(.horizontal, 3)
                 .padding(.vertical, 1)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(WanStyle.lavender, in: Capsule())
+                .background(themeStore.chipColor, in: Capsule())
             }
             Spacer(minLength: 0)
         }
@@ -283,5 +285,6 @@ struct CalendarView: View {
     CalendarView()
         .environment(FacilityStore())
         .environment(PlanStore(samplePlans: SeedData.samplePlans()))
+        .environment(ThemeStore())
 }
 #endif
