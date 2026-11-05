@@ -39,11 +39,11 @@ struct CalendarView: View {
             if showYear {
                 yearGrid
             } else {
+                // 月グリッドが残りの高さいっぱいに広がる（下の空白を作らない）
                 VStack(spacing: 6) {
                     weekdayHeader
                     monthGrid
                 }
-                Spacer(minLength: 0)
             }
         }
         .padding(.horizontal, 12)
@@ -116,22 +116,27 @@ struct CalendarView: View {
         }
     }
 
-    /// 月初が何曜日かで決まる先頭の空マス数（日曜始まり）。
-    /// 例：2026年12月1日は火曜なので空マス2つで、1日が3列目に来る。
-    private func leadingBlanks(for month: Date) -> Int {
-        guard let first = daysIn(month).first else { return 0 }
-        return (calendar.component(.weekday, from: first) - calendar.firstWeekday + 7) % 7
-    }
-
+    /// 月グリッド。週の行（HStack）を縦に積み、各行・各セルが利用可能な
+    /// 高さいっぱいに均等に広がる形にする（LazyVGrid は行の高さを余らせて
+    /// 下に空白ができるため使わない）。空マスは weeksIn が nil で埋める。
+    /// セルの中身は上寄せのまま、セル自体の高さだけが伸びる。
     private var monthGrid: some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 7), spacing: 6) {
-            ForEach(0..<leadingBlanks(for: displayedMonth), id: \.self) { _ in
-                Color.clear.frame(maxWidth: .infinity, minHeight: 60)
-            }
-            ForEach(daysIn(displayedMonth), id: \.self) { day in
-                dayCell(day)
+        let weeks = weeksIn(displayedMonth)
+        return VStack(spacing: 6) {
+            ForEach(weeks.indices, id: \.self) { weekIndex in
+                HStack(spacing: 6) {
+                    ForEach(weeks[weekIndex].indices, id: \.self) { dayIndex in
+                        if let day = weeks[weekIndex][dayIndex] {
+                            dayCell(day)
+                        } else {
+                            Color.clear
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        }
+                    }
+                }
             }
         }
+        .frame(maxHeight: .infinity)
     }
 
     private func dayCell(_ day: Date) -> some View {
@@ -173,7 +178,8 @@ struct CalendarView: View {
             Spacer(minLength: 0)
         }
         .padding(.vertical, 4)
-        .frame(maxWidth: .infinity, minHeight: 60, alignment: .top)
+        // 高さは週の行いっぱいに伸ばす（中身は末尾の Spacer と alignment で上寄せを維持）
+        .frame(maxWidth: .infinity, minHeight: 60, maxHeight: .infinity, alignment: .top)
         .background(Color.white)
         .clipShape(RoundedRectangle(cornerRadius: 10))
         .onTapGesture { daySelection = DaySelection(day: day) }

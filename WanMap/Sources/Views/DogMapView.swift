@@ -21,6 +21,7 @@ import MapKit
 ///   カメラには触らない。
 /// - 「今ここ」は日付・時間帯に関係なく常時表示。PlanStore に isPresence の予定として保持する（2時間で自動消去、移動したら置き換え）。
 /// - 日付切替はボタン式（横スクロール、今日から84日分）＋時間帯ボタン（終日／朝／昼／夜）。
+///   地図が主役のため、この2つは地図の下（画面下部・タブバーの上）に置き、地図領域を最大化する。
 ///   選択中の日付はユーザー操作でのみ変わる。タイマー・位置取得・再表示などで勝手に戻す処理は置かない（強制リバート禁止）。
 /// - 友達レール（右端）：予定／presence を持つ人の小さなアイコン。タップでその人の地点へズーム15で飛ぶ。
 /// - 施設検索：候補タップではシートを開かず、ズーム15で地点へ寄るだけ。シートはマーカー／施設名タップの時だけ。
@@ -149,8 +150,8 @@ struct DogMapView: View {
                 .padding(.bottom, 2)
             topBar
             searchBar
-            dateStrip
-            bandRow
+            // 地図が主役なので、日付ストリップと時間帯は地図の下（画面下部）に置き、
+            // 地図が残りの領域を最大限使う構成にする（ユーザーの指示、2026-11-05）。
             ZStack {
                 MapReader { proxy in
                     mapView(proxy: proxy)
@@ -175,6 +176,8 @@ struct DogMapView: View {
                     }
                 }
             }
+            dateStrip
+            bandRow
         }
         .sheet(isPresented: $showYearSheet) {
             yearSheet
@@ -600,7 +603,7 @@ struct DogMapView: View {
 
     // MARK: - 日付ストリップ・時間帯
 
-    /// 日付ボタン（横スクロール）＋年ボタン。バー自体は地図の外に置くのでドラッグの邪魔にならない。
+    /// 日付ボタン（横スクロール）＋年ボタン。地図の下（フロー内）に置くのでドラッグの邪魔にならない。
     private var dateStrip: some View {
         HStack(spacing: 4) {
             Button {
