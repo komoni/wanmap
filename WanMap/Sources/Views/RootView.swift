@@ -1,4 +1,8 @@
 import SwiftUI
+#if DEBUG
+import CoreLocation
+import SwiftLocation
+#endif
 
 /// ルート：カレンダーがメイン画面（最初に開く画面）、地図とイベントはタブ（決定済み仕様）
 struct RootView: View {
@@ -7,19 +11,40 @@ struct RootView: View {
     @State private var planStore: PlanStore
     @State private var friendStore = FriendStore()
     @State private var themeStore = ThemeStore()
-    @State private var location = LocationService()
+    @State private var location: LocationService
+
+    #if DEBUG
+    /// UIフローテスト専用（起動引数 -UITestingFlowData の時だけ使う）：
+    /// モック位置マネージャ。実GPSの無いシミュレータでも「今ここ」の
+    /// 操作フローを検証できるよう、.task 側で現在地を1回流し込むために保持する。
+    /// 画面撮影（-UITestingSeedData のみ）では nil のままで、従来どおり実GPS経路になる。
+    private let uiFlowLocationManager: MockLocationManager?
+    #endif
 
     init() {
-        // UIテスト（画面撮影）専用の起動経路：起動引数 -UITestingSeedData の時だけ
-        // 仮想ユーザーのシード予定で起動し、撮影対象の画面に予定が見える状態にする。
-        // DEBUGのみの分岐で、通常起動の実データ（端末内保存）には一切混ぜない。
+        // UIテスト専用の起動経路（DEBUGのみ。通常起動の実データには一切混ぜない）：
+        // - -UITestingSeedData：仮想ユーザーのシード予定で起動し、撮影対象の画面に
+        //   予定が見える状態にする（画面撮影用。位置は実GPS経路のまま）。
+        // - -UITestingFlowData：シード予定に加えてモック現在地も使う（フロー検証用）。
         #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("-UITestingSeedData") {
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("-UITestingSeedData") || arguments.contains("-UITestingFlowData") {
             _planStore = State(initialValue: PlanStore(samplePlans: SeedData.samplePlans()))
-            return
+        } else {
+            _planStore = State(initialValue: PlanStore())
         }
-        #endif
+        if arguments.contains("-UITestingFlowData") {
+            let manager = MockLocationManager()
+            uiFlowLocationManager = manager
+            _location = State(initialValue: LocationService(location: Location(locationManager: manager)))
+        } else {
+            uiFlowLocationManager = nil
+            _location = State(initialValue: LocationService())
+        }
+        #else
         _planStore = State(initialValue: PlanStore())
+        _location = State(initialValue: LocationService())
+        #endif
     }
 
     @Environment(\.scenePhase) private var scenePhase
@@ -60,6 +85,16 @@ struct RootView: View {
                                           longitude: fix.coordinate.longitude)
             }
             location.requestPermissionAndStart()
+            #if DEBUG
+            // UIフローテスト専用：モック現在地（ドッグウィズ付近）を1回流し込む。
+            // 監視開始後に流れるよう少し待ってから emit する。
+            // -UITestingSeedData のみの起動では manager が nil なので何もしない。
+            if let uiFlowLocationManager {
+                try? await Task.sleep(for: .seconds(1))
+                uiFlowLocationManager.emitLocation(
+                    CLLocation(latitude: 35.1649375, longitude: 137.08455))
+            }
+            #endif
         }
         // 共有シート経由の取り込み（フェーズJ）：起動時とフォアグラウンド復帰時に
         // 保留があれば取り込み画面を開く。開く前に保留を消し、同じ文面が

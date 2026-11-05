@@ -39,6 +39,8 @@ struct DayPlansView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { showNewForm = true } label: { Image(systemName: "plus") }
+                        // アイコンのみのボタンはUIテストから確実に押せるよう識別子を付ける（見た目・挙動は不変）
+                        .accessibilityIdentifier("dayPlansAddButton")
                 }
             }
             .sheet(item: $editingPlan) { plan in

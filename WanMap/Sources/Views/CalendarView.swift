@@ -83,7 +83,10 @@ struct CalendarView: View {
             .frame(width: 84)
             HStack(spacing: 8) {
                 Button { showStoryImport = true } label: { Image(systemName: "doc.on.clipboard") }
+                    // アイコンのみのボタンはUIテストから確実に押せるよう識別子を付ける（見た目・挙動は不変）
+                    .accessibilityIdentifier("calendarStoryImportButton")
                 Button { showFriends = true } label: { Image(systemName: "person.2") }
+                    .accessibilityIdentifier("calendarFriendsButton")
                 Button { showSettings = true } label: { Image(systemName: "gearshape") }
                     // アイコンのみのボタンはUIテストから確実に押せるよう識別子を付ける（見た目・挙動は不変）
                     .accessibilityIdentifier("calendarSettingsButton")

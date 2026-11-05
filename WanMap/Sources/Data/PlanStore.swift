@@ -15,6 +15,9 @@ final class PlanStore {
     private(set) var lastDogName: String = ""
 
     private let persists: Bool
+    /// 非永続ストア（プレビュー／UIテスト用シード）での「今ここ」IDの保持先。
+    /// 永続ストアでは UserDefaults を使うため、こちらは使わない。
+    private var inMemoryOwnPresenceId: UUID?
     private var expiryTimer: Timer?
 
     private static let lastDogNameKey = "wanmap.lastDogName"
@@ -97,7 +100,7 @@ final class PlanStore {
         plans = []
         lastDogName = ""
         UserDefaults.standard.removeObject(forKey: Self.lastDogNameKey)
-        UserDefaults.standard.removeObject(forKey: Self.ownPresenceIdKey)
+        ownPresenceId = nil
         save()
     }
 
@@ -105,12 +108,35 @@ final class PlanStore {
 
     private static let ownPresenceIdKey = "wanmap.ownPresenceId"
 
+    /// 自分の「今ここ」の plan IDの置き場。永続ストアは UserDefaults（従来どおり）、
+    /// 非永続ストアは端末の保存先を汚さないようメモリ上にだけ保持する。
+    /// 非永続ストアでも置く／消す／置き換えが成立するので、シード表示での
+    /// 「今ここ」操作をUIテストで検証できる（永続ストアの挙動は変わらない）。
+    private var ownPresenceId: UUID? {
+        get {
+            if persists {
+                return UserDefaults.standard.string(forKey: Self.ownPresenceIdKey)
+                    .flatMap { UUID(uuidString: $0) }
+            }
+            return inMemoryOwnPresenceId
+        }
+        set {
+            if persists {
+                if let newValue {
+                    UserDefaults.standard.set(newValue.uuidString, forKey: Self.ownPresenceIdKey)
+                } else {
+                    UserDefaults.standard.removeObject(forKey: Self.ownPresenceIdKey)
+                }
+            } else {
+                inMemoryOwnPresenceId = newValue
+            }
+        }
+    }
+
     /// 自分が置いた「今ここ」（期限切れは除く）。端末内にだけ保持し、外部には送らない。
     /// 仮想ユーザー等の他人の presence と取り違えないよう、自分の plan のIDを別に保持する。
     var ownPresence: Plan? {
-        guard persists,
-              let idString = UserDefaults.standard.string(forKey: Self.ownPresenceIdKey),
-              let id = UUID(uuidString: idString),
+        guard let id = ownPresenceId,
               let plan = plans.first(where: { $0.id == id && $0.isPresence }),
               !plan.isExpiredPresence
         else { return nil }
@@ -133,7 +159,7 @@ final class PlanStore {
                         isEvent: false, eventDeadline: nil,
                         isPresence: true, createdAt: Date())
         plans.append(plan)
-        UserDefaults.standard.set(plan.id.uuidString, forKey: Self.ownPresenceIdKey)
+        ownPresenceId = plan.id
         save()
     }
 
@@ -150,11 +176,10 @@ final class PlanStore {
 
     /// 「今ここ」を消す
     func clearOwnPresence() {
-        if let idString = UserDefaults.standard.string(forKey: Self.ownPresenceIdKey),
-           let id = UUID(uuidString: idString) {
+        if let id = ownPresenceId {
             plans.removeAll { $0.id == id }
         }
-        UserDefaults.standard.removeObject(forKey: Self.ownPresenceIdKey)
+        ownPresenceId = nil
         save()
     }
 
