@@ -126,6 +126,7 @@ final class WanMapScreenshotTests: XCTestCase {
     func test06_designCalendarCoral() throws {
         app.launchArguments += ["-wmButtonVariant", "coral"]
         launchAndSettleOnCalendar()
+        assertHeaderElementsInsideWindow("1段・コーラル")
         attachScreenshot("design-calendar-coral")
     }
 
@@ -133,6 +134,7 @@ final class WanMapScreenshotTests: XCTestCase {
     func test07_designCalendarCocoa() throws {
         app.launchArguments += ["-wmButtonVariant", "cocoa"]
         launchAndSettleOnCalendar()
+        assertHeaderElementsInsideWindow("1段・ココア")
         attachScreenshot("design-calendar-cocoa")
     }
 
@@ -140,6 +142,7 @@ final class WanMapScreenshotTests: XCTestCase {
     func test08_designCalendarStacked() throws {
         app.launchArguments += ["-wmHeaderLayout", "stacked"]
         launchAndSettleOnCalendar()
+        assertHeaderElementsInsideWindow("2段")
         attachScreenshot("design-calendar-stacked")
     }
 
@@ -166,6 +169,42 @@ final class WanMapScreenshotTests: XCTestCase {
     }
 
     // MARK: - 共通処理
+
+    /// ヘッダー要素が画面（window）の内側に収まっていることの回帰ガード。
+    /// CI #49 で、1段では今日ボタンが左端で切れ設定ボタンが画面外へ出て、
+    /// 両レイアウトでタイトルが省略されハスキー顔が幅0に潰れる崩れがあった。
+    /// タイトルの省略（「202…」）自体はラベルでは検出できないため、
+    /// フレームの収まり＋タイトル幅の下限で「押し出し・圧縮」を検出し、
+    /// 全文表示そのものは目視スクショで担保する。
+    private func assertHeaderElementsInsideWindow(_ layout: String) {
+        let window = app.windows.firstMatch
+        XCTAssertTrue(window.waitForExistence(timeout: 10),
+                      "windowが見つかりませんでした")
+        // 座標の丸め誤差を1ptだけ許容する
+        let bounds = window.frame.insetBy(dx: -1, dy: -1)
+
+        func assertInside(_ element: XCUIElement, _ name: String) {
+            XCTAssertTrue(element.waitForExistence(timeout: 10),
+                          "\(name)が見つかりませんでした（\(layout)）")
+            XCTAssertTrue(bounds.contains(element.frame),
+                          "\(name)が画面外にはみ出しています（\(layout)）: \(element.frame)")
+        }
+
+        assertInside(app.buttons["今日"], "今日ボタン")
+        assertInside(app.buttons["calendarPrevMonthButton"], "前月ボタン")
+        assertInside(app.buttons["calendarNextMonthButton"], "次月ボタン")
+        assertInside(app.buttons["calendarSettingsButton"], "設定ボタン")
+
+        // 年月タイトル（例「2026年11月」）。カレンダー画面で「年」と「月」を
+        // 両方含む静的テキストはタイトルだけ（日セルは数字、バナーは「11/8（日）」等）
+        let title = app.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS '年' AND label CONTAINS '月'")).firstMatch
+        assertInside(title, "年月タイトル")
+        // 全文は 1段（subheadline）でも約75ptある。潰れて省略されると
+        // 40〜60pt台まで縮むため、幅の下限でも圧縮を検出する
+        XCTAssertGreaterThan(title.frame.width, 60,
+                             "年月タイトルが圧縮されている可能性があります（\(layout)）: 幅 \(title.frame.width)")
+    }
 
     /// シード付きで起動し、位置情報アラートを捌いてカレンダー表示で落ち着かせる
     private func launchAndSettleOnCalendar() {

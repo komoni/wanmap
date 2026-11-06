@@ -64,33 +64,42 @@ struct CalendarView: View {
         // 「透明度を下げる」設定時は柄を消して無地（ミルク）にする。
         // レイアウトは AppearanceStore の比較案で切り替わる：
         // 1段（現行）／2段（補助操作を下段へ）。既定は1段。
+        //
+        // 幅の予算（iPhone 16 Pro＝402pt、画面の横余白12を引いた帯の内寸は
+        // 1段＝370pt／2段＝358pt）：全要素を並べると簡単に溢れ、圧縮抵抗の低い
+        // タイトルとハスキー顔から潰れて消える（CI #49で確認）。
+        // そのためタイトルとハスキーは fixedSize＋layoutPriority で保護し、
+        // 幅の調整はヘッダー内に限る（タップ枠は高さ44pt維持で幅だけ詰める、
+        // Picker幅、帯の内側余白、今日ボタンの内側余白）。
+        // 1段の内訳目安：今日約45＋クラスタ約167＋Picker 56＋補助約94＝約362pt。
         Group {
             if appearanceStore.headerLayout == .stacked {
                 VStack(spacing: 2) {
-                    HStack(spacing: 6) {
+                    HStack(spacing: 2) {
                         todayButton
-                        Spacer()
-                        monthNavCluster
-                        Spacer()
-                        monthYearPicker
+                        Spacer(minLength: 0)
+                        monthNavCluster(compact: false)
+                        Spacer(minLength: 0)
+                        monthYearPicker(width: 84)
                     }
                     HStack(spacing: 8) {
                         Spacer()
-                        auxButtons
+                        auxButtons(compact: false)
                     }
                 }
+                .padding(.horizontal, 10)
             } else {
-                HStack(spacing: 6) {
+                HStack(spacing: 0) {
                     todayButton
-                    Spacer()
-                    monthNavCluster
-                    Spacer()
-                    monthYearPicker
-                    auxButtons
+                    Spacer(minLength: 0)
+                    monthNavCluster(compact: true)
+                    Spacer(minLength: 0)
+                    monthYearPicker(width: 56)
+                    auxButtons(compact: true)
                 }
+                .padding(.horizontal, 4)
             }
         }
-        .padding(.horizontal, 10)
         .padding(.vertical, 4)
         .background {
             if reduceTransparency {
@@ -106,72 +115,77 @@ struct CalendarView: View {
     private var todayButton: some View {
         Button("今日") { displayedMonth = Date(); showYear = false }
             .buttonStyle(WanPrimaryButtonStyle(fill: appearanceStore.primaryColor,
-                                               horizontalPadding: 12, verticalPadding: 6))
+                                               horizontalPadding: 8, verticalPadding: 6))
             .lineLimit(1)
             .fixedSize(horizontal: true, vertical: false)
     }
 
     /// 年月タイトル＋前後月＋ハスキー顔（旧🐶絵文字の置換。静止画・装飾扱い）
-    private var monthNavCluster: some View {
-        // 要素数が多く合計幅が画面幅を超えやすい。タイトルは圧縮抵抗が低く
-        // 真っ先に潰れて折り返すため、1行固定＋レイアウト優先度を上げている。
+    /// compact＝1段用（タップ枠の幅・タイトル・ハスキーを詰める）。
+    /// タイトルとハスキーは fixedSize＋layoutPriority で圧縮から守る
+    /// （潰れるくらいなら周りの余白が先に詰まるようにする）。
+    private func monthNavCluster(compact: Bool) -> some View {
         HStack(spacing: 2) {
             Button { shift(by: -1) } label: {
                 Image(systemName: "chevron.left").foregroundStyle(WanStyle.coral)
             }
             .buttonStyle(WanPressButtonStyle())
-            .wanTapTarget()
+            .modifier(HeaderTapTarget(compact: compact))
             // アイコンのみのボタンはUIテストから確実に押せるよう識別子を付ける（見た目・挙動は不変）
             .accessibilityIdentifier("calendarPrevMonthButton")
             Text(headerTitle)
-                .font(.headline)
+                .font(compact ? .subheadline.weight(.semibold) : .headline)
                 .lineLimit(1)
-                .minimumScaleFactor(0.8)
-                .layoutPriority(1)
+                .fixedSize(horizontal: true, vertical: false)
+                .layoutPriority(2)
             Image("HuskyFace")
                 .resizable()
                 .scaledToFit()
-                .frame(width: 38, height: 38)
+                .frame(width: compact ? 26 : 32, height: compact ? 26 : 32)
+                .fixedSize()
+                .layoutPriority(2)
                 .accessibilityHidden(true)
             Button { shift(by: 1) } label: {
                 Image(systemName: "chevron.right").foregroundStyle(WanStyle.coral)
             }
             .buttonStyle(WanPressButtonStyle())
-            .wanTapTarget()
+            .modifier(HeaderTapTarget(compact: compact))
             .accessibilityIdentifier("calendarNextMonthButton")
         }
     }
 
-    private var monthYearPicker: some View {
+    private func monthYearPicker(width: CGFloat) -> some View {
         Picker("", selection: $showYear) {
             Text("月").tag(false)
             Text("年").tag(true)
         }
         .pickerStyle(.segmented)
-        .frame(width: 84)
+        .frame(width: width)
+        .fixedSize(horizontal: true, vertical: false)
     }
 
-    /// 補助操作（取り込み・友達・設定）。タップ領域は最小44ptを確保する
-    private var auxButtons: some View {
-        HStack(spacing: 8) {
+    /// 補助操作（取り込み・友達・設定）。タップ領域の高さは44ptを維持し、
+    /// 1段（compact）では幅だけ30ptに詰める
+    private func auxButtons(compact: Bool) -> some View {
+        HStack(spacing: compact ? 2 : 8) {
             Button { showStoryImport = true } label: {
                 Image(systemName: "doc.on.clipboard").foregroundStyle(WanStyle.coral)
             }
             .buttonStyle(WanPressButtonStyle())
-            .wanTapTarget()
+            .modifier(HeaderTapTarget(compact: compact))
             // アイコンのみのボタンはUIテストから確実に押せるよう識別子を付ける（見た目・挙動は不変）
             .accessibilityIdentifier("calendarStoryImportButton")
             Button { showFriends = true } label: {
                 Image(systemName: "person.2").foregroundStyle(WanStyle.coral)
             }
             .buttonStyle(WanPressButtonStyle())
-            .wanTapTarget()
+            .modifier(HeaderTapTarget(compact: compact))
             .accessibilityIdentifier("calendarFriendsButton")
             Button { showSettings = true } label: {
                 Image(systemName: "gearshape").foregroundStyle(WanStyle.coral)
             }
             .buttonStyle(WanPressButtonStyle())
-            .wanTapTarget()
+            .modifier(HeaderTapTarget(compact: compact))
             .accessibilityIdentifier("calendarSettingsButton")
         }
     }
@@ -371,6 +385,22 @@ struct CalendarView: View {
         case 1: return WanStyle.coral.opacity(0.75)      // 日曜＝コーラル
         case 7: return WanStyle.saturday.opacity(0.75)   // 土曜＝ソフトブルー
         default: return WanStyle.cocoa                   // 本文＝ココア
+        }
+    }
+}
+
+/// ヘッダー専用のタップ領域。共通の wanTapTarget（44×44pt）は地図画面でも
+/// 使うため変えず、ヘッダーでは compact 時に幅だけ30ptへ詰める（高さ44ptは維持）。
+private struct HeaderTapTarget: ViewModifier {
+    let compact: Bool
+
+    func body(content: Content) -> some View {
+        if compact {
+            content
+                .frame(minWidth: 30, minHeight: 44)
+                .contentShape(Rectangle())
+        } else {
+            content.wanTapTarget()
         }
     }
 }
