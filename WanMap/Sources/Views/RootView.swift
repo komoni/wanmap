@@ -26,9 +26,18 @@ struct RootView: View {
         // - -UITestingSeedData：仮想ユーザーのシード予定で起動し、撮影対象の画面に
         //   予定が見える状態にする（画面撮影用。位置は実GPS経路のまま）。
         // - -UITestingFlowData：シード予定に加えてモック現在地も使う（フロー検証用）。
+        // - -UITestingPersistentPlans：隔離した永続保存先で起動する（愛ハス定例デモ用。
+        //   シードと違い実ファイルへ読み書きするので、終了→再起動でも同じ予定が
+        //   残ることを証明できる。-UITestingPersistentPlansReset を併せると空から始める）。
         #if DEBUG
         let arguments = ProcessInfo.processInfo.arguments
-        if arguments.contains("-UITestingSeedData") || arguments.contains("-UITestingFlowData") {
+        if arguments.contains(UITestingPersistentStore.launchArgument) {
+            if arguments.contains(UITestingPersistentStore.resetArgument) {
+                UITestingPersistentStore.reset()
+            }
+            _planStore = State(initialValue: PlanStore(
+                fileURL: UITestingPersistentStore.prepareFileURL()))
+        } else if arguments.contains("-UITestingSeedData") || arguments.contains("-UITestingFlowData") {
             _planStore = State(initialValue: PlanStore(samplePlans: SeedData.samplePlans()))
         } else {
             _planStore = State(initialValue: PlanStore())

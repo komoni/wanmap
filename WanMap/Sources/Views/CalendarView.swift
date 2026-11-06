@@ -67,6 +67,8 @@ struct CalendarView: View {
                 .fixedSize(horizontal: true, vertical: false)
             Spacer()
             Button { shift(by: -1) } label: { Image(systemName: "chevron.left") }
+                // アイコンのみのボタンはUIテストから確実に押せるよう識別子を付ける（見た目・挙動は不変）
+                .accessibilityIdentifier("calendarPrevMonthButton")
             Text(headerTitle)
                 .font(.headline)
                 .lineLimit(1)
@@ -74,6 +76,7 @@ struct CalendarView: View {
                 .layoutPriority(1)
             Text("🐶")
             Button { shift(by: 1) } label: { Image(systemName: "chevron.right") }
+                .accessibilityIdentifier("calendarNextMonthButton")
             Spacer()
             Picker("", selection: $showYear) {
                 Text("月").tag(false)
