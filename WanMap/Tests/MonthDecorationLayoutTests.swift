@@ -1,5 +1,6 @@
 import CoreGraphics
 import XCTest
+@testable import WanMap
 
 /// 装飾フッターのレイアウト計算（デザイン第二弾）の検証。
 /// 「セルを潰さない（最小高さ確保が先、装飾は余りだけ）」と
