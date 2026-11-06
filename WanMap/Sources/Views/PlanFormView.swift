@@ -35,6 +35,8 @@ struct PlanFormView: View {
     @State private var editScope: PlanEditScope = .occurrence
     /// 削除範囲ダイアログの対象（シリーズの子を削除する時だけ使う）
     @State private var deletionTarget: Plan?
+    /// 削除範囲ダイアログの表示状態（対象とは分離して管理する。F1）
+    @State private var showDeletionDialog = false
     /// 保存に失敗した時の表示（失敗したらフォームは閉じず、入力を保持する。R3）
     @State private var saveErrorMessage: String?
     /// シリーズ全体編集の基準にする、保存済み場所（親の共通内容）の控え（R5）
@@ -125,9 +127,6 @@ struct PlanFormView: View {
                     Button("保存") { save() }.bold()
                 }
             }
-            .seriesDeletionDialog(target: $deletionTarget, store: planStore,
-                                  onDeleted: { dismiss() },
-                                  onFailure: { saveErrorMessage = "削除を保存できませんでした。" })
             .alert("保存できませんでした", isPresented: saveErrorPresented) {
                 Button("OK") { saveErrorMessage = nil }
             } message: {
@@ -144,6 +143,12 @@ struct PlanFormView: View {
                 }
             }
         }
+        // 削除範囲ダイアログは Form の内側ではなく、NavigationStack
+        // （安定したホスト）に付ける（F1）
+        .seriesDeletionDialog(target: $deletionTarget, isPresented: $showDeletionDialog,
+                              store: planStore,
+                              onDeleted: { dismiss() },
+                              onFailure: { saveErrorMessage = "削除を保存できませんでした。" })
     }
 
     private var placeSection: some View {
@@ -431,7 +436,9 @@ struct PlanFormView: View {
                 guard let editing else { return }
                 if editing.seriesID != nil {
                     // シリーズの子は範囲を選んでから消す（日別一覧のスワイプ削除と共通）
+                    // 対象を先に入れてから表示する（ダイアログ側はこの順序を前提とする）
                     deletionTarget = editing
+                    showDeletionDialog = true
                 } else {
                     if planStore.remove(editing) {
                         dismiss()

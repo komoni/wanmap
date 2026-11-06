@@ -12,6 +12,8 @@ struct DayPlansView: View {
     @State private var showNewForm = false
     /// 削除範囲ダイアログの対象（シリーズの子をスワイプ削除する時だけ使う）
     @State private var deletionTarget: Plan?
+    /// 削除範囲ダイアログの表示状態（対象とは分離して管理する。F1）
+    @State private var showDeletionDialog = false
     /// 削除の保存に失敗した時の表示（失敗を成功として見せない）
     @State private var showDeleteFailure = false
 
@@ -55,8 +57,6 @@ struct DayPlansView: View {
                         .accessibilityIdentifier("dayPlansAddButton")
                 }
             }
-            .seriesDeletionDialog(target: $deletionTarget, store: planStore,
-                                  onFailure: { showDeleteFailure = true })
             .alert("削除できませんでした", isPresented: $showDeleteFailure) {
                 Button("OK") {}
             } message: {
@@ -69,6 +69,11 @@ struct DayPlansView: View {
                 PlanFormView(editing: nil, defaultDate: day, defaultDogName: planStore.lastDogName)
             }
         }
+        // 削除範囲ダイアログは、削除で消える行を含む List ではなく
+        // NavigationStack（安定したホスト）に付ける（F1）
+        .seriesDeletionDialog(target: $deletionTarget, isPresented: $showDeletionDialog,
+                              store: planStore,
+                              onFailure: { showDeleteFailure = true })
     }
 
     /// スワイプ削除の振る舞い：繰り返しの回は、範囲（この回だけ／シリーズ全体）を
@@ -76,7 +81,9 @@ struct DayPlansView: View {
     /// それ以外はその場で削除し、保存に失敗したら成功として見せずアラートを出す。
     private func delete(_ plan: Plan) {
         if plan.seriesID != nil {
+            // 対象を先に入れてから表示する（ダイアログ側はこの順序を前提とする）
             deletionTarget = plan
+            showDeletionDialog = true
         } else if !planStore.remove(plan) {
             showDeleteFailure = true
         }
