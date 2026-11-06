@@ -11,6 +11,9 @@ struct RootView: View {
     @State private var planStore: PlanStore
     @State private var friendStore = FriendStore()
     @State private var themeStore = ThemeStore()
+    @State private var appearanceStore: AppearanceStore
+    @State private var feedbackSettings: FeedbackSettings
+    @State private var feedbackService: FeedbackService
     @State private var location: LocationService
 
     #if DEBUG
@@ -54,6 +57,19 @@ struct RootView: View {
         _planStore = State(initialValue: PlanStore())
         _location = State(initialValue: LocationService())
         #endif
+
+        // デザイン・気持ちよさ第一弾のストア群。
+        // 配色・ヘッダー案は、スクリーンショット撮影時だけ起動引数で強制できる
+        // （DEBUGのみ。通常起動では保存された設定がそのまま効く）。
+        #if DEBUG
+        _appearanceStore = State(initialValue: AppearanceStore(
+            launchArguments: ProcessInfo.processInfo.arguments))
+        #else
+        _appearanceStore = State(initialValue: AppearanceStore())
+        #endif
+        let feedbackSettings = FeedbackSettings()
+        _feedbackSettings = State(initialValue: feedbackSettings)
+        _feedbackService = State(initialValue: FeedbackService(settings: feedbackSettings))
     }
 
     @Environment(\.scenePhase) private var scenePhase
@@ -82,6 +98,9 @@ struct RootView: View {
         .environment(planStore)
         .environment(friendStore)
         .environment(themeStore)
+        .environment(appearanceStore)
+        .environment(feedbackSettings)
+        .environment(feedbackService)
         .environment(location)
         .task {
             await facilityStore.refreshFromRemote()

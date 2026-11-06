@@ -34,6 +34,8 @@ struct DogMapView: View {
     @Environment(UserPlaceStore.self) private var userPlaceStore
     @Environment(PlanStore.self) private var planStore
     @Environment(LocationService.self) private var location
+    @Environment(AppearanceStore.self) private var appearanceStore
+    @Environment(FeedbackService.self) private var feedback
     @State private var position: MapCameraPosition = .japanFallback
     @State private var selectedFacility: Facility?
     @State private var selectedUserPlace: UserPlace?
@@ -402,8 +404,10 @@ struct DogMapView: View {
                     didCenterInitially = true
                 }
             } label: {
-                Image(systemName: "location.fill")
+                Image(systemName: "location.fill").foregroundStyle(WanStyle.coral)
             }
+            .buttonStyle(WanPressButtonStyle())
+            .wanTapTarget()
             if let date = location.fixDate {
                 Text(date, style: .time).font(.caption).foregroundStyle(.secondary)
             }
@@ -413,23 +417,30 @@ struct DogMapView: View {
                 Text(planStore.ownPresence == nil ? "今ここ" : "取消")
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(WanStyle.coral)
+            // 主ボタン表現（配色案の地色＋白文字＋押し心地）。バーの高さ44に収める
+            .buttonStyle(WanPrimaryButtonStyle(fill: appearanceStore.primaryColor,
+                                               horizontalPadding: 14, verticalPadding: 7))
 
             Button {
                 // 地点登録モードに入る（中心ピンで地点を決める。カメラは動かさない）
                 isPlacingUserPlace = true
             } label: {
-                Image(systemName: "plus")
+                Image(systemName: "plus").foregroundStyle(WanStyle.coral)
             }
+            .buttonStyle(WanPressButtonStyle())
+            .wanTapTarget()
 
             Button { showFriends = true } label: {
-                Image(systemName: "person.2")
+                Image(systemName: "person.2").foregroundStyle(WanStyle.coral)
             }
+            .buttonStyle(WanPressButtonStyle())
+            .wanTapTarget()
 
             Button { showSettings = true } label: {
-                Image(systemName: "gearshape")
+                Image(systemName: "gearshape").foregroundStyle(WanStyle.coral)
             }
+            .buttonStyle(WanPressButtonStyle())
+            .wanTapTarget()
         }
         .frame(height: 44)
         .padding(.horizontal, 8)
@@ -453,8 +464,8 @@ struct DogMapView: View {
                     Button("キャンセル") { isPlacingUserPlace = false }
                         .buttonStyle(.bordered)
                     Button("ここにする") { confirmPlacing() }
-                        .buttonStyle(.borderedProminent)
-                        .tint(WanStyle.coral)
+                        .buttonStyle(WanPrimaryButtonStyle(fill: appearanceStore.primaryColor,
+                                                           horizontalPadding: 14, verticalPadding: 8))
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
@@ -784,8 +795,11 @@ struct DogMapView: View {
             return
         }
         // 場所名は付けない（人アイコンのみ）。自宅が出るのは本人が自分で置いた時だけ
-        planStore.placeOwnPresence(latitude: fix.coordinate.latitude,
-                                   longitude: fix.coordinate.longitude)
+        // 完了フィードバックは保存が本当に成功した時だけ出す（タップ時点では出さない）
+        if planStore.placeOwnPresence(latitude: fix.coordinate.latitude,
+                                      longitude: fix.coordinate.longitude) {
+            feedback.completion()
+        }
         showStatus("今ここを表示しました")
     }
 

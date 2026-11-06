@@ -118,6 +118,53 @@ final class WanMapScreenshotTests: XCTestCase {
         attachScreenshot("05-settings")
     }
 
+    // MARK: - デザイン・気持ちよさ第一弾の比較撮影
+    // 配色案（コーラル／ココア）とヘッダー段数は起動引数で確定的に切り替える
+    // （RootView の DEBUG 分岐 → AppearanceStore の引数優先）。本人が見比べて選ぶための撮影。
+
+    /// ⑥ カレンダー：配色案A（コーラル）
+    func test06_designCalendarCoral() throws {
+        app.launchArguments += ["-wmButtonVariant", "coral"]
+        launchAndSettleOnCalendar()
+        attachScreenshot("design-calendar-coral")
+    }
+
+    /// ⑦ カレンダー：配色案B（ココア）
+    func test07_designCalendarCocoa() throws {
+        app.launchArguments += ["-wmButtonVariant", "cocoa"]
+        launchAndSettleOnCalendar()
+        attachScreenshot("design-calendar-cocoa")
+    }
+
+    /// ⑧ カレンダー：ヘッダー2段レイアウト（配色は案A）
+    func test08_designCalendarStacked() throws {
+        app.launchArguments += ["-wmHeaderLayout", "stacked"]
+        launchAndSettleOnCalendar()
+        attachScreenshot("design-calendar-stacked")
+    }
+
+    /// ⑨ 設定画面：「見た目」「音と触覚」セクションが見える位置までスクロールして撮影
+    func test09_designSettings() throws {
+        app.launchArguments += ["-wmButtonVariant", "cocoa"]
+        launchAndSettleOnCalendar()
+        let settingsButton = app.buttons["calendarSettingsButton"]
+        XCTAssertTrue(settingsButton.waitForExistence(timeout: 15),
+                      "設定ボタンが見つかりませんでした")
+        settingsButton.tap()
+        XCTAssertTrue(app.navigationBars["設定"].waitForExistence(timeout: 15),
+                      "設定画面が開きませんでした")
+        // 「音と触覚」セクションの「効果を試す」が出るまでリストをスクロールする
+        let previewButton = app.buttons["効果を試す"]
+        var attempts = 0
+        while !previewButton.exists && attempts < 6 {
+            app.swipeUp()
+            attempts += 1
+        }
+        XCTAssertTrue(previewButton.exists,
+                      "設定の「効果を試す」ボタンが見つかりませんでした")
+        attachScreenshot("design-settings")
+    }
+
     // MARK: - 共通処理
 
     /// シード付きで起動し、位置情報アラートを捌いてカレンダー表示で落ち着かせる

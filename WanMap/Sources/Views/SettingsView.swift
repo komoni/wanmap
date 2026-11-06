@@ -3,6 +3,8 @@ import SwiftUI
 /// 設定画面
 /// - 自分のID（表示ID・内部ID）の確認
 /// - 予定チップの色（テーマ設定 ThemeStore。タップで即変更・即保存）
+/// - 見た目の比較案（ボタンの色／カレンダーヘッダーの段数。AppearanceStore）
+/// - 音と触覚（効果音・触覚のON/OFFと試聴。FeedbackSettings／FeedbackService）
 /// - 「見せない相手」リスト：友達画面と同じ FriendStore のデータを触るので連動する
 /// - Instagram連携はモックである旨を正直に表示する
 /// - 位置情報の扱い（端末内のみ・「今ここ」は2時間で消去）の説明と非表示モード
@@ -10,6 +12,9 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(FriendStore.self) private var friendStore
     @Environment(ThemeStore.self) private var themeStore
+    @Environment(AppearanceStore.self) private var appearanceStore
+    @Environment(FeedbackSettings.self) private var feedbackSettings
+    @Environment(FeedbackService.self) private var feedback
     @Environment(PlanStore.self) private var planStore
     @Environment(UserPlaceStore.self) private var userPlaceStore
     @Environment(LocationService.self) private var location
@@ -22,6 +27,8 @@ struct SettingsView: View {
 
     var body: some View {
         @Bindable var location = location
+        @Bindable var appearanceStore = appearanceStore
+        @Bindable var feedbackSettings = feedbackSettings
         NavigationStack {
             List {
                 Section("自分のID") {
@@ -55,6 +62,31 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                     .padding(.vertical, 4)
+                }
+
+                // 見た目の比較案（デザイン・気持ちよさ第一弾）。
+                // 本人がスクショで見比べて選ぶための切り替えで、選ばれた方を後に既定化する。
+                Section("見た目") {
+                    Picker("ボタンの色", selection: $appearanceStore.buttonVariant) {
+                        ForEach(AppearanceStore.ButtonVariant.allCases, id: \.self) { variant in
+                            Text(variant.displayName).tag(variant)
+                        }
+                    }
+                    Picker("カレンダーのヘッダー", selection: $appearanceStore.headerLayout) {
+                        ForEach(AppearanceStore.HeaderLayout.allCases, id: \.self) { layout in
+                            Text(layout.displayName).tag(layout)
+                        }
+                    }
+                }
+
+                Section {
+                    Toggle("効果音", isOn: $feedbackSettings.soundEnabled)
+                    Toggle("触覚フィードバック", isOn: $feedbackSettings.hapticsEnabled)
+                    Button("効果を試す") { feedback.preview() }
+                } header: {
+                    Text("音と触覚")
+                } footer: {
+                    Text("効果音はサイレントモードでは鳴りません。触覚設定はWanMapが追加する振動に適用されます（端末や標準部品の振動までは止めません）。「効果を試す」は設定にかかわらず1回だけ鳴ります。")
                 }
 
                 Section {
@@ -216,6 +248,9 @@ struct SettingsView: View {
     SettingsView()
         .environment(FriendStore.preview)
         .environment(ThemeStore())
+        .environment(AppearanceStore())
+        .environment(FeedbackSettings())
+        .environment(FeedbackService(settings: FeedbackSettings()))
         .environment(PlanStore(samplePlans: []))
         .environment(UserPlaceStore(samplePlaces: []))
         .environment(LocationService())

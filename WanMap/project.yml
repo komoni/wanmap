@@ -41,6 +41,10 @@ targets:
     resources:
       - Resources/facilities.json
       - Resources/Assets.xcassets
+      # 完了フィードバックの短い合成音（デザイン・気持ちよさ第一弾）。
+      # XcodeGenのファイル列挙ではバンドル直下に平置きされるため、
+      # 読み込み側（FeedbackService）もサブフォルダ無しで探す
+      - Resources/Sounds/completion.wav
     settings:
       base:
         # バンドルIDは正式ドメインで明示（bundleIdPrefix の自動生成 jp.wanmap.WanMap にはしない）

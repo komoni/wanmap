@@ -7,6 +7,8 @@ import SwiftUI
 struct CalendarView: View {
     @Environment(PlanStore.self) private var planStore
     @Environment(ThemeStore.self) private var themeStore
+    @Environment(AppearanceStore.self) private var appearanceStore
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     @State private var displayedMonth: Date = Date()
     @State private var showYear = false
@@ -58,42 +60,119 @@ struct CalendarView: View {
     }
 
     private var header: some View {
+        // ヘッダーの帯だけに淡いギンガムを敷く（他の画面・セルには広げない）。
+        // 「透明度を下げる」設定時は柄を消して無地（ミルク）にする。
+        // レイアウトは AppearanceStore の比較案で切り替わる：
+        // 1段（現行）／2段（補助操作を下段へ）。既定は1段。
+        Group {
+            if appearanceStore.headerLayout == .stacked {
+                VStack(spacing: 2) {
+                    HStack(spacing: 6) {
+                        todayButton
+                        Spacer()
+                        monthNavCluster
+                        Spacer()
+                        monthYearPicker
+                    }
+                    HStack(spacing: 8) {
+                        Spacer()
+                        auxButtons
+                    }
+                }
+            } else {
+                HStack(spacing: 6) {
+                    todayButton
+                    Spacer()
+                    monthNavCluster
+                    Spacer()
+                    monthYearPicker
+                    auxButtons
+                }
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 4)
+        .background {
+            if reduceTransparency {
+                WanStyle.canvas
+            } else {
+                GinghamBand()
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+    }
+
+    /// 「今日」ボタンは主ボタン表現（配色案の地色＋白文字）にする
+    private var todayButton: some View {
+        Button("今日") { displayedMonth = Date(); showYear = false }
+            .buttonStyle(WanPrimaryButtonStyle(fill: appearanceStore.primaryColor,
+                                               horizontalPadding: 12, verticalPadding: 6))
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+    }
+
+    /// 年月タイトル＋前後月＋ハスキー顔（旧🐶絵文字の置換。静止画・装飾扱い）
+    private var monthNavCluster: some View {
         // 要素数が多く合計幅が画面幅を超えやすい。タイトルは圧縮抵抗が低く
-        // 真っ先に潰れて折り返すため、1行固定＋レイアウト優先度を上げ、
-        // ピッカー幅と間隔を詰めてタイトル分の幅を確保する。
-        HStack(spacing: 6) {
-            Button("今日") { displayedMonth = Date(); showYear = false }
-                .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
-            Spacer()
-            Button { shift(by: -1) } label: { Image(systemName: "chevron.left") }
-                // アイコンのみのボタンはUIテストから確実に押せるよう識別子を付ける（見た目・挙動は不変）
-                .accessibilityIdentifier("calendarPrevMonthButton")
+        // 真っ先に潰れて折り返すため、1行固定＋レイアウト優先度を上げている。
+        HStack(spacing: 2) {
+            Button { shift(by: -1) } label: {
+                Image(systemName: "chevron.left").foregroundStyle(WanStyle.coral)
+            }
+            .buttonStyle(WanPressButtonStyle())
+            .wanTapTarget()
+            // アイコンのみのボタンはUIテストから確実に押せるよう識別子を付ける（見た目・挙動は不変）
+            .accessibilityIdentifier("calendarPrevMonthButton")
             Text(headerTitle)
                 .font(.headline)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
                 .layoutPriority(1)
-            Text("🐶")
-            Button { shift(by: 1) } label: { Image(systemName: "chevron.right") }
-                .accessibilityIdentifier("calendarNextMonthButton")
-            Spacer()
-            Picker("", selection: $showYear) {
-                Text("月").tag(false)
-                Text("年").tag(true)
+            Image("HuskyFace")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 38, height: 38)
+                .accessibilityHidden(true)
+            Button { shift(by: 1) } label: {
+                Image(systemName: "chevron.right").foregroundStyle(WanStyle.coral)
             }
-            .pickerStyle(.segmented)
-            .frame(width: 84)
-            HStack(spacing: 8) {
-                Button { showStoryImport = true } label: { Image(systemName: "doc.on.clipboard") }
-                    // アイコンのみのボタンはUIテストから確実に押せるよう識別子を付ける（見た目・挙動は不変）
-                    .accessibilityIdentifier("calendarStoryImportButton")
-                Button { showFriends = true } label: { Image(systemName: "person.2") }
-                    .accessibilityIdentifier("calendarFriendsButton")
-                Button { showSettings = true } label: { Image(systemName: "gearshape") }
-                    // アイコンのみのボタンはUIテストから確実に押せるよう識別子を付ける（見た目・挙動は不変）
-                    .accessibilityIdentifier("calendarSettingsButton")
+            .buttonStyle(WanPressButtonStyle())
+            .wanTapTarget()
+            .accessibilityIdentifier("calendarNextMonthButton")
+        }
+    }
+
+    private var monthYearPicker: some View {
+        Picker("", selection: $showYear) {
+            Text("月").tag(false)
+            Text("年").tag(true)
+        }
+        .pickerStyle(.segmented)
+        .frame(width: 84)
+    }
+
+    /// 補助操作（取り込み・友達・設定）。タップ領域は最小44ptを確保する
+    private var auxButtons: some View {
+        HStack(spacing: 8) {
+            Button { showStoryImport = true } label: {
+                Image(systemName: "doc.on.clipboard").foregroundStyle(WanStyle.coral)
             }
+            .buttonStyle(WanPressButtonStyle())
+            .wanTapTarget()
+            // アイコンのみのボタンはUIテストから確実に押せるよう識別子を付ける（見た目・挙動は不変）
+            .accessibilityIdentifier("calendarStoryImportButton")
+            Button { showFriends = true } label: {
+                Image(systemName: "person.2").foregroundStyle(WanStyle.coral)
+            }
+            .buttonStyle(WanPressButtonStyle())
+            .wanTapTarget()
+            .accessibilityIdentifier("calendarFriendsButton")
+            Button { showSettings = true } label: {
+                Image(systemName: "gearshape").foregroundStyle(WanStyle.coral)
+            }
+            .buttonStyle(WanPressButtonStyle())
+            .wanTapTarget()
+            .accessibilityIdentifier("calendarSettingsButton")
         }
     }
 
@@ -302,5 +381,6 @@ struct CalendarView: View {
         .environment(FacilityStore())
         .environment(PlanStore(samplePlans: SeedData.samplePlans()))
         .environment(ThemeStore())
+        .environment(AppearanceStore())
 }
 #endif

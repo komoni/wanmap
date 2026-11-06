@@ -12,6 +12,8 @@ struct PlanFormView: View {
     @Environment(PlanStore.self) private var planStore
     @Environment(FacilityStore.self) private var facilityStore
     @Environment(UserPlaceStore.self) private var userPlaceStore
+    @Environment(AppearanceStore.self) private var appearanceStore
+    @Environment(FeedbackService.self) private var feedback
     @Environment(\.dismiss) private var dismiss
 
     let editing: Plan?
@@ -125,6 +127,7 @@ struct PlanFormView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("保存") { save() }.bold()
+                        .tint(appearanceStore.primaryColor)
                 }
             }
             .alert("保存できませんでした", isPresented: saveErrorPresented) {
@@ -532,6 +535,14 @@ struct PlanFormView: View {
         }
     }
 
+    /// 保存成功時の締め：完了フィードバック（音＋触覚）を1回だけ出してから閉じる。
+    /// Store の保存結果が成功の時だけ通る経路に置く。失敗時は呼ばず、
+    /// フォームは開いたままエラー表示が正しいフィードバックになる。
+    private func completeSave() {
+        feedback.completion()
+        dismiss()
+    }
+
     private func save() {
         let day = WanMapCalendar.shared.startOfDay(for: date)
 
@@ -589,7 +600,7 @@ struct PlanFormView: View {
                 hidesOwnLocation: hidesOwnLocation
             )
             if planStore.updateSeriesContent(seriesID: series.id, newTemplate: newTemplate) {
-                dismiss()
+                completeSave()
             } else {
                 saveErrorMessage = "保存できませんでした。入力内容はそのまま残っています。"
             }
@@ -622,23 +633,23 @@ struct PlanFormView: View {
                 let rule = RecurrenceRule(kind: kind, startDate: day, calendar: WanMapCalendar.shared)
                 if planStore.addSeries(rule: rule, occurrenceCount: occurrenceCount,
                                        templatePlan: plan) != nil {
-                    dismiss()
+                    completeSave()
                 } else {
                     saveErrorMessage = "保存できませんでした。入力内容はそのまま残っています。"
                 }
             } else if planStore.add(plan) {
-                dismiss()
+                completeSave()
             } else {
                 saveErrorMessage = "保存できませんでした。入力内容はそのまま残っています。"
             }
         } else if editing?.seriesID != nil {
             if planStore.updateOccurrence(plan) {
-                dismiss()
+                completeSave()
             } else {
                 saveErrorMessage = "保存できませんでした。入力内容はそのまま残っています。"
             }
         } else if planStore.update(plan) {
-            dismiss()
+            completeSave()
         } else {
             saveErrorMessage = "保存できませんでした。入力内容はそのまま残っています。"
         }
