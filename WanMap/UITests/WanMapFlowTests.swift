@@ -17,12 +17,20 @@ import XCTest
 /// - フロー7だけは上記を使わず、-UITestingPersistentPlans（＋初回のみ
 ///   -UITestingPersistentPlansReset）で隔離した永続保存先を使う。
 ///   シードは再起動で残らないため、「再起動しても予定が残る」証明はこちらで担う。
+/// - 全フロー共通で -AppleLanguages (ja) / -AppleLocale ja_JP も付け、
+///   OSが合成するボタン（スワイプ削除の「削除」など）の表記を日本語に固定し、
+///   CIシミュレータの言語設定に左右されないようにする（CI #38 対応）。
+///   フロー7の再起動時もこの2引数は落とさない。
 ///
 /// 状態の後片付け：チップ色はデフォルト（ラベンダー）に戻し、友達承認は
 /// 設定のデータリセットで初期モックに戻す。後続の画面撮影に影響を残さないため。
 ///
 /// 対象外：地図マーカーのタップ（座標依存で不安定なため、従来方針どおり外す）。
 final class WanMapFlowTests: XCTestCase {
+
+    /// ロケール固定の起動引数（全フロー共通）。起動引数を差し替える
+    /// フロー7でも、必ずこの2引数を足してから使うこと。
+    private static let localeArguments = ["-AppleLanguages", "(ja)", "-AppleLocale", "ja_JP"]
 
     private var app: XCUIApplication!
     /// 割り込みモニタのトークン（テスト中保持しておく）
@@ -32,7 +40,7 @@ final class WanMapFlowTests: XCTestCase {
         continueAfterFailure = false
 
         app = XCUIApplication()
-        app.launchArguments += ["-UITestingSeedData", "-UITestingFlowData"]
+        app.launchArguments += ["-UITestingSeedData", "-UITestingFlowData"] + Self.localeArguments
 
         // 起動直後に出うるシステムの許可アラートを捌く（画面撮影側と同じ構え。
         // フロー検証ではモック位置を使うため通常は出ないが、保険として置く）。
@@ -204,30 +212,60 @@ final class WanMapFlowTests: XCTestCase {
         XCTAssertTrue(app.navigationBars["テキストから取り込む"].waitForExistence(timeout: 15),
                       "取り込み画面が開きませんでした")
 
+        let expectedText = "明日はドッグウィズに行く予定！朝からたくさん遊ぶよ"
         let editor = app.textViews.firstMatch
         XCTAssertTrue(editor.waitForExistence(timeout: 10),
                       "文面の入力欄が見つかりませんでした")
         editor.tap()
-        editor.typeText("明日はドッグウィズに行く予定！朝からたくさん遊ぶよ")
+        editor.typeText(expectedText)
 
+        // 入力した文面がそのまま入っているか、値で確認する。日本語入力の
+        // 確定タイミングで欠落・重複が起きていた場合だけ、全消去して
+        // 1回まで入れ直す（解析を連打するような再試行はしない。
+        // UI_TEST_FIX_TRIAGE の採否どおり）。
+        if !waitForTextValue(of: editor, toEqual: expectedText, timeout: 5) {
+            if let current = editor.value as? String, !current.isEmpty {
+                editor.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue,
+                                       count: current.count))
+            }
+            editor.typeText(expectedText)
+            let note = XCTAttachment(
+                string: "入力値が期待文と一致しなかったため、全消去して再入力しました（1回）。")
+            note.name = "flow04-story-import-input-retry"
+            note.lifetime = .keepAlways
+            add(note)
+            if !waitForTextValue(of: editor, toEqual: expectedText, timeout: 5) {
+                attachFailureEvidence("flow04-input-mismatch", element: editor)
+                XCTFail("文面が正しく入力できませんでした")
+            }
+        }
+
+        // 「下書きを作る」は、存在するだけでなく操作できる状態
+        // （有効＋タップ可能。空欄の間はアプリ側で無効になる）になってから押す
         let parseButton = app.buttons["下書きを作る"]
-        XCTAssertTrue(parseButton.waitForExistence(timeout: 10),
-                      "「下書きを作る」ボタンが見つかりませんでした")
+        let parseReady = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == true AND enabled == true AND hittable == true"),
+            object: parseButton)
+        if XCTWaiter().wait(for: [parseReady], timeout: 10) != .completed {
+            attachFailureEvidence("flow04-parse-button-not-ready", element: parseButton)
+            XCTFail("「下書きを作る」ボタンが操作可能になりませんでした")
+        }
         parseButton.tap()
 
-        // 場所が名前で一致し日付表現も明示的なので、確度は「中」で候補が出る
-        XCTAssertTrue(app.staticTexts["推測：中"].waitForExistence(timeout: 10),
-                      "下書き候補が表示されませんでした")
+        // 場所が名前で一致し日付表現も明示的なので、確度は「中」で候補が出る。
+        // 候補は Button（場所名・確度など複数のテキストを持つ行）として探す。
+        // 確度だけの StaticText はボタンラベルへ統合されて独立に公開されない
+        // ことがあるため、待ちの対象にしない（確度「中」の要求自体は緩めない）。
+        let draft = app.buttons.matching(
+            NSPredicate(format: "label CONTAINS 'ドッグウィズ' AND label CONTAINS '推測：中'"))
+            .firstMatch
+        if !draft.waitForExistence(timeout: 10) {
+            attachFailureEvidence("flow04-draft-not-found", element: editor)
+            XCTFail("下書き候補（ドッグウィズ／推測：中）が表示されませんでした")
+        }
 
         // 下書きをタップ → 予定フォームが開く
-        let draft = app.buttons.matching(
-            NSPredicate(format: "label CONTAINS '推測：中'")).firstMatch
-        if draft.waitForExistence(timeout: 5) {
-            draft.tap()
-        } else {
-            app.staticTexts["推測：中"]
-                .coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
-        }
+        draft.tap()
         XCTAssertTrue(app.navigationBars["予定を追加"].waitForExistence(timeout: 10),
                       "下書きから予定フォームが開きませんでした")
         attachScreenshot("flow04-story-import-form")
@@ -360,6 +398,7 @@ final class WanMapFlowTests: XCTestCase {
     func test07_aichiMonthlySeriesPersistence() throws {
         // このフローだけ起動引数を差し替える（シードは使わない）
         app.launchArguments = ["-UITestingPersistentPlans", "-UITestingPersistentPlansReset"]
+            + Self.localeArguments
 
         let cal = Calendar.current
         let today = Date()
@@ -540,7 +579,7 @@ final class WanMapFlowTests: XCTestCase {
 
         // --- 再起動：終了してもう一度開くと、登録と単回変更がそのまま残る ---
         app.terminate()
-        app.launchArguments = ["-UITestingPersistentPlans"]  // リセットは付けない
+        app.launchArguments = ["-UITestingPersistentPlans"] + Self.localeArguments  // リセットは付けない
         displayed = today
         launchAndSettleOnCalendar()
         navigateCalendar(toMonthContaining: first2, displayedMonth: &displayed)
@@ -552,15 +591,49 @@ final class WanMapFlowTests: XCTestCase {
         attachScreenshot("demo-aichi-05-after-restart")
 
         // --- 個別削除：2回目だけを消し、再起動しても復活しないことを確認する ---
-        let deleteCell = app.cells.firstMatch
+        // 対象行は犬名「ハス太」を含む行として一意に特定する（件数1を確認してから操作する）
+        let targetRows = app.cells.matching(
+            NSPredicate(format: "label CONTAINS 'ハス太'"))
+        XCTAssertEqual(targetRows.count, 1,
+                       "削除対象の行が一意に特定できませんでした（\(targetRows.count) 件）")
+        let deleteCell = targetRows.firstMatch
         XCTAssertTrue(deleteCell.waitForExistence(timeout: 10),
                       "削除対象の予定行が見つかりませんでした")
-        deleteCell.swipeLeft()
-        let swipeDelete = app.buttons["削除"]
-        XCTAssertTrue(swipeDelete.waitForExistence(timeout: 10),
-                      "スワイプ削除のボタンが出ませんでした")
-        swipeDelete.tap()
+
+        // フルスワイプ相当になって範囲ダイアログへ直行するのを避けるため、
+        // 行の中心から幅の約40%だけ左へ動かす部分スワイプにする
+        // （swipeLeft() は量を制御できないので使わない）。
+        let swipeStart = deleteCell.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        let swipeEnd = deleteCell.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5))
+        swipeStart.press(forDuration: 0.1, thenDragTo: swipeEnd)
+
+        // スワイプ後の到達先は2通りある：OSの削除ボタンが出るか、
+        // フルスワイプ扱いで削除範囲のダイアログへ直行するか。
+        // どちらに着いたかを1つの待機予算（10秒）で判定し、
+        // ボタンが出ていればタップしてダイアログへ進む。
+        // 削除ボタンの表記はOS側の言語で変わるため日英両方を見る
+        // （ロケール固定で日本語になる想定だが、効かない環境への保険）。
+        let swipeDelete = app.buttons.matching(
+            NSPredicate(format: "label IN %@", ["削除", "Delete"])).firstMatch
         let deleteOccurrence = app.buttons["この回だけ削除"]
+        let deadline = Date().addingTimeInterval(10)
+        var reached = deleteOccurrence.exists
+        while !reached && Date() < deadline {
+            if deleteOccurrence.exists {
+                reached = true
+            } else if swipeDelete.exists && swipeDelete.isHittable {
+                swipeDelete.tap()
+                reached = true
+            } else {
+                Thread.sleep(forTimeInterval: 0.2)
+            }
+        }
+        if !reached {
+            attachFailureEvidence("flow07-delete-not-reached", element: deleteCell)
+            XCTFail("スワイプ後に削除ボタンも削除範囲のダイアログも出ませんでした")
+        }
         XCTAssertTrue(deleteOccurrence.waitForExistence(timeout: 10),
                       "削除範囲のダイアログが出ませんでした")
         deleteOccurrence.tap()
@@ -571,7 +644,7 @@ final class WanMapFlowTests: XCTestCase {
         dismissTopSheetByDrag()
 
         app.terminate()
-        app.launchArguments = ["-UITestingPersistentPlans"]
+        app.launchArguments = ["-UITestingPersistentPlans"] + Self.localeArguments
         displayed = today
         launchAndSettleOnCalendar()
         navigateCalendar(toMonthContaining: first2, displayedMonth: &displayed)
@@ -743,6 +816,37 @@ final class WanMapFlowTests: XCTestCase {
         if closeSettings.waitForExistence(timeout: 5) {
             closeSettings.tap()
         }
+    }
+
+    /// 要素の value が期待文字列と一致するまで短くポーリングする
+    /// （日本語入力の確定が遅れて値へ反映されるまでの猶予。時間切れなら false）。
+    private func waitForTextValue(of element: XCUIElement, toEqual expected: String,
+                                  timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if (element.value as? String) == expected { return true }
+            Thread.sleep(forTimeInterval: 0.2)
+        }
+        return (element.value as? String) == expected
+    }
+
+    /// 失敗時点の証拠を残す：画面のスクリーンショット（keepAlways）と、
+    /// アプリ全体＋止まった対象要素の debugDescription（テキスト添付）。
+    /// 成功時の節目撮影（attachScreenshot）と違い、失敗が確定した箇所からだけ呼ぶ。
+    private func attachFailureEvidence(_ name: String, element: XCUIElement? = nil) {
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "\(name)-screenshot"
+        shot.lifetime = .keepAlways
+        add(shot)
+
+        var text = "== app.debugDescription ==\n\(app.debugDescription)"
+        if let element {
+            text += "\n\n== 対象要素 debugDescription ==\n\(element.debugDescription)"
+        }
+        let desc = XCTAttachment(string: text)
+        desc.name = "\(name)-debugDescription"
+        desc.lifetime = .keepAlways
+        add(desc)
     }
 
     /// スクリーンショットをテスト結果へ添付する（合格時も残すため keepAlways）

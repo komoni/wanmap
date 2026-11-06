@@ -22,7 +22,9 @@ final class WanMapScreenshotTests: XCTestCase {
         continueAfterFailure = false
 
         app = XCUIApplication()
-        app.launchArguments += ["-UITestingSeedData"]
+        // ロケールも日本語に固定し、撮影画面の表記をCI環境に左右されないようにする
+        app.launchArguments += ["-UITestingSeedData",
+                                "-AppleLanguages", "(ja)", "-AppleLocale", "ja_JP"]
 
         // 起動直後（RootView の .task → 位置情報リクエスト）に出る
         // システムの許可アラートを捌く。シミュレータの表示言語が
