@@ -27,6 +27,46 @@ jobs:
             -scheme WanMap \
             -destination 'generic/platform=iOS' \
             CODE_SIGNING_ALLOWED=NO
+      # 診断：project.yml の resources に列挙したファイル（facilities.json /
+      # Assets.xcassets / Sounds/completion.wav 等）が、実際にアプリバンドルへ
+      # 入っているかを推測でなく実物で確定させるためのダンプ。
+      # .app の中身は数百行程度に収まる想定で find は深さ制限なしに全量出す
+      # （想定を超えて多すぎる場合は find に -maxdepth 3 を付けて制限すること）。
+      # if: always()＋各コマンドを || true で守り、このステップ自体は絶対に
+      # 後続ステップを止めない。
+      - name: Diagnose app bundle resources
+        if: always()
+        run: |
+          set +e
+          DERIVED=~/Library/Developer/Xcode/DerivedData
+          echo "===== Device build (Debug-iphoneos) ====="
+          APP=$(find "$DERIVED" -path "*Debug-iphoneos/WanMap.app" -type d 2>/dev/null | head -n 1)
+          if [ -z "$APP" ]; then
+            APP=$(find "$DERIVED" -name "WanMap.app" -type d 2>/dev/null | grep -v iphonesimulator | head -n 1)
+          fi
+          echo "WanMap.app (device): ${APP:-not found}"
+          if [ -n "$APP" ]; then
+            find "$APP" | sort || true
+            if [ -f "$APP/Assets.car" ]; then
+              echo "--- assetutil --info Assets.car (first 200 lines) ---"
+              xcrun assetutil --info "$APP/Assets.car" 2>/dev/null | head -n 200 || true
+            else
+              echo "no Assets.car"
+            fi
+          fi
+          echo "===== Simulator build (Debug-iphonesimulator) ====="
+          SIM_APP=$(find "$DERIVED" -path "*Debug-iphonesimulator/WanMap.app" -type d 2>/dev/null | head -n 1)
+          echo "WanMap.app (simulator): ${SIM_APP:-not found}"
+          if [ -n "$SIM_APP" ]; then
+            find "$SIM_APP" | sort || true
+            if [ -f "$SIM_APP/Assets.car" ]; then
+              echo "--- assetutil --info Assets.car (first 200 lines) ---"
+              xcrun assetutil --info "$SIM_APP/Assets.car" 2>/dev/null | head -n 200 || true
+            else
+              echo "no Assets.car"
+            fi
+          fi
+          true
       # テスト用のシミュレータは機種名を固定せず、利用可能な iPhone から動的に選ぶ
       # （Xcode の世代が変わって機種名が入れ替わっても壊れないようにするため）
       - name: Pick an available iPhone simulator
