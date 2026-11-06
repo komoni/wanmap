@@ -127,7 +127,6 @@ final class WanMapScreenshotTests: XCTestCase {
         app.launchArguments += ["-wmButtonVariant", "coral"]
         launchAndSettleOnCalendar()
         assertHeaderElementsInsideWindow("1段・コーラル")
-        assertHuskyImageVisible("1段・コーラル")
         attachScreenshot("design-calendar-coral")
     }
 
@@ -136,7 +135,6 @@ final class WanMapScreenshotTests: XCTestCase {
         app.launchArguments += ["-wmButtonVariant", "cocoa"]
         launchAndSettleOnCalendar()
         assertHeaderElementsInsideWindow("1段・ココア")
-        assertHuskyImageVisible("1段・ココア")
         attachScreenshot("design-calendar-cocoa")
     }
 
@@ -145,7 +143,6 @@ final class WanMapScreenshotTests: XCTestCase {
         app.launchArguments += ["-wmHeaderLayout", "stacked"]
         launchAndSettleOnCalendar()
         assertHeaderElementsInsideWindow("2段")
-        assertHuskyImageVisible("2段")
         attachScreenshot("design-calendar-stacked")
     }
 
@@ -234,26 +231,6 @@ final class WanMapScreenshotTests: XCTestCase {
         // 40〜60pt台まで縮むため、幅の下限でも圧縮を検出する
         XCTAssertGreaterThan(title.frame.width, 60,
                              "年月タイトルが圧縮されている可能性があります（\(layout)）: 幅 \(title.frame.width)")
-    }
-
-    /// ハスキー顔が実際に要素として存在し、幅を持って window 内に
-    /// 収まっていることの回帰ガード。CI #50 で、カタログ経由の画像が
-    /// レイアウト幅だけ確保して無描画になる事象があったため、
-    /// 識別子 calendarHuskyImage のフレーム幅（20pt以上）と
-    /// window 内収まりを撮影前に assert する。
-    private func assertHuskyImageVisible(_ layout: String) {
-        let husky = app.images["calendarHuskyImage"]
-        XCTAssertTrue(husky.waitForExistence(timeout: 10),
-                      "ハスキー顔が見つかりませんでした（\(layout)）")
-        XCTAssertGreaterThanOrEqual(husky.frame.width, 20,
-                                    "ハスキー顔の幅が小さすぎます（\(layout)）: \(husky.frame.width)")
-        let window = app.windows.firstMatch
-        XCTAssertTrue(window.waitForExistence(timeout: 10),
-                      "windowが見つかりませんでした")
-        // 座標の丸め誤差を1ptだけ許容する
-        let bounds = window.frame.insetBy(dx: -1, dy: -1)
-        XCTAssertTrue(bounds.contains(husky.frame),
-                      "ハスキー顔が画面外にはみ出しています（\(layout)）: \(husky.frame)")
     }
 
     /// シード付きで起動し、位置情報アラートを捌いてカレンダー表示で落ち着かせる

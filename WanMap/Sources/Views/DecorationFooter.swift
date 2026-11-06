@@ -25,8 +25,12 @@ struct MonthDecorationLayout: Equatable {
     /// 週の行1つ分の高さ（pt）
     var rowHeight: CGFloat
 
-    /// 犬＋波のシーンに必要なスラック（フッター間隔込みの下限）
-    static let fullSlackThreshold: CGFloat = 94
+    /// 犬＋波のシーンに必要なスラック（フッター間隔込みの下限）。
+    /// シーンの下限はフッター64pt＋間隔6pt。実測（CIシミュレータ＝
+    /// iPhone 16 Pro級、使える高さ564pt）では6週の月でもスラック78ptが
+    /// 残り、フッター72pt・行高は最小76ptのまま犬が出る。
+    /// 本人の決定（2026-11-07「6週の月も犬を出す」）を受けた値。
+    static let fullSlackThreshold: CGFloat = 70
     /// 波だけに必要なスラック（フッター間隔込みの下限）
     static let waveSlackThreshold: CGFloat = 30
     /// フッター高さの上限

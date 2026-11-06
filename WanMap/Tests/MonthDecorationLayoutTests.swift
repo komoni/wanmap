@@ -26,10 +26,27 @@ final class MonthDecorationLayoutTests: XCTestCase {
     }
 
     func testFull_境界ではフッターを入れても行高が最小ちょうどになる() {
-        // スラック94（=しきい値）→ フッター88、グリッドは最小構成ぴったり
-        let l = layout(height: 404 + 94)
+        // スラック70（=しきい値）→ フッター64、グリッドは最小構成ぴったり
+        let l = layout(height: 404 + 70)
         XCTAssertEqual(l.stage, .full)
-        XCTAssertEqual(l.footerHeight, 88)
+        XCTAssertEqual(l.footerHeight, 64)
+        XCTAssertEqual(l.rowHeight, 76, accuracy: 0.001)
+    }
+
+    func testWaveOnly_境界のすぐ下では波だけになる() {
+        // スラック69（しきい値70のすぐ下）→ 犬は出ず波だけ
+        let l = layout(height: 404 + 69)
+        XCTAssertEqual(l.stage, .waveOnly)
+        XCTAssertEqual(l.footerHeight, 24)
+        XCTAssertEqual(l.rowHeight, (404 + 69 - 24 - 6 - 24) / 5, accuracy: 0.001)
+    }
+
+    func testFull_6週の実測ケースでも犬が出て行高は最小を維持する() {
+        // 実測（CIシミュレータ＝ iPhone 16 Pro級、使える高さ564pt）：
+        // 6週でもスラック78が残る。本人の決定（2026-11-07「6週の月も犬を出す」）の回帰ガード
+        let l = layout(height: 564, weeks: 6)
+        XCTAssertEqual(l.stage, .full)
+        XCTAssertEqual(l.footerHeight, 72)
         XCTAssertEqual(l.rowHeight, 76, accuracy: 0.001)
     }
 

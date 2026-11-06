@@ -1,5 +1,4 @@
 import SwiftUI
-import UIKit
 
 /// 犬専用カレンダー（メイン画面）
 /// 仕様：柔らかいパステル、日曜コーラル／土曜スカイ、今日はアクセント丸＋小さな肉球。
@@ -33,17 +32,9 @@ struct CalendarView: View {
         return c
     }()
 
-    /// ヘッダーのハスキー顔。アセットカタログ経由（Image("HuskyFace")）では
-    /// レイアウト幅だけ確保して描画されない事象があったため（CI #50）、
-    /// 動作実績のあるプレーンなファイルリソース（Resources/husky-face.png、
-    /// completion.wav と同じ方式）から、FeedbackService と同じ流儀で
-    /// Bundle.main 経由に読み込む。
-    /// 読み込めない場合に別の絵で誤魔化すフォールバックは置かない
-    /// （ファイルリソース同梱の回帰ガードは単体テスト HuskyFaceResourceTests が担う）。
-    private static let huskyFaceImage: UIImage? = {
-        guard let url = Bundle.main.url(forResource: "husky-face", withExtension: "png") else { return nil }
-        return UIImage(contentsOfFile: url.path)
-    }()
+    /// ※ヘッダーのハスキー顔は 2026-11-07 に本人の指示で表示を取りやめた
+    /// （月タイトル横の装飾は不要との判断）。画像ファイル自体は将来の再利用に
+    /// 備えてバンドルに残してある（同梱の回帰ガードは HuskyFaceResourceTests）。
 
     /// 日（startOfDay）→ その日の予定。月表示・年表示の両方で使う
     private var plansByDay: [Date: [Plan]] {
@@ -87,8 +78,8 @@ struct CalendarView: View {
         //
         // 幅の予算（iPhone 16 Pro＝402pt、画面の横余白12を引いた帯の内寸は
         // 1段＝370pt／2段＝358pt）：全要素を並べると簡単に溢れ、圧縮抵抗の低い
-        // タイトルとハスキー顔から潰れて消える（CI #49で確認）。
-        // そのためタイトルは fixedSize、ハスキーは固定フレーム＋layoutPriority で保護し、
+        // タイトルから潰れて消える（CI #49で確認。顔画像は後に本人の指示で撤去）。
+        // そのためタイトルは fixedSize＋layoutPriority で保護し、
         // 幅の調整はヘッダー内に限る（タップ枠は高さ44pt維持で幅だけ詰める、
         // Picker幅、帯の内側余白、今日ボタンの内側余白）。
         // 1段の内訳目安：今日約45＋クラスタ約167＋Picker 56＋補助約94＝約362pt。
@@ -140,9 +131,9 @@ struct CalendarView: View {
             .fixedSize(horizontal: true, vertical: false)
     }
 
-    /// 年月タイトル＋前後月＋ハスキー顔（旧🐶絵文字の置換。静止画・装飾扱い）
-    /// compact＝1段用（タップ枠の幅・タイトル・ハスキーを詰める）。
-    /// タイトルは fixedSize、ハスキーは固定フレーム＋layoutPriority で圧縮から守る
+    /// 年月タイトル＋前後月。
+    /// compact＝1段用（タップ枠の幅・タイトルを詰める）。
+    /// タイトルは fixedSize＋layoutPriority で圧縮から守る
     /// （潰れるくらいなら周りの余白が先に詰まるようにする）。
     private func monthNavCluster(compact: Bool) -> some View {
         HStack(spacing: 2) {
@@ -158,16 +149,6 @@ struct CalendarView: View {
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
                 .layoutPriority(2)
-            if let huskyFace = Self.huskyFaceImage {
-                Image(uiImage: huskyFace)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: compact ? 26 : 32, height: compact ? 26 : 32)
-                    .layoutPriority(2)
-                    // スクショ撮影テストが「実際にレイアウトされているか」を
-                    // 検証できるよう識別子を付ける（CI #50の無描画事象の回帰ガード）
-                    .accessibilityIdentifier("calendarHuskyImage")
-            }
             Button { shift(by: 1) } label: {
                 Image(systemName: "chevron.right").foregroundStyle(WanStyle.coral)
             }
