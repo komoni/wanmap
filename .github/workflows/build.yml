@@ -52,7 +52,10 @@ jobs:
       # UIテストは不安定になりやすいので、失敗してもビルド／単体テストの成否と
       # 混ざらないよう別ステップ＋continue-on-error にする（ステップ自体は赤く表示され、
       # 失敗したことは分かる）。スクリーンショットは成否によらずアーティファクトに残す。
+      # if: always()：単体テストが失敗してもこのステップをスキップせず、撮影だけは
+      # 必ず残す（CI #51 で単体テスト失敗→UIテスト未実行→スクショ皆無になった反省）。
       - name: UI tests (screenshots)
+        if: always()
         continue-on-error: true
         working-directory: WanMap
         run: |
