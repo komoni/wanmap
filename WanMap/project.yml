@@ -38,19 +38,23 @@ targets:
       - Sources
       # 拡張と本体で共有するコード（App Groups経由の受け渡し）
       - Shared
-    resources:
-      - Resources/facilities.json
-      - Resources/Assets.xcassets
-      # 完了フィードバックの短い合成音（デザイン・気持ちよさ第一弾）。
-      # XcodeGenのファイル列挙ではバンドル直下に平置きされるため、
-      # 読み込み側（FeedbackService）もサブフォルダ無しで探す
-      - Resources/Sounds/completion.wav
-      # カレンダーヘッダーのハスキー顔（原画1254pxから256pxに縮小したもの）。
-      # アセットカタログ経由（Image("HuskyFace")）ではレイアウト幅だけ確保して
-      # 描画されない事象があったため（CI #50）、completion.wav と同じ
-      # プレーンなファイルリソース方式で同梱し、CalendarView が
-      # Bundle.main から UIImage として読み込む。バンドル直下に平置きされる。
-      - Resources/husky-face.png
+      # リソース類。XcodeGen 2.46 では target 直下の resources: を書いても
+      # 生成プロジェクトに一切反映されない（PBXResourcesBuildPhase 自体が
+      # 生成されない）ことを、Mac上の再現実験と CI #54 の診断で確認した。
+      # そのため sources に buildPhase: resources を付けて同梱する方式に
+      # 統一する。いずれもバンドル直下に平置きされ、読み込み側は
+      # Bundle.main からサブフォルダ無しで探す
+      # （FacilityStore / FeedbackService / CalendarView）。
+      - path: Resources/facilities.json
+        buildPhase: resources
+      - path: Resources/Assets.xcassets
+        buildPhase: resources
+      # 完了フィードバックの短い合成音（デザイン・気持ちよさ第一弾）
+      - path: Resources/Sounds/completion.wav
+        buildPhase: resources
+      # カレンダーヘッダーのハスキー顔（原画1254pxから256pxに縮小したもの）
+      - path: Resources/husky-face.png
+        buildPhase: resources
     settings:
       base:
         # バンドルIDは正式ドメインで明示（bundleIdPrefix の自動生成 jp.wanmap.WanMap にはしない）
