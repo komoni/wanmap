@@ -292,8 +292,8 @@ final class PlanStoreSafetyTests: XCTestCase {
         XCTAssertNotNil(series)
         guard let series else { return }
         XCTAssertEqual(series.timeZoneID, "Asia/Tokyo")
-        let labels = store.occurrences(of: series.id).map { date in
-            let c = cal.dateComponents([.month, .day], from: date)
+        let labels = store.occurrences(of: series.id).map { plan in
+            let c = cal.dateComponents([.month, .day], from: plan.date)
             return "\(c.month!)/\(c.day!)"
         }
         XCTAssertEqual(labels, ["1/31", "2/28", "3/31"])
