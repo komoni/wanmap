@@ -18,6 +18,9 @@ struct CalendarView: View {
     @State private var showSettings = false
     @State private var showStoryImport = false
 
+    /// セルの最小高さ（デザイン第二弾の装飾フッター計算用）。文字サイズに連動させる
+    @ScaledMetric(relativeTo: .subheadline) private var minRowHeight: CGFloat = 76
+
     private struct DaySelection: Identifiable {
         let id = UUID()
         let day: Date
@@ -36,7 +39,7 @@ struct CalendarView: View {
     /// completion.wav と同じ方式）から、FeedbackService と同じ流儀で
     /// Bundle.main 経由に読み込む。
     /// 読み込めない場合に別の絵で誤魔化すフォールバックは置かない
-    /// （カタログ同梱の切り分けは単体テスト HuskyFaceAssetProbeTests が担う）。
+    /// （ファイルリソース同梱の回帰ガードは単体テスト HuskyFaceResourceTests が担う）。
     private static let huskyFaceImage: UIImage? = {
         guard let url = Bundle.main.url(forResource: "husky-face", withExtension: "png") else { return nil }
         return UIImage(contentsOfFile: url.path)
@@ -55,10 +58,14 @@ struct CalendarView: View {
             if showYear {
                 yearGrid
             } else {
-                // 月グリッドが残りの高さいっぱいに広がる（下の空白を作らない）
+                // 月グリッド＋装飾フッターが残りの高さいっぱいに広がる。
+                // 実測した高さからセルの最小高さを確保し、余りだけ装飾に回す
+                // （MonthDecorationLayout。装飾でセルを潰さない）
                 VStack(spacing: 6) {
                     weekdayHeader
-                    monthGrid
+                    GeometryReader { geo in
+                        monthArea(availableHeight: geo.size.height)
+                    }
                 }
             }
         }
@@ -76,7 +83,7 @@ struct CalendarView: View {
         // ヘッダーの帯だけに淡いギンガムを敷く（他の画面・セルには広げない）。
         // 「透明度を下げる」設定時は柄を消して無地（ミルク）にする。
         // レイアウトは AppearanceStore の比較案で切り替わる：
-        // 1段（現行）／2段（補助操作を下段へ）。既定は1段。
+        // 1段／2段（補助操作を下段へ）。既定は2段＋コーラル（2026-11-07に本人が選択）。
         //
         // 幅の予算（iPhone 16 Pro＝402pt、画面の横余白12を引いた帯の内寸は
         // 1段＝370pt／2段＝358pt）：全要素を並べると簡単に溢れ、圧縮抵抗の低い
@@ -234,30 +241,47 @@ struct CalendarView: View {
         }
     }
 
-    /// 月グリッド。週の行（HStack）を縦に積み、各行・各セルが利用可能な
-    /// 高さいっぱいに均等に広がる形にする（LazyVGrid は行の高さを余らせて
-    /// 下に空白ができるため使わない）。空マスは weeksIn が nil で埋める。
-    /// セルの中身は上寄せのまま、セル自体の高さだけが伸びる。
-    private var monthGrid: some View {
+    /// グリッド＋装飾フッター。実測の高さからレイアウトを決める
+    private func monthArea(availableHeight: CGFloat) -> some View {
         let weeks = weeksIn(displayedMonth)
+        let layout = MonthDecorationLayout.compute(
+            availableHeight: availableHeight,
+            weeks: weeks.count,
+            rowSpacing: 6,
+            footerSpacing: 6,
+            minRowHeight: minRowHeight)
         return VStack(spacing: 6) {
+            monthGrid(weeks: weeks, rowHeight: layout.rowHeight)
+            if layout.footerHeight > 0 {
+                DecorationFooterView(stage: layout.stage, height: layout.footerHeight)
+            }
+        }
+    }
+
+    /// 月グリッド。週の行（HStack）を縦に積み、各行の高さは
+    /// MonthDecorationLayout が決めた rowHeight で均等にする
+    /// （LazyVGrid は行の高さを余らせて下に空白ができるため使わない）。
+    /// 空マスは weeksIn が nil で埋める。セルの中身は上寄せのまま。
+    private func monthGrid(weeks: [[Date?]], rowHeight: CGFloat) -> some View {
+        VStack(spacing: 6) {
             ForEach(weeks.indices, id: \.self) { weekIndex in
                 HStack(spacing: 6) {
                     ForEach(weeks[weekIndex].indices, id: \.self) { dayIndex in
                         if let day = weeks[weekIndex][dayIndex] {
-                            dayCell(day)
+                            dayCell(day, height: rowHeight)
                         } else {
                             Color.clear
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: rowHeight)
                         }
                     }
                 }
+                .frame(height: rowHeight)
             }
         }
-        .frame(maxHeight: .infinity)
     }
 
-    private func dayCell(_ day: Date) -> some View {
+    private func dayCell(_ day: Date, height: CGFloat) -> some View {
         let dayPlans = plansByDay[calendar.startOfDay(for: day)] ?? []
         let isToday = calendar.isDateInToday(day)
         return VStack(spacing: 2) {
@@ -302,8 +326,8 @@ struct CalendarView: View {
             Spacer(minLength: 0)
         }
         .padding(.vertical, 4)
-        // 高さは週の行いっぱいに伸ばす（中身は末尾の Spacer と alignment で上寄せを維持）
-        .frame(maxWidth: .infinity, minHeight: 60, maxHeight: .infinity, alignment: .top)
+        // 高さは MonthDecorationLayout の行高に固定する（中身は末尾の Spacer と alignment で上寄せを維持）
+        .frame(maxWidth: .infinity, height: height, alignment: .top)
         .background(WanStyle.card)
         .clipShape(RoundedRectangle(cornerRadius: 10))
         .onTapGesture { daySelection = DaySelection(day: day) }

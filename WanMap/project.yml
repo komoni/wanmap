@@ -55,6 +55,9 @@ targets:
       # カレンダーヘッダーのハスキー顔（原画1254pxから256pxに縮小したもの）
       - path: Resources/husky-face.png
         buildPhase: resources
+      # カレンダー下端の装飾フッター用：恐竜ハスキー（本人が選んだコミカル版を切り抜いた透過PNG）
+      - path: Resources/husky-dino-peek.png
+        buildPhase: resources
     settings:
       base:
         # バンドルIDは正式ドメインで明示（bundleIdPrefix の自動生成 jp.wanmap.WanMap にはしない）

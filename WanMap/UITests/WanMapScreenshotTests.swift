@@ -171,6 +171,33 @@ final class WanMapScreenshotTests: XCTestCase {
         attachScreenshot("design-settings")
     }
 
+    // MARK: - デザイン第二弾（下部の装飾フッター）
+
+    /// ⑩ カレンダー：既定の見た目（2段＋コーラル）で、下部に恐竜ハスキー＋波帯の
+    /// 融合シーンが出る月（5週の月）。装飾は読み上げ対象外のため、表示そのものは
+    /// 目視スクショで担保し、ここでは月のタイトルだけを確認する
+    func test10_designCalendarDinoFooter() throws {
+        launchAndSettleOnCalendar()
+        XCTAssertTrue(app.staticTexts["2026年11月"].waitForExistence(timeout: 10),
+                      "2026年11月のタイトルが見つかりませんでした")
+        attachScreenshot("design-calendar-dino")
+    }
+
+    /// ⑪ カレンダー：6週の月（2026年8月）でもグリッドが崩れず、
+    /// 余裕に応じた装飾になることの撮影（前月ボタン×3で移動）
+    func test11_designCalendarSixWeeks() throws {
+        launchAndSettleOnCalendar()
+        let prevButton = app.buttons["calendarPrevMonthButton"]
+        XCTAssertTrue(prevButton.waitForExistence(timeout: 15),
+                      "前月ボタンが見つかりませんでした")
+        for _ in 0..<3 {
+            prevButton.tap()
+        }
+        XCTAssertTrue(app.staticTexts["2026年8月"].waitForExistence(timeout: 10),
+                      "2026年8月のタイトルが見つかりませんでした")
+        attachScreenshot("design-calendar-sixweeks")
+    }
+
     // MARK: - 共通処理
 
     /// ヘッダー要素が画面（window）の内側に収まっていることの回帰ガード。
