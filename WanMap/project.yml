@@ -45,6 +45,12 @@ targets:
       # XcodeGenのファイル列挙ではバンドル直下に平置きされるため、
       # 読み込み側（FeedbackService）もサブフォルダ無しで探す
       - Resources/Sounds/completion.wav
+      # カレンダーヘッダーのハスキー顔（原画1254pxから256pxに縮小したもの）。
+      # アセットカタログ経由（Image("HuskyFace")）ではレイアウト幅だけ確保して
+      # 描画されない事象があったため（CI #50）、completion.wav と同じ
+      # プレーンなファイルリソース方式で同梱し、CalendarView が
+      # Bundle.main から UIImage として読み込む。バンドル直下に平置きされる。
+      - Resources/husky-face.png
     settings:
       base:
         # バンドルIDは正式ドメインで明示（bundleIdPrefix の自動生成 jp.wanmap.WanMap にはしない）
