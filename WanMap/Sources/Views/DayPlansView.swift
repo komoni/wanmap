@@ -39,11 +39,29 @@ struct DayPlansView: View {
                         // .onDelete は List 側にスワイプ削除の内部状態が残ったまま、
                         // 範囲ダイアログ確定後にストア側で行が消えると行数が合わず
                         // アプリが落ちる事象があったため（CI #40 の切り分け）。
+                        //
+                        // シリーズ行のボタンは「確認（削除範囲ダイアログ）を開く」だけなので
+                        // destructive role を付けない（案D）。destructive を付けると
+                        // スワイプ側の削除機構が先に件数を進め、確認後のモデル削除と
+                        // 件数が衝突して落ちる疑いがあるため、role はダイアログ側の
+                        // 実削除ボタンだけに残す。赤い見た目は tint で維持する。
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                            Button(role: .destructive) {
-                                delete(plan)
-                            } label: {
-                                Label("削除", systemImage: "trash")
+                            if plan.seriesID != nil {
+                                Button {
+                                    // 対象を先に入れてから表示する（ダイアログ側はこの順序を前提とする）
+                                    deletionTarget = plan
+                                    showDeletionDialog = true
+                                } label: {
+                                    Label("削除", systemImage: "trash")
+                                }
+                                .tint(.red)
+                                .accessibilityHint("削除する範囲を選びます")
+                            } else {
+                                Button(role: .destructive) {
+                                    delete(plan)
+                                } label: {
+                                    Label("削除", systemImage: "trash")
+                                }
                             }
                         }
                 }
