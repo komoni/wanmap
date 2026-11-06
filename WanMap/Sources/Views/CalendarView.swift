@@ -198,6 +198,16 @@ struct CalendarView: View {
         .background(WanStyle.card)
         .clipShape(RoundedRectangle(cornerRadius: 10))
         .onTapGesture { daySelection = DaySelection(day: day) }
+        // UIテストが日セル自体を一意に掴むための識別子（見た目・挙動・読み上げは不変）。
+        // セル内の数字テキストは中身やOSの表現に左右され、ラベル検索が安定しないため
+        .accessibilityIdentifier(dayCellIdentifier(day))
+    }
+
+    /// 日セルの識別子（例：calendarDayCell-2026-12-06）。月表示の日ごとに一意
+    private func dayCellIdentifier(_ day: Date) -> String {
+        let c = calendar.dateComponents([.year, .month, .day], from: day)
+        return String(format: "calendarDayCell-%04d-%02d-%02d",
+                      c.year ?? 0, c.month ?? 0, c.day ?? 0)
     }
 
     // MARK: - 年表示（12か月のミニカレンダー。予定のある日に印。タップでその月の月表示へ）

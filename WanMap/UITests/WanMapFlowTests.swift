@@ -375,7 +375,7 @@ final class WanMapFlowTests: XCTestCase {
         // --- 登録：初回の日別一覧からフォームを開き、第○曜日×3回で保存する ---
         launchAndSettleOnCalendar()
         navigateCalendar(toMonthContaining: first1, displayedMonth: &displayed)
-        openDayPlans(dayNumber: cal.component(.day, from: first1))
+        openDayPlans(on: first1)
 
         let addButton = app.buttons["dayPlansAddButton"]
         XCTAssertTrue(addButton.waitForExistence(timeout: 10),
@@ -453,14 +453,14 @@ final class WanMapFlowTests: XCTestCase {
 
         // --- 日別一覧：2回目・3回目にも同じ定例が出る ---
         navigateCalendar(toMonthContaining: first2, displayedMonth: &displayed)
-        openDayPlans(dayNumber: cal.component(.day, from: first2))
+        openDayPlans(on: first2)
         XCTAssertTrue(app.staticTexts.matching(
             NSPredicate(format: "label CONTAINS 'ハス太'")).firstMatch
             .waitForExistence(timeout: 10),
             "2回目の日別一覧に定例が出ませんでした")
         dismissTopSheetByDrag()
         navigateCalendar(toMonthContaining: first3, displayedMonth: &displayed)
-        openDayPlans(dayNumber: cal.component(.day, from: first3))
+        openDayPlans(on: first3)
         XCTAssertTrue(app.staticTexts.matching(
             NSPredicate(format: "label CONTAINS 'ハス太'")).firstMatch
             .waitForExistence(timeout: 10),
@@ -482,7 +482,7 @@ final class WanMapFlowTests: XCTestCase {
 
         // --- 1回だけ変更：2回目の時間帯だけを「夜」にする ---
         navigateCalendar(toMonthContaining: first2, displayedMonth: &displayed)
-        openDayPlans(dayNumber: cal.component(.day, from: first2))
+        openDayPlans(on: first2)
         // 行は List のセル経由でタップする（背後の月グリッドにも同じ場所名の
         // チップがあり、テキスト検索だとそちらを掴む恐れがあるため）
         let editCell = app.cells.firstMatch
@@ -515,7 +515,7 @@ final class WanMapFlowTests: XCTestCase {
         dismissTopSheetByDrag()
         // 初回は元の時間帯（終日）のまま変わっていない
         navigateCalendar(toMonthContaining: first1, displayedMonth: &displayed)
-        openDayPlans(dayNumber: cal.component(.day, from: first1))
+        openDayPlans(on: first1)
         XCTAssertTrue(app.staticTexts.matching(
             NSPredicate(format: "label CONTAINS '終日' AND label CONTAINS 'ハス太'")).firstMatch
             .waitForExistence(timeout: 10),
@@ -544,7 +544,7 @@ final class WanMapFlowTests: XCTestCase {
         displayed = today
         launchAndSettleOnCalendar()
         navigateCalendar(toMonthContaining: first2, displayedMonth: &displayed)
-        openDayPlans(dayNumber: cal.component(.day, from: first2))
+        openDayPlans(on: first2)
         XCTAssertTrue(app.staticTexts.matching(
             NSPredicate(format: "label CONTAINS '夜' AND label CONTAINS 'ハス太'")).firstMatch
             .waitForExistence(timeout: 10),
@@ -575,7 +575,7 @@ final class WanMapFlowTests: XCTestCase {
         displayed = today
         launchAndSettleOnCalendar()
         navigateCalendar(toMonthContaining: first2, displayedMonth: &displayed)
-        openDayPlans(dayNumber: cal.component(.day, from: first2))
+        openDayPlans(on: first2)
         XCTAssertFalse(app.staticTexts.matching(
             NSPredicate(format: "label CONTAINS 'ハス太'")).firstMatch
             .waitForExistence(timeout: 3),
@@ -583,7 +583,7 @@ final class WanMapFlowTests: XCTestCase {
         dismissTopSheetByDrag()
         // 初回は残っている（シリーズごと消えていない）
         navigateCalendar(toMonthContaining: first1, displayedMonth: &displayed)
-        openDayPlans(dayNumber: cal.component(.day, from: first1))
+        openDayPlans(on: first1)
         XCTAssertTrue(app.staticTexts.matching(
             NSPredicate(format: "label CONTAINS '終日' AND label CONTAINS 'ハス太'")).firstMatch
             .waitForExistence(timeout: 10),
@@ -619,12 +619,23 @@ final class WanMapFlowTests: XCTestCase {
                       "カレンダーの見出しが \(title) になりませんでした")
     }
 
-    /// 月表示で dayNumber 日のセルをタップし、日別予定シートが開くことを確認する
-    private func openDayPlans(dayNumber: Int) {
-        let cell = app.staticTexts.matching(
-            NSPredicate(format: "label == '%d'", dayNumber)).firstMatch
+    /// 月表示で date の日のセルをタップし、日別予定シートが開くことを確認する。
+    /// セルは CalendarView 側の日セル専用識別子（calendarDayCell-yyyy-MM-dd）で掴む。
+    /// 以前はセル内の数字テキストを StaticText のラベル完全一致で探していたが、
+    /// 数字だけの素のセルはコンテナ（タップジェスチャ付きVStack）への集約のされ方に
+    /// 左右され、StaticText として安定して現れず CI で見つけられなかった。
+    /// 識別子なら要素の種類に依存せず、セル全体がタップ対象になる。
+    private func openDayPlans(on date: Date) {
+        // 年月日の取り出しはアプリ側（Gregorian固定）に合わせる。
+        // Calendar.current は端末設定で和暦等になり得るため使わない
+        let gregorian = Calendar(identifier: .gregorian)
+        let c = gregorian.dateComponents([.year, .month, .day], from: date)
+        let identifier = String(format: "calendarDayCell-%04d-%02d-%02d",
+                                c.year ?? 0, c.month ?? 0, c.day ?? 0)
+        let cell = app.descendants(matching: .any)
+            .matching(identifier: identifier).firstMatch
         XCTAssertTrue(cell.waitForExistence(timeout: 10),
-                      "\(dayNumber)日のセルが見つかりませんでした")
+                      "\(c.day ?? 0)日のセルが見つかりませんでした")
         cell.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         let dayTitle = app.staticTexts.matching(
             NSPredicate(format: "label CONTAINS '月' AND label CONTAINS '日'")).firstMatch
