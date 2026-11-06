@@ -20,6 +20,10 @@ import SwiftUI
 ///   「表示 Bool の書き込み＋ストア書き込み」という2つの更新が重なると、
 ///   List の差分更新に同じ削除差分が二重に適用される形の件数不整合
 ///   （test08 のクラッシュ）が起きるため、その発生源を取り除く。
+/// - ストア操作は、アニメーションを無効化したトランザクションの中で行う（F2）。
+///   E2 だけでは解消しなかったため、削除に伴う List 更新だけアニメーションを
+///   抑え、差分更新と遷移アニメーションの干渉を切り分ける。恒常策としても
+///   削除時の更新に限って適用し、他の画面遷移のアニメーションは変えない。
 struct SeriesDeletionDialog: ViewModifier {
     /// 削除対象の控え（payload）。表示制御とは連動させない
     @Binding var target: Plan?
@@ -42,14 +46,27 @@ struct SeriesDeletionDialog: ViewModifier {
                 // ストア操作を1回だけ行う。ダイアログは標準動作で自動的に
                 // 閉じるため、ここでは isPresented を書き換えない（E2）。
                 // target はここでは nil にしない（次の削除要求で置き換わる）。
+                // ストア操作はアニメーションを無効化したトランザクションで
+                // 実行する（F2：削除に伴う List 更新と遷移の干渉を避ける）。
                 let targetPlan = plan
-                if store.removeOccurrence(targetPlan) { onDeleted() } else { onFailure() }
+                var deletionTransaction = Transaction(animation: nil)
+                deletionTransaction.disablesAnimations = true
+                let succeeded = withTransaction(deletionTransaction) {
+                    store.removeOccurrence(targetPlan)
+                }
+                if succeeded { onDeleted() } else { onFailure() }
             }
             Button("シリーズ全体を削除", role: .destructive) {
                 // 「この回だけ削除」と同じく、isPresented は書き換えず
-                // 標準の dismiss に任せる（E2）。
+                // 標準の dismiss に任せ（E2）、ストア操作はアニメーションを
+                // 無効化したトランザクションで実行する（F2）。
                 let targetPlan = plan
-                if store.removeSeries(of: targetPlan) { onDeleted() } else { onFailure() }
+                var deletionTransaction = Transaction(animation: nil)
+                deletionTransaction.disablesAnimations = true
+                let succeeded = withTransaction(deletionTransaction) {
+                    store.removeSeries(of: targetPlan)
+                }
+                if succeeded { onDeleted() } else { onFailure() }
             }
             Button("キャンセル", role: .cancel) {
                 // 閉じるだけ。ストア操作はせず、target にも触らない
