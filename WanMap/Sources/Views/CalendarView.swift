@@ -327,7 +327,7 @@ struct CalendarView: View {
         }
         .padding(.vertical, 4)
         // 高さは MonthDecorationLayout の行高に固定する（中身は末尾の Spacer と alignment で上寄せを維持）
-        .frame(maxWidth: .infinity, height: height, alignment: .top)
+        .frame(maxWidth: .infinity, minHeight: height, maxHeight: height, alignment: .top)
         .background(WanStyle.card)
         .clipShape(RoundedRectangle(cornerRadius: 10))
         .onTapGesture { daySelection = DaySelection(day: day) }
