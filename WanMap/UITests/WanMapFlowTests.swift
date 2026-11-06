@@ -727,6 +727,140 @@ final class WanMapFlowTests: XCTestCase {
         dismissTopSheetByDrag()
     }
 
+    // MARK: - フロー9：シリーズ1回のフォーム削除（診断用）
+
+    /// test08 と同じ「毎週シリーズ×3回の初回を、この回だけ削除」を、
+    /// スワイプではなく編集フォーム経由で行う診断テスト。目的は切り分け専用：
+    /// 「削除確定後にアプリが落ちる」事象が、スワイプ操作を引き金として
+    /// 必要とするのか（フォーム経由でも同じく落ちるのか）を見る。
+    /// 登録の前段（シード起動・作り方は test08 と同一手順）と検証内容
+    /// （初回が消え、他の回が残る）は test08 と同等で、違うのは削除経路だけ：
+    /// 行タップ→編集フォーム→「この予定を削除」→範囲ダイアログで
+    /// 「この回だけ削除」。test08 側には一切手を入れていない。
+    func test09_formDeleteSeriesOccurrence() throws {
+        launchAndSettleOnCalendar()
+        openTodayDayPlans()
+
+        let addButton = app.buttons["dayPlansAddButton"]
+        XCTAssertTrue(addButton.waitForExistence(timeout: 10),
+                      "予定追加ボタンが見つかりませんでした")
+        addButton.tap()
+        XCTAssertTrue(app.navigationBars["予定を追加"].waitForExistence(timeout: 10),
+                      "予定追加フォームが開きませんでした")
+
+        // 場所：候補地検索で施設「ドッグウィズ」を選ぶ（フロー6・8と同じ経路）
+        let placeField = app.textFields["場所を検索"]
+        XCTAssertTrue(placeField.waitForExistence(timeout: 10),
+                      "場所の検索欄が見つかりませんでした")
+        placeField.tap()
+        placeField.typeText("ドッグウィズ")
+        let candidate = app.buttons.matching(
+            NSPredicate(format: "label CONTAINS 'ドッグウィズ'")).firstMatch
+        XCTAssertTrue(candidate.waitForExistence(timeout: 10),
+                      "施設の候補が出ませんでした")
+        candidate.tap()
+
+        // 繰り返し：「毎週」を選ぶ（回数はデフォルトの3回のまま。フロー8と同じ作り方）
+        let weeklySegment = app.buttons["毎週"]
+        var attempts = 0
+        while !weeklySegment.isHittable && attempts < 5 {
+            app.swipeUp()
+            attempts += 1
+        }
+        XCTAssertTrue(weeklySegment.exists && weeklySegment.isHittable,
+                      "繰り返しの「毎週」が見つかりませんでした")
+        weeklySegment.tap()
+        XCTAssertTrue(app.staticTexts["全3回"].waitForExistence(timeout: 10),
+                      "繰り返しのプレビュー（全3回）が表示されませんでした")
+
+        // 犬の名前（test08 と同じゴン太。シードは起動ごとに作り直されるため、
+        // フローをまたいだ混線はしない）
+        let dogField = app.textFields["犬の名前"]
+        attempts = 0
+        while !dogField.isHittable && attempts < 5 {
+            app.swipeUp()
+            attempts += 1
+        }
+        XCTAssertTrue(dogField.waitForExistence(timeout: 10),
+                      "犬の名前欄が見つかりませんでした")
+        dogField.tap()
+        if let value = dogField.value as? String, !value.isEmpty {
+            dogField.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue,
+                                     count: value.count))
+        }
+        dogField.typeText("ゴン太")
+
+        // 保存 → 初回（今日）の日別一覧に反映される
+        app.buttons["保存"].tap()
+        let rowQuery = app.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS 'ゴン太'"))
+        XCTAssertTrue(rowQuery.firstMatch.waitForExistence(timeout: 10),
+                      "保存した繰り返し予定が日別一覧に反映されませんでした")
+        XCTAssertEqual(rowQuery.count, 1,
+                       "削除対象の行が一意に特定できませんでした（\(rowQuery.count) 件）")
+
+        // --- ここから test08 と経路が違う：スワイプせず、行タップで編集フォームを開く ---
+        // 行内のテキスト要素の座標でタップする（openTodayDayPlans の肉球タップと
+        // 同じ流儀。行全体に onTapGesture が付いており、テキスト上でも発火する）。
+        rowQuery.firstMatch.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        XCTAssertTrue(app.navigationBars["予定を編集"].waitForExistence(timeout: 10),
+                      "編集フォームが開きませんでした")
+
+        // フォーム最下部の削除セクション「この予定を削除」を押す。
+        // Form の末尾にあるため、必要に応じてスクロールして出す。
+        let formDeleteButton = app.buttons["この予定を削除"]
+        attempts = 0
+        while !formDeleteButton.isHittable && attempts < 8 {
+            app.swipeUp()
+            attempts += 1
+        }
+        XCTAssertTrue(formDeleteButton.exists && formDeleteButton.isHittable,
+                      "フォームの削除ボタン（この予定を削除）が見つかりませんでした")
+        formDeleteButton.tap()
+
+        // 範囲ダイアログはスワイプ経路と共通の SeriesDeletionDialog
+        // （タイトル「この予定は繰り返しの一部です」）。「この回だけ削除」を選ぶ。
+        let deleteOccurrence = app.buttons["この回だけ削除"]
+        XCTAssertTrue(deleteOccurrence.waitForExistence(timeout: 10),
+                      "削除範囲のダイアログが出ませんでした")
+        deleteOccurrence.tap()
+
+        // 削除が成功すると onDeleted でフォームが自動的に閉じ、日別シートへ
+        // 戻る（PlanFormView の既存挙動）。閉じるまで待ってから生存確認する。
+        let formDeadline = Date().addingTimeInterval(10)
+        while app.navigationBars["予定を編集"].exists && Date() < formDeadline {
+            Thread.sleep(forTimeInterval: 0.2)
+        }
+        XCTAssertFalse(app.navigationBars["予定を編集"].exists,
+                       "削除後に編集フォームが閉じませんでした")
+        // 診断：フォーム経由の削除でもアプリが落ちるかを、この地点で切り分ける
+        assertAppRunningForeground("flow09-after-form-delete")
+
+        // 初回はその場で消える。要素待ちの前にアプリの生存を確認する
+        // （test08 と同じ理由・同じ検証）。
+        assertAppRunningForeground("flow09-before-row-disappearance-check")
+        XCTAssertFalse(rowQuery.firstMatch.waitForExistence(timeout: 3),
+                       "削除した回がその場で消えていません")
+        attachScreenshot("flow09-form-delete-occurrence")
+        dismissTopSheetByDrag()
+
+        // 他の回（2回目＝来週の同じ曜日）は残っている（test08 と同じ検証）。
+        let gregorian = Calendar(identifier: .gregorian)
+        let nextWeek = gregorian.date(byAdding: .day, value: 7, to: Date())!
+        var displayed = Date()
+        navigateCalendar(toMonthContaining: nextWeek, displayedMonth: &displayed)
+        openDayPlans(on: nextWeek)
+        assertAppRunningForeground("flow09-before-other-occurrence-check")
+        if !app.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS 'ゴン太'")).firstMatch
+            .waitForExistence(timeout: 10) {
+            attachFailureEvidence("flow09-other-occurrence-missing")
+            XCTFail("シリーズの他の回（2回目）まで消えてしまいました")
+        }
+        dismissTopSheetByDrag()
+    }
+
     /// 指定した日を含む月の第1日曜日
     private func firstSunday(inMonthOf date: Date, calendar: Calendar) -> Date {
         let first = calendar.date(from: calendar.dateComponents([.year, .month], from: date))!
