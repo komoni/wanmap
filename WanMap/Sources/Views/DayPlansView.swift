@@ -33,17 +33,17 @@ struct DayPlansView: View {
                         .onTapGesture {
                             if !plan.isPresence { editingPlan = plan }
                         }
-                }
-                .onDelete { offsets in
-                    let targets = offsets.map { plans[$0] }
-                    // 繰り返しの回は、範囲（この回だけ／シリーズ全体）を選んでから消す
-                    // （フォーム内削除と共通のダイアログを使う）
-                    if let seriesPlan = targets.first(where: { $0.seriesID != nil }) {
-                        targets.filter { $0.seriesID == nil }.forEach { planStore.remove($0) }
-                        deletionTarget = seriesPlan
-                    } else {
-                        targets.forEach { planStore.remove($0) }
-                    }
+                        // 行の削除は .onDelete でなく .swipeActions 経由にする。
+                        // .onDelete は List 側にスワイプ削除の内部状態が残ったまま、
+                        // 範囲ダイアログ確定後にストア側で行が消えると行数が合わず
+                        // アプリが落ちる事象があったため（CI #40 の切り分け）。
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button(role: .destructive) {
+                                delete(plan)
+                            } label: {
+                                Label("削除", systemImage: "trash")
+                            }
+                        }
                 }
             }
             .navigationTitle(title)
@@ -68,6 +68,17 @@ struct DayPlansView: View {
             .sheet(isPresented: $showNewForm) {
                 PlanFormView(editing: nil, defaultDate: day, defaultDogName: planStore.lastDogName)
             }
+        }
+    }
+
+    /// スワイプ削除の振る舞い：繰り返しの回は、範囲（この回だけ／シリーズ全体）を
+    /// 選んでから消す（フォーム内削除と共通のダイアログを使う）。
+    /// それ以外はその場で削除し、保存に失敗したら成功として見せずアラートを出す。
+    private func delete(_ plan: Plan) {
+        if plan.seriesID != nil {
+            deletionTarget = plan
+        } else if !planStore.remove(plan) {
+            showDeleteFailure = true
         }
     }
 
