@@ -46,7 +46,7 @@ final class AppearanceStore {
     }
 
     static let defaultButtonVariant: ButtonVariant = .coral
-    static let defaultHeaderLayout: HeaderLayout = .standard
+    static let defaultHeaderLayout: HeaderLayout = .stacked
 
     private static let buttonVariantKey = "wanmap.appearance.buttonVariant"
     private static let headerLayoutKey = "wanmap.appearance.headerLayout"
