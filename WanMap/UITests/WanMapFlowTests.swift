@@ -701,18 +701,23 @@ final class WanMapFlowTests: XCTestCase {
         swipeDayPlanRowAndDeleteOccurrence(rowText: rowQuery.firstMatch,
                                            evidenceName: "flow08-delete-not-reached")
 
-        // 初回はその場で消える
+        // 初回はその場で消える。要素待ちの前にアプリの生存を確認する
+        // （アプリが終了していると waitForExistence は「存在しない」を返し、
+        // 削除で消えたのかアプリ終了で見えないだけなのか区別できないため）。
+        assertAppRunningForeground("flow08-before-row-disappearance-check")
         XCTAssertFalse(rowQuery.firstMatch.waitForExistence(timeout: 3),
                        "削除した回がその場で消えていません")
         attachScreenshot("flow08-swipe-delete-occurrence")
         dismissTopSheetByDrag()
 
-        // 他の回（2回目＝来週の同じ曜日）は残っている
+        // 他の回（2回目＝来週の同じ曜日）は残っている。
+        // こちらも要素待ちの前にアプリ状態を添付へ残す。
         let gregorian = Calendar(identifier: .gregorian)
         let nextWeek = gregorian.date(byAdding: .day, value: 7, to: Date())!
         var displayed = Date()
         navigateCalendar(toMonthContaining: nextWeek, displayedMonth: &displayed)
         openDayPlans(on: nextWeek)
+        assertAppRunningForeground("flow08-before-other-occurrence-check")
         if !app.staticTexts.matching(
             NSPredicate(format: "label CONTAINS 'ゴン太'")).firstMatch
             .waitForExistence(timeout: 10) {
@@ -939,12 +944,84 @@ final class WanMapFlowTests: XCTestCase {
         XCTAssertTrue(deleteOccurrence.waitForExistence(timeout: 10),
                       "削除範囲のダイアログが出ませんでした")
         deleteOccurrence.tap()
+        // 診断（CI #40：フロー8で「この回だけ削除」タップ直後にアプリが
+        // 存在しなくなった件の切り分け）：削除の反映（ストア更新→一覧の
+        // 再描画）が走った直後のアプリ状態を、状態値つき添付で確認する。
+        // ここで落ちていれば、呼び出し側の後段の要素待ちが空振りして
+        // 失敗箇所がずれる前に、この地点で切り分けられる。
+        // フロー7・8の共通処理内に入れてある（フロー7の検証内容は不変で、
+        // 生存確認の追加のみ）。
+        assertAppRunningForeground("\(evidenceName)-after-delete-tap")
+    }
+
+    // MARK: - 診断ヘルパー（アプリ状態）
+
+    /// アプリの実行状態を人間可読な文字列にする（診断添付・失敗文言用）
+    private func appStateDescription(_ state: XCUIApplication.State) -> String {
+        switch state {
+        case .unknown: return "unknown"
+        case .notRunning: return "notRunning"
+        case .runningBackgroundSuspended: return "runningBackgroundSuspended"
+        case .runningBackground: return "runningBackground"
+        case .runningForeground: return "runningForeground"
+        default: return "その他(rawValue: \(state.rawValue))"
+        }
+    }
+
+    /// アプリが画面を返せる状態（前面／背面で実行中）かどうか。
+    /// 終了済み・状態不明の時に screenshot() や debugDescription を触ると
+    /// 「アプリが存在しない」系のエラーになり、本来の失敗を上書きして
+    /// しまう（CI #40 のフロー8がその形で表面化した）。証拠系ヘルパーは
+    /// まずここで判定してから撮影・取得に進む。
+    private var isAppRunning: Bool {
+        app.state == .runningForeground || app.state == .runningBackground
+    }
+
+    /// アプリの現在状態をテキスト添付として残す
+    /// （スクリーンショットに依存しない、アプリ終了時でも残せる証拠）。
+    private func attachAppState(_ name: String) {
+        let attachment = XCTAttachment(
+            string: "アプリ状態: \(appStateDescription(app.state))")
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    /// アプリが前面で動いていることを確認する診断 assertion。
+    /// 状態が安定するまで短く待ってから判定し、状態値を添付に残す。
+    /// 動いていなければその場で失敗させ、後続の要素待ちが空振りして
+    /// 本当の異常発生地点を上書きしないようにする。
+    private func assertAppRunningForeground(_ checkpoint: String) {
+        let deadline = Date().addingTimeInterval(2)
+        var state = app.state
+        while state != .runningForeground && Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.2)
+            state = app.state
+        }
+        attachAppState("\(checkpoint)-app-state")
+        XCTAssertEqual(state, .runningForeground,
+                       "\(checkpoint)：アプリが前面で実行中ではありません"
+                       + "（状態：\(appStateDescription(state))）")
     }
 
     /// 失敗時点の証拠を残す：画面のスクリーンショット（keepAlways）と、
     /// アプリ全体＋止まった対象要素の debugDescription（テキスト添付）。
     /// 成功時の節目撮影（attachScreenshot）と違い、失敗が確定した箇所からだけ呼ぶ。
+    /// アプリが実行中でない場合は、撮影・debugDescription の取得自体が
+    /// エラーになって本来の失敗を上書きするため、状態のテキスト添付に
+    /// 切り替える（CI #40 のフロー8対策）。
     private func attachFailureEvidence(_ name: String, element: XCUIElement? = nil) {
+        guard isAppRunning else {
+            let stateNote = XCTAttachment(
+                string: "アプリが実行中ではないため、スクリーンショットと "
+                    + "debugDescription は取得しませんでした。"
+                    + "アプリ状態：\(appStateDescription(app.state))")
+            stateNote.name = "\(name)-app-state"
+            stateNote.lifetime = .keepAlways
+            add(stateNote)
+            return
+        }
+
         let shot = XCTAttachment(screenshot: app.screenshot())
         shot.name = "\(name)-screenshot"
         shot.lifetime = .keepAlways
@@ -960,9 +1037,16 @@ final class WanMapFlowTests: XCTestCase {
         add(desc)
     }
 
-    /// スクリーンショットをテスト結果へ添付する（合格時も残すため keepAlways）
+    /// スクリーンショットをテスト結果へ添付する（合格時も残すため keepAlways）。
+    /// アプリが実行中でない場合は撮影を試みず、状態のテキスト添付に
+    /// 切り替える（撮影側の例外で本来の失敗を上書きしないため。
+    /// アプリの生存そのものは、要所の assertAppRunningForeground が担う）。
     private func attachScreenshot(_ name: String) {
         Thread.sleep(forTimeInterval: 0.5)
+        guard isAppRunning else {
+            attachAppState("\(name)-app-state-instead-of-screenshot")
+            return
+        }
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = name
         attachment.lifetime = .keepAlways
