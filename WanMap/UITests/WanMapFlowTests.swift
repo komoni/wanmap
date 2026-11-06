@@ -591,52 +591,17 @@ final class WanMapFlowTests: XCTestCase {
         attachScreenshot("demo-aichi-05-after-restart")
 
         // --- 個別削除：2回目だけを消し、再起動しても復活しないことを確認する ---
-        // 対象行は犬名「ハス太」を含む行として一意に特定する（件数1を確認してから操作する）
-        let targetRows = app.cells.matching(
-            NSPredicate(format: "label CONTAINS 'ハス太'"))
+        // 対象行は、削除する回そのものを指すテキスト要素（「夜」に変更済みの
+        // 2回目で、犬名「ハス太」を含む StaticText）で一意に特定する。
+        // セル要素のラベルには犬名が含まれず、cells のラベル検索では行を
+        // 掴めなかったため（CI #39）、行の特定はテキスト要素に寄せ、
+        // スワイプもその座標から行う（共通処理に委譲）。
+        let targetRows = app.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS '夜' AND label CONTAINS 'ハス太'"))
         XCTAssertEqual(targetRows.count, 1,
                        "削除対象の行が一意に特定できませんでした（\(targetRows.count) 件）")
-        let deleteCell = targetRows.firstMatch
-        XCTAssertTrue(deleteCell.waitForExistence(timeout: 10),
-                      "削除対象の予定行が見つかりませんでした")
-
-        // フルスワイプ相当になって範囲ダイアログへ直行するのを避けるため、
-        // 行の中心から幅の約40%だけ左へ動かす部分スワイプにする
-        // （swipeLeft() は量を制御できないので使わない）。
-        let swipeStart = deleteCell.coordinate(
-            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
-        let swipeEnd = deleteCell.coordinate(
-            withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5))
-        swipeStart.press(forDuration: 0.1, thenDragTo: swipeEnd)
-
-        // スワイプ後の到達先は2通りある：OSの削除ボタンが出るか、
-        // フルスワイプ扱いで削除範囲のダイアログへ直行するか。
-        // どちらに着いたかを1つの待機予算（10秒）で判定し、
-        // ボタンが出ていればタップしてダイアログへ進む。
-        // 削除ボタンの表記はOS側の言語で変わるため日英両方を見る
-        // （ロケール固定で日本語になる想定だが、効かない環境への保険）。
-        let swipeDelete = app.buttons.matching(
-            NSPredicate(format: "label IN %@", ["削除", "Delete"])).firstMatch
-        let deleteOccurrence = app.buttons["この回だけ削除"]
-        let deadline = Date().addingTimeInterval(10)
-        var reached = deleteOccurrence.exists
-        while !reached && Date() < deadline {
-            if deleteOccurrence.exists {
-                reached = true
-            } else if swipeDelete.exists && swipeDelete.isHittable {
-                swipeDelete.tap()
-                reached = true
-            } else {
-                Thread.sleep(forTimeInterval: 0.2)
-            }
-        }
-        if !reached {
-            attachFailureEvidence("flow07-delete-not-reached", element: deleteCell)
-            XCTFail("スワイプ後に削除ボタンも削除範囲のダイアログも出ませんでした")
-        }
-        XCTAssertTrue(deleteOccurrence.waitForExistence(timeout: 10),
-                      "削除範囲のダイアログが出ませんでした")
-        deleteOccurrence.tap()
+        swipeDayPlanRowAndDeleteOccurrence(rowText: targetRows.firstMatch,
+                                           evidenceName: "flow07-delete-not-reached")
         XCTAssertFalse(app.staticTexts.matching(
             NSPredicate(format: "label CONTAINS 'ハス太'")).firstMatch
             .waitForExistence(timeout: 3),
@@ -661,6 +626,99 @@ final class WanMapFlowTests: XCTestCase {
             NSPredicate(format: "label CONTAINS '終日' AND label CONTAINS 'ハス太'")).firstMatch
             .waitForExistence(timeout: 10),
             "初回の定例まで消えてしまいました")
+        dismissTopSheetByDrag()
+    }
+
+    // MARK: - フロー8：シリーズ1回のスワイプ削除（短い回帰テスト）
+
+    /// 毎週シリーズ×3回を登録し、初回の日別シートで対象行を部分スワイプして
+    /// 「この回だけ削除」→ その場で初回が消え、他の回が残ることだけを確認する
+    /// 短い回帰テスト（CI #39 追補でフロー7の長い永続化フローから分離）。
+    /// 再起動を伴う永続性（削除した回が復活しないか）はフロー7の担当で、
+    /// ここには含めない。行の特定とスワイプはフロー7と共通処理・同一方式。
+    func test08_swipeDeleteSeriesOccurrence() throws {
+        launchAndSettleOnCalendar()
+        openTodayDayPlans()
+
+        let addButton = app.buttons["dayPlansAddButton"]
+        XCTAssertTrue(addButton.waitForExistence(timeout: 10),
+                      "予定追加ボタンが見つかりませんでした")
+        addButton.tap()
+        XCTAssertTrue(app.navigationBars["予定を追加"].waitForExistence(timeout: 10),
+                      "予定追加フォームが開きませんでした")
+
+        // 場所：候補地検索で施設「ドッグウィズ」を選ぶ（フロー6と同じ経路）
+        let placeField = app.textFields["場所を検索"]
+        XCTAssertTrue(placeField.waitForExistence(timeout: 10),
+                      "場所の検索欄が見つかりませんでした")
+        placeField.tap()
+        placeField.typeText("ドッグウィズ")
+        let candidate = app.buttons.matching(
+            NSPredicate(format: "label CONTAINS 'ドッグウィズ'")).firstMatch
+        XCTAssertTrue(candidate.waitForExistence(timeout: 10),
+                      "施設の候補が出ませんでした")
+        candidate.tap()
+
+        // 繰り返し：「毎週」を選ぶ（回数はデフォルトの3回のまま。フロー6と同じ作り方）
+        let weeklySegment = app.buttons["毎週"]
+        var attempts = 0
+        while !weeklySegment.isHittable && attempts < 5 {
+            app.swipeUp()
+            attempts += 1
+        }
+        XCTAssertTrue(weeklySegment.exists && weeklySegment.isHittable,
+                      "繰り返しの「毎週」が見つかりませんでした")
+        weeklySegment.tap()
+        XCTAssertTrue(app.staticTexts["全3回"].waitForExistence(timeout: 10),
+                      "繰り返しのプレビュー（全3回）が表示されませんでした")
+
+        // 犬の名前（他のフロー・シードと被らない名前を使う）
+        let dogField = app.textFields["犬の名前"]
+        attempts = 0
+        while !dogField.isHittable && attempts < 5 {
+            app.swipeUp()
+            attempts += 1
+        }
+        XCTAssertTrue(dogField.waitForExistence(timeout: 10),
+                      "犬の名前欄が見つかりませんでした")
+        dogField.tap()
+        if let value = dogField.value as? String, !value.isEmpty {
+            dogField.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue,
+                                     count: value.count))
+        }
+        dogField.typeText("ゴン太")
+
+        // 保存 → 初回（今日）の日別一覧に反映される
+        app.buttons["保存"].tap()
+        let rowQuery = app.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS 'ゴン太'"))
+        XCTAssertTrue(rowQuery.firstMatch.waitForExistence(timeout: 10),
+                      "保存した繰り返し予定が日別一覧に反映されませんでした")
+
+        // 初回の行を部分スワイプして「この回だけ削除」まで進める（フロー7と共通）
+        XCTAssertEqual(rowQuery.count, 1,
+                       "削除対象の行が一意に特定できませんでした（\(rowQuery.count) 件）")
+        swipeDayPlanRowAndDeleteOccurrence(rowText: rowQuery.firstMatch,
+                                           evidenceName: "flow08-delete-not-reached")
+
+        // 初回はその場で消える
+        XCTAssertFalse(rowQuery.firstMatch.waitForExistence(timeout: 3),
+                       "削除した回がその場で消えていません")
+        attachScreenshot("flow08-swipe-delete-occurrence")
+        dismissTopSheetByDrag()
+
+        // 他の回（2回目＝来週の同じ曜日）は残っている
+        let gregorian = Calendar(identifier: .gregorian)
+        let nextWeek = gregorian.date(byAdding: .day, value: 7, to: Date())!
+        var displayed = Date()
+        navigateCalendar(toMonthContaining: nextWeek, displayedMonth: &displayed)
+        openDayPlans(on: nextWeek)
+        if !app.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS 'ゴン太'")).firstMatch
+            .waitForExistence(timeout: 10) {
+            attachFailureEvidence("flow08-other-occurrence-missing")
+            XCTFail("シリーズの他の回（2回目）まで消えてしまいました")
+        }
         dismissTopSheetByDrag()
     }
 
@@ -828,6 +886,59 @@ final class WanMapFlowTests: XCTestCase {
             Thread.sleep(forTimeInterval: 0.2)
         }
         return (element.value as? String) == expected
+    }
+
+    /// 日別シートの予定行を部分スワイプし、削除範囲ダイアログの
+    /// 「この回だけ削除」を押すところまで進める共通処理（フロー7・フロー8）。
+    ///
+    /// 行の特定とスワイプは、行内のテキスト要素（StaticText）の座標に寄せる。
+    /// セル要素のラベルには犬名が含まれず、cells のラベル検索では行を掴め
+    /// なかったため（CI #39）。座標は要素の frame と app.frame から絶対座標で
+    /// 計算する：開始＝要素の中心、終了＝同じ高さでウィンドウ幅の約40%左。
+    /// 要素基準の正規化オフセットだと行幅に引きずられて移動量が変わるのと、
+    /// フルスワイプ相当になって範囲ダイアログへ直行するのを避けるため
+    /// （swipeLeft() は量を制御できないので使わない）。
+    private func swipeDayPlanRowAndDeleteOccurrence(rowText: XCUIElement,
+                                                    evidenceName: String) {
+        XCTAssertTrue(rowText.waitForExistence(timeout: 10),
+                      "削除対象の予定行が見つかりませんでした")
+
+        let origin = app.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))
+        let rowFrame = rowText.frame
+        let swipeStart = origin.withOffset(
+            CGVector(dx: rowFrame.midX, dy: rowFrame.midY))
+        let swipeEnd = origin.withOffset(
+            CGVector(dx: rowFrame.midX - app.frame.width * 0.4, dy: rowFrame.midY))
+        swipeStart.press(forDuration: 0.1, thenDragTo: swipeEnd)
+
+        // スワイプ後の到達先は2通りある：OSの削除ボタンが出るか、
+        // フルスワイプ扱いで削除範囲のダイアログへ直行するか。
+        // どちらに着いたかを1つの待機予算（10秒）で判定し、
+        // ボタンが出ていればタップしてダイアログへ進む。
+        // 削除ボタンの表記はOS側の言語で変わるため日英両方を見る
+        // （ロケール固定で日本語になる想定だが、効かない環境への保険）。
+        let swipeDelete = app.buttons.matching(
+            NSPredicate(format: "label IN %@", ["削除", "Delete"])).firstMatch
+        let deleteOccurrence = app.buttons["この回だけ削除"]
+        let deadline = Date().addingTimeInterval(10)
+        var reached = deleteOccurrence.exists
+        while !reached && Date() < deadline {
+            if deleteOccurrence.exists {
+                reached = true
+            } else if swipeDelete.exists && swipeDelete.isHittable {
+                swipeDelete.tap()
+                reached = true
+            } else {
+                Thread.sleep(forTimeInterval: 0.2)
+            }
+        }
+        if !reached {
+            attachFailureEvidence(evidenceName, element: rowText)
+            XCTFail("スワイプ後に削除ボタンも削除範囲のダイアログも出ませんでした")
+        }
+        XCTAssertTrue(deleteOccurrence.waitForExistence(timeout: 10),
+                      "削除範囲のダイアログが出ませんでした")
+        deleteOccurrence.tap()
     }
 
     /// 失敗時点の証拠を残す：画面のスクリーンショット（keepAlways）と、
