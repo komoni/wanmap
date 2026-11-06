@@ -23,10 +23,10 @@ final class AppearanceStoreTests: XCTestCase {
         super.tearDown()
     }
 
-    func testDefault_初期状態はコーラル案と1段ヘッダー() {
+    func testDefault_初期状態はコーラル案と2段ヘッダー() {
         let store = AppearanceStore(defaults: defaults)
         XCTAssertEqual(store.buttonVariant, .coral)
-        XCTAssertEqual(store.headerLayout, .standard)
+        XCTAssertEqual(store.headerLayout, .stacked)
         // 案Aの主ボタン色はコーラル #EE7869
         assertColor(store.primaryColor, hex: 0xEE7869)
     }
@@ -57,11 +57,11 @@ final class AppearanceStoreTests: XCTestCase {
         defaults.set("no-such-layout", forKey: "wanmap.appearance.headerLayout")
         let store = AppearanceStore(defaults: defaults)
         XCTAssertEqual(store.buttonVariant, .coral)
-        XCTAssertEqual(store.headerLayout, .standard)
+        XCTAssertEqual(store.headerLayout, .stacked)
     }
 
     func testLaunchArgument_引数の強制指定が保存値より優先される() {
-        // 保存値は既定（コーラル／1段）のまま、撮影用の引数でだけ切り替わる
+        // 保存値は既定（コーラル／2段）のまま、撮影用の引数でだけ切り替わる
         let store = AppearanceStore(defaults: defaults,
                                     launchArguments: ["-wmButtonVariant", "cocoa",
                                                       "-wmHeaderLayout", "stacked"])
