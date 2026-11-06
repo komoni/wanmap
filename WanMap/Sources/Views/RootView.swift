@@ -76,14 +76,9 @@ struct RootView: View {
         .environment(location)
         .task {
             await facilityStore.refreshFromRemote()
-            // 新しい位置が適用されるたびに「今ここ」も置き換える。
-            // 地図側の onChange でも同じ呼び出しをしているが、こちらに繋ぐことで
-            // 地図を開いていない時（バックグラウンドで起こされた時）でも流れる。
-            // moveOwnPresence は座標が変わっていないと何もしないので二重適用にはならない。
-            location.onLocationFix = { [planStore] fix in
-                planStore.moveOwnPresence(latitude: fix.coordinate.latitude,
-                                          longitude: fix.coordinate.longitude)
-            }
+            // 「今ここ」は位置情報で自動的には動かさない（フェーズQレビュー R7）。
+            // 配置・置き直しは本人が地図の「今ここ」ボタンを押した時だけ。
+            // そのため LocationService.onLocationFix は PlanStore へ繋がない。
             location.requestPermissionAndStart()
             #if DEBUG
             // UIフローテスト専用：モック現在地（ドッグウィズ付近）を1回流し込む。
@@ -101,7 +96,12 @@ struct RootView: View {
         // 何度も開かないようにする（解析・保存はあくまで取り込み画面側の確認を経る）。
         .onAppear { checkSharedInbox() }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { checkSharedInbox() }
+            if phase == .active {
+                checkSharedInbox()
+                // バックグラウンドにいる間に2時間を迎えた「今ここ」を、
+                // 復帰した時点で保存データからも掃除する（表示側は常に除外済み）
+                planStore.pruneExpiredPresence()
+            }
         }
         .sheet(item: $sharedImport) { request in
             StoryImportView(initialText: request.text)

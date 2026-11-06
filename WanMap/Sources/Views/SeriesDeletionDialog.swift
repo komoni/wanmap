@@ -9,6 +9,8 @@ struct SeriesDeletionDialog: ViewModifier {
     @Binding var target: Plan?
     let store: PlanStore
     var onDeleted: () -> Void = {}
+    /// 保存に失敗して削除できなかった時に呼ばれる（成功として見せないため）
+    var onFailure: () -> Void = {}
 
     func body(content: Content) -> some View {
         content.confirmationDialog(
@@ -18,14 +20,14 @@ struct SeriesDeletionDialog: ViewModifier {
             presenting: target
         ) { plan in
             Button("この回だけ削除", role: .destructive) {
-                store.removeOccurrence(plan)
+                let succeeded = store.removeOccurrence(plan)
                 target = nil
-                onDeleted()
+                if succeeded { onDeleted() } else { onFailure() }
             }
             Button("シリーズ全体を削除", role: .destructive) {
-                store.removeSeries(of: plan)
+                let succeeded = store.removeSeries(of: plan)
                 target = nil
-                onDeleted()
+                if succeeded { onDeleted() } else { onFailure() }
             }
             Button("キャンセル", role: .cancel) {
                 target = nil
@@ -43,7 +45,9 @@ struct SeriesDeletionDialog: ViewModifier {
 extension View {
     /// 繰り返し予定の削除範囲ダイアログを取り付ける
     func seriesDeletionDialog(target: Binding<Plan?>, store: PlanStore,
-                              onDeleted: @escaping () -> Void = {}) -> some View {
-        modifier(SeriesDeletionDialog(target: target, store: store, onDeleted: onDeleted))
+                              onDeleted: @escaping () -> Void = {},
+                              onFailure: @escaping () -> Void = {}) -> some View {
+        modifier(SeriesDeletionDialog(target: target, store: store,
+                                      onDeleted: onDeleted, onFailure: onFailure))
     }
 }

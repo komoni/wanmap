@@ -280,9 +280,8 @@ struct DogMapView: View {
                 center(on: fix.coordinate)
                 didCenterInitially = true
             }
-            // 移動したら「今ここ」も新しい位置に置き換える（前の場所は残さない）
-            planStore.moveOwnPresence(latitude: fix.coordinate.latitude,
-                                      longitude: fix.coordinate.longitude)
+            // 「今ここ」は位置情報で自動的には動かさない（フェーズQレビュー R7）。
+            // 置き直しは本人が「今ここ」ボタンを押した時だけ（手動配置が仕様）。
         }
         .onChange(of: location.hideMode) { _, hidden in
             // 非表示モードになったら配置済みの「今ここ」も取り消す

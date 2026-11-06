@@ -47,9 +47,15 @@ struct Plan: Codable, Identifiable, Equatable {
         return CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
     }
 
-    /// 「今ここ」は取得から2時間で自動的に消える（決定済み仕様）
+    /// 「今ここ」は取得から2時間で自動的に消える（決定済み仕様）。
+    /// 境界はちょうど2時間ちょうども失効扱い（フェーズQレビュー小修正：`>` から `>=` へ）。
     var isExpiredPresence: Bool {
-        isPresence && Date().timeIntervalSince(createdAt) > 2 * 60 * 60
+        isExpiredPresence(at: Date())
+    }
+
+    /// テスト用：評価時刻を注入できる版（isExpiredPresence と同じ条件）
+    func isExpiredPresence(at date: Date) -> Bool {
+        isPresence && date.timeIntervalSince(createdAt) >= 2 * 60 * 60
     }
 }
 

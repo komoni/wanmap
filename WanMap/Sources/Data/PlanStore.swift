@@ -11,6 +11,17 @@ struct PlansFile: Codable {
     var series: [RecurrenceSeries]
 }
 
+/// 明示リセット（resetAllData）の結果。失敗を成功として見せないため、
+/// 書けたかどうかと、消せた退避ファイル・失敗内容を呼び出し側へ返す。
+struct PlanStoreResetResult {
+    /// 予定ファイルを空の新形式で書き直せたか
+    var fileReset: Bool
+    /// 削除できた旧形式退避ファイルの名前
+    var removedBackupFileNames: [String]
+    /// 失敗した処理の説明（成功分は含まない）
+    var failures: [String]
+}
+
 /// 予定データの保持と端末内保存
 ///
 /// 仕様（決定済み）：
@@ -20,6 +31,13 @@ struct PlansFile: Codable {
 /// - 保存形式は schemaVersion 2 のコンテナ。旧・配列形式は読み込み時に移行する
 ///   （原本は退避してから新形式で保存し直す）。未知の版・破損データは
 ///   読み込み失敗として保持し、保存で空に潰さない。
+///
+/// フェーズQレビュー反映（R1〜R3・R8）：
+/// - 読込は「ファイルが存在しない＝新規利用」と「それ以外の読込失敗」を区別する。
+///   後者は loadFailed として保持し、原本を新規データで上書きしない。
+/// - 旧形式の移行は、原本の退避が成功（内容の一致まで確認）できた時だけ進める。
+/// - 変更系 API は「保存に成功してからメモリへ反映」し、成否を返す。
+///   loadFailed の間は、明示リセット以外の変更をすべて止める。
 @Observable
 final class PlanStore {
     /// 保存済みの全予定（期限切れの「今ここ」を含む生データ）
@@ -28,8 +46,8 @@ final class PlanStore {
     private(set) var series: [RecurrenceSeries] = []
     /// 最後に使った犬の名前（フォームの初期値に使う）
     private(set) var lastDogName: String = ""
-    /// 保存ファイルを読めなかった（未知の形式・破損）かどうか。
-    /// true の間は save() が一切書かないため、既存データを空で上書きしない。
+    /// 保存ファイルを読めなかった（未知の形式・破損・読込I/O失敗・移行失敗）かどうか。
+    /// true の間は通常の保存が一切書かないため、既存データを空で上書きしない。
     /// ユーザーが設定から明示的にリセットした時だけ解除される。
     private(set) var loadFailed = false
 
@@ -94,7 +112,7 @@ final class PlanStore {
     }
 
     /// 指定日の予定（時間帯の順に並べる）
-    func plans(on day: Date, calendar: Calendar = .current) -> [Plan] {
+    func plans(on day: Date, calendar: Calendar = WanMapCalendar.shared) -> [Plan] {
         let order: [TimeBand] = [.allDay, .morning, .noon, .night]
         return activePlans
             .filter { calendar.isDate($0.date, inSameDayAs: day) }
@@ -102,45 +120,96 @@ final class PlanStore {
     }
 
     /// イベント（募集）だけを開催日が近い順に。過去分は自動で隠す。
-    func upcomingEvents(now: Date = Date(), calendar: Calendar = .current) -> [Plan] {
+    func upcomingEvents(now: Date = Date(), calendar: Calendar = WanMapCalendar.shared) -> [Plan] {
         let today = calendar.startOfDay(for: now)
         return activePlans.filter { $0.isEvent && $0.date >= today }
     }
 
     // MARK: - CRUD
+    // 変更系 API はすべて「候補を作る → 保存する → 成功したらメモリへ反映」の順で動き、
+    // 成否を返す。保存に失敗したらメモリも元のままなので、画面が「保存できた見た目」に
+    // ならない（フェーズQレビュー R3）。
 
-    func add(_ plan: Plan) {
-        plans.append(plan)
+    @discardableResult
+    func add(_ plan: Plan) -> Bool {
+        var newPlans = plans
+        newPlans.append(plan)
+        guard persist(plans: newPlans, series: series) else { return false }
+        plans = newPlans
         rememberDogName(from: plan)
-        save()
+        return true
     }
 
-    func update(_ plan: Plan) {
-        guard let index = plans.firstIndex(where: { $0.id == plan.id }) else { return }
-        plans[index] = plan
+    @discardableResult
+    func update(_ plan: Plan) -> Bool {
+        guard let index = plans.firstIndex(where: { $0.id == plan.id }) else { return false }
+        var newPlans = plans
+        newPlans[index] = plan
+        guard persist(plans: newPlans, series: series) else { return false }
+        plans = newPlans
         rememberDogName(from: plan)
-        save()
+        return true
     }
 
-    func remove(id: UUID) {
-        plans.removeAll { $0.id == id }
-        save()
+    @discardableResult
+    func remove(id: UUID) -> Bool {
+        var newPlans = plans
+        newPlans.removeAll { $0.id == id }
+        guard persist(plans: newPlans, series: series) else { return false }
+        plans = newPlans
+        return true
     }
 
-    func remove(_ plan: Plan) {
+    @discardableResult
+    func remove(_ plan: Plan) -> Bool {
         remove(id: plan.id)
     }
 
-    /// 設定画面の「データをリセット」用：予定をすべて消し、付随する端末内状態も初期化する
+    /// 設定画面の「データをリセット」用：予定をすべて消し、付随する端末内状態も初期化する。
     /// ユーザーの明示操作なので、読み込み失敗の保持もここで解除して書き直す。
-    func resetAllData() {
+    /// 旧形式の退避ファイルも削除対象に含め、失敗は結果として返す（R8）。
+    /// 順序は保全側に倒す：空ファイルの書き直しに失敗したら、メモリも退避も一切触らない。
+    @discardableResult
+    func resetAllData() -> PlanStoreResetResult {
+        var failures: [String] = []
+        var wrote = !persists
+        if persists {
+            let container = PlansFile(schemaVersion: PlansFile.currentVersion, plans: [], series: [])
+            if let data = try? Self.makeEncoder().encode(container) {
+                do {
+                    try data.write(to: fileURL, options: .atomic)
+                    wrote = true
+                } catch {
+                    failures.append("予定データを初期化できませんでした（\(error.localizedDescription)）")
+                }
+            } else {
+                failures.append("予定データを初期化できませんでした")
+            }
+        }
+        guard wrote else {
+            return PlanStoreResetResult(fileReset: false, removedBackupFileNames: [], failures: failures)
+        }
+
         plans = []
         series = []
         loadFailed = false
         lastDogName = ""
         UserDefaults.standard.removeObject(forKey: Self.lastDogNameKey)
         ownPresenceId = nil
-        save()
+
+        var removedNames: [String] = []
+        if persists {
+            for url in legacyBackupFileURLs() {
+                do {
+                    try FileManager.default.removeItem(at: url)
+                    removedNames.append(url.lastPathComponent)
+                } catch {
+                    failures.append("退避ファイル「\(url.lastPathComponent)」を削除できませんでした（\(error.localizedDescription)）")
+                }
+            }
+        }
+        return PlanStoreResetResult(fileReset: true, removedBackupFileNames: removedNames,
+                                    failures: failures)
     }
 
     // MARK: - 繰り返し予定（シリーズ）
@@ -159,10 +228,12 @@ final class PlanStore {
     /// シリーズを作成し、全回を実体化して一度だけ保存する。
     /// templatePlan は共通内容の雛形で、その date が初回日になる。
     /// 「今ここ」には繰り返しを設定できない。規則・回数が不正なら何も作らず nil。
+    /// 保存に失敗した場合も nil（作れたように見せない）。
     /// イベント締切は各回で個別に設定するものなので、作成時には付けない。
     @discardableResult
     func addSeries(rule: RecurrenceRule, occurrenceCount: Int,
-                   templatePlan: Plan, calendar: Calendar = .current) -> RecurrenceSeries? {
+                   templatePlan: Plan,
+                   calendar: Calendar = WanMapCalendar.shared) -> RecurrenceSeries? {
         guard !templatePlan.isPresence else { return nil }
         let startDay = calendar.startOfDay(for: templatePlan.date)
         guard let dates = RecurrenceGenerator.dates(rule: rule, start: startDay,
@@ -188,21 +259,25 @@ final class PlanStore {
             child.isSeriesException = false
             return child
         }
-        plans.append(contentsOf: children)
-        series.append(newSeries)
+        var newPlans = plans
+        newPlans.append(contentsOf: children)
+        var newSeriesList = series
+        newSeriesList.append(newSeries)
+        guard persist(plans: newPlans, series: newSeriesList) else { return nil }
+        plans = newPlans
+        series = newSeriesList
         rememberDogName(templatePlan.dogName)
-        save()
         return newSeries
     }
 
     /// 「この回だけ」の変更。所属情報（seriesID／occurrenceIndex／originalDate）は
     /// 保存済みの値を維持し、個別編集フラグを立てる。シリーズに属さない予定なら通常の更新。
-    func updateOccurrence(_ plan: Plan) {
-        guard let index = plans.firstIndex(where: { $0.id == plan.id }) else { return }
+    @discardableResult
+    func updateOccurrence(_ plan: Plan) -> Bool {
+        guard let index = plans.firstIndex(where: { $0.id == plan.id }) else { return false }
         let stored = plans[index]
         guard stored.seriesID != nil else {
-            update(plan)
-            return
+            return update(plan)
         }
         var updated = plan
         updated.seriesID = stored.seriesID
@@ -210,59 +285,88 @@ final class PlanStore {
         updated.originalDate = stored.originalDate
         updated.isPresence = false
         updated.isSeriesException = true
-        plans[index] = updated
+        var newPlans = plans
+        newPlans[index] = updated
+        guard persist(plans: newPlans, series: series) else { return false }
+        plans = newPlans
         rememberDogName(from: updated)
-        save()
+        return true
     }
 
     /// 「この回だけ」削除。削除した回は補充せず、最後の回ならシリーズ親も消す。
-    func removeOccurrence(_ plan: Plan) {
-        guard let stored = plans.first(where: { $0.id == plan.id }) else { return }
-        plans.removeAll { $0.id == plan.id }
+    @discardableResult
+    func removeOccurrence(_ plan: Plan) -> Bool {
+        guard let stored = plans.first(where: { $0.id == plan.id }) else { return false }
+        var newPlans = plans
+        newPlans.removeAll { $0.id == plan.id }
+        var newSeriesList = series
         if let seriesID = stored.seriesID,
-           !plans.contains(where: { $0.seriesID == seriesID }) {
-            series.removeAll { $0.id == seriesID }
+           !newPlans.contains(where: { $0.seriesID == seriesID }) {
+            newSeriesList.removeAll { $0.id == seriesID }
         }
-        save()
+        guard persist(plans: newPlans, series: newSeriesList) else { return false }
+        plans = newPlans
+        series = newSeriesList
+        return true
     }
 
     /// シリーズ全体の共通内容変更。前後の雛形を比べて、変わった項目だけを
     /// 残っている全回（過去分を含む）へ反映する。日付は全体変更の対象外で、
     /// 個別に変更した項目も、同じ項目を全体変更すれば上書きされる。
-    func updateSeriesContent(seriesID: UUID, newTemplate: PlanTemplate) {
-        guard let seriesIndex = series.firstIndex(where: { $0.id == seriesID }) else { return }
+    /// 場所（名前＋緯度＋経度）は1つの論理項目として扱う（R4）：
+    /// どれか1つでも変われば、保存済みの場所と混ざらないよう3点をまとめて差し替える。
+    @discardableResult
+    func updateSeriesContent(seriesID: UUID, newTemplate: PlanTemplate) -> Bool {
+        guard let seriesIndex = series.firstIndex(where: { $0.id == seriesID }) else { return false }
         let old = series[seriesIndex].template
-        guard old != newTemplate else { return }
-        series[seriesIndex].template = newTemplate
+        guard old != newTemplate else { return true }
+        let placeChanged = newTemplate.placeName != old.placeName
+            || newTemplate.latitude != old.latitude
+            || newTemplate.longitude != old.longitude
 
-        for index in plans.indices where plans[index].seriesID == seriesID {
-            if newTemplate.personName != old.personName { plans[index].personName = newTemplate.personName }
-            if newTemplate.dogName != old.dogName { plans[index].dogName = newTemplate.dogName }
-            if newTemplate.placeName != old.placeName { plans[index].placeName = newTemplate.placeName }
-            if newTemplate.latitude != old.latitude { plans[index].latitude = newTemplate.latitude }
-            if newTemplate.longitude != old.longitude { plans[index].longitude = newTemplate.longitude }
-            if newTemplate.timeBand != old.timeBand { plans[index].timeBand = newTemplate.timeBand }
-            if newTemplate.level != old.level { plans[index].level = newTemplate.level }
-            if newTemplate.isEvent != old.isEvent { plans[index].isEvent = newTemplate.isEvent }
+        var newSeriesList = series
+        newSeriesList[seriesIndex].template = newTemplate
+        var newPlans = plans
+        for index in newPlans.indices where newPlans[index].seriesID == seriesID {
+            if newTemplate.personName != old.personName { newPlans[index].personName = newTemplate.personName }
+            if newTemplate.dogName != old.dogName { newPlans[index].dogName = newTemplate.dogName }
+            if placeChanged {
+                newPlans[index].placeName = newTemplate.placeName
+                newPlans[index].latitude = newTemplate.latitude
+                newPlans[index].longitude = newTemplate.longitude
+            }
+            if newTemplate.timeBand != old.timeBand { newPlans[index].timeBand = newTemplate.timeBand }
+            if newTemplate.level != old.level { newPlans[index].level = newTemplate.level }
+            if newTemplate.isEvent != old.isEvent { newPlans[index].isEvent = newTemplate.isEvent }
             if newTemplate.hidesOwnLocation != old.hidesOwnLocation {
-                plans[index].hidesOwnLocation = newTemplate.hidesOwnLocation
+                newPlans[index].hidesOwnLocation = newTemplate.hidesOwnLocation
             }
         }
+        guard persist(plans: newPlans, series: newSeriesList) else { return false }
+        plans = newPlans
+        series = newSeriesList
         rememberDogName(newTemplate.dogName)
-        save()
+        return true
     }
 
     /// シリーズ全体を削除する（所属する全回と親を消す。単発予定・別シリーズには触れない）
-    func removeSeries(id: UUID) {
-        plans.removeAll { $0.seriesID == id }
-        series.removeAll { $0.id == id }
-        save()
+    @discardableResult
+    func removeSeries(id: UUID) -> Bool {
+        var newPlans = plans
+        newPlans.removeAll { $0.seriesID == id }
+        var newSeriesList = series
+        newSeriesList.removeAll { $0.id == id }
+        guard persist(plans: newPlans, series: newSeriesList) else { return false }
+        plans = newPlans
+        series = newSeriesList
+        return true
     }
 
     /// シリーズに属する予定から、そのシリーズ全体を削除する
-    func removeSeries(of plan: Plan) {
-        guard let seriesID = plan.seriesID else { return }
-        removeSeries(id: seriesID)
+    @discardableResult
+    func removeSeries(of plan: Plan) -> Bool {
+        guard let seriesID = plan.seriesID else { return false }
+        return removeSeries(id: seriesID)
     }
 
     // MARK: - 自分の「今ここ」
@@ -306,51 +410,68 @@ final class PlanStore {
 
     /// 「今ここ」を置く。既に置いてある場合は新しい位置に置き換える（前の場所は残さない）。
     /// 場所名は付けない（未登録地点＝人アイコンのみ。自宅が出るのは本人が置いた時だけ）。
-    func placeOwnPresence(latitude: Double, longitude: Double) {
+    @discardableResult
+    func placeOwnPresence(latitude: Double, longitude: Double) -> Bool {
         if ownPresence != nil {
-            moveOwnPresence(latitude: latitude, longitude: longitude)
-            return
+            return moveOwnPresence(latitude: latitude, longitude: longitude)
         }
-        clearOwnPresence()
+        var newPlans = plans
+        if let oldID = ownPresenceId {
+            newPlans.removeAll { $0.id == oldID }
+        }
         let plan = Plan(id: UUID(), personName: "自分",
                         dogName: lastDogName.isEmpty ? nil : lastDogName,
                         placeName: "", latitude: latitude, longitude: longitude,
-                        date: Calendar.current.startOfDay(for: Date()),
+                        date: WanMapCalendar.shared.startOfDay(for: Date()),
                         timeBand: .allDay, level: .going,
                         isEvent: false, eventDeadline: nil,
                         isPresence: true, createdAt: Date())
-        plans.append(plan)
+        newPlans.append(plan)
+        guard persist(plans: newPlans, series: series) else { return false }
+        plans = newPlans
         ownPresenceId = plan.id
-        save()
+        return true
     }
 
-    /// 移動したら「今ここ」を新しい位置に置き換える（2時間の起点は置いた時刻のまま）
-    func moveOwnPresence(latitude: Double, longitude: Double) {
+    /// 「今ここ」の置き直し（手動操作専用）。
+    /// 位置情報の自動追従では呼ばない（R7：配置は本人の明示操作のみが仕様）。
+    /// 2時間の起点は置いた時刻のまま。
+    @discardableResult
+    func moveOwnPresence(latitude: Double, longitude: Double) -> Bool {
         guard let existing = ownPresence,
               existing.latitude != latitude || existing.longitude != longitude,
               let index = plans.firstIndex(where: { $0.id == existing.id })
-        else { return }
-        plans[index].latitude = latitude
-        plans[index].longitude = longitude
-        save()
+        else { return false }
+        var newPlans = plans
+        newPlans[index].latitude = latitude
+        newPlans[index].longitude = longitude
+        guard persist(plans: newPlans, series: series) else { return false }
+        plans = newPlans
+        return true
     }
 
     /// 「今ここ」を消す
-    func clearOwnPresence() {
-        if let id = ownPresenceId {
-            plans.removeAll { $0.id == id }
-        }
+    @discardableResult
+    func clearOwnPresence() -> Bool {
+        guard let id = ownPresenceId else { return true }
+        var newPlans = plans
+        newPlans.removeAll { $0.id == id }
+        guard persist(plans: newPlans, series: series) else { return false }
+        plans = newPlans
         ownPresenceId = nil
-        save()
+        return true
     }
 
     // MARK: - 内部処理
 
     /// 期限切れの「今ここ」を保存データからも取り除く
-    func pruneExpiredPresence() {
-        let before = plans.count
-        plans.removeAll { $0.isExpiredPresence }
-        if plans.count != before { save() }
+    @discardableResult
+    func pruneExpiredPresence() -> Bool {
+        guard plans.contains(where: { $0.isExpiredPresence }) else { return true }
+        let newPlans = plans.filter { !$0.isExpiredPresence }
+        guard persist(plans: newPlans, series: series) else { return false }
+        plans = newPlans
+        return true
     }
 
     private func rememberDogName(from plan: Plan) {
@@ -366,8 +487,17 @@ final class PlanStore {
     }
 
     private func load() {
-        // ファイルが無いのは新規利用なので、失敗ではない
-        guard let data = try? Data(contentsOf: fileURL) else { return }
+        // R1：読込の失敗を分類する。ファイルが存在しない場合だけが新規利用で、
+        // それ以外の読込失敗（権限・I/O エラー等）は「データを読めなかった」状態として
+        // 保持し、原本を新規データで上書きしない。
+        guard FileManager.default.fileExists(atPath: fileURL.path) else { return }
+        let data: Data
+        do {
+            data = try Data(contentsOf: fileURL)
+        } catch {
+            loadFailed = true
+            return
+        }
         // まずトップレベルの形で旧形式（配列）と新形式（オブジェクト）を見分ける。
         // 「新形式の decode に失敗したから旧形式で試す」という無条件の
         // フォールバックはしない（破損データと形式の違いを混同しないため）。
@@ -377,15 +507,25 @@ final class PlanStore {
         }
         let decoder = Self.makeDecoder()
         if topLevel is [Any] {
-            // 旧形式（[Plan] の配列）：読めたら原本を退避し、新形式で保存し直す
+            // 旧形式（[Plan] の配列）：読めても、原本の退避が成功するまでは移行しない（R2）
             guard let decoded = try? decoder.decode([Plan].self, from: data) else {
+                loadFailed = true
+                return
+            }
+            do {
+                try backUpLegacyFile(originalData: data)
+            } catch {
+                // 退避できなければ移行も保存もしない（原本はそのまま残る）
                 loadFailed = true
                 return
             }
             plans = decoded
             series = []
-            backUpLegacyFile(originalData: data)
-            save()
+            if !save() {
+                // 新形式への保存に失敗した。原本は旧形式のまま残っているので、
+                // 表示は続けつつ変更は止める（次回起動で移行を再試行できる）。
+                loadFailed = true
+            }
         } else if topLevel is [String: Any] {
             guard let container = try? decoder.decode(PlansFile.self, from: data),
                   container.schemaVersion == PlansFile.currentVersion
@@ -401,20 +541,72 @@ final class PlanStore {
         }
     }
 
-    /// 旧形式の原本を退避する（移行後に問題があっても、元のデータに戻れるように）
-    private func backUpLegacyFile(originalData: Data) {
-        let backupURL = fileURL.deletingPathExtension().appendingPathExtension("legacy-v1.json")
-        try? originalData.write(to: backupURL, options: .atomic)
+    /// 旧形式退避ファイルのURL（index 1 が基本名 `plans.legacy-v1.json`、
+    /// 衝突時は `plans.legacy-v1-2.json` のように連番を足す）
+    private func legacyBackupURL(index: Int) -> URL {
+        let suffix = index <= 1 ? "legacy-v1.json" : "legacy-v1-\(index).json"
+        return fileURL.deletingPathExtension().appendingPathExtension(suffix)
     }
 
-    private func save() {
-        guard persists else { return }
-        // 読み込みに失敗したデータは、通常の保存では絶対に潰さない
-        guard !loadFailed else { return }
+    /// 旧形式の原本を退避する（移行後に問題があっても、元のデータに戻れるように）。
+    /// 失敗は呼び出し側へ伝える（throws）。衝突時の方針：
+    /// - 既存の退避と内容が同一なら、その退避を再利用して成功扱いにする。
+    /// - 内容が異なる（または読めない）退避がある場合は上書きせず、連番の一意名で保全する。
+    /// 書き込み後は内容の一致まで確認し、確認できなければ失敗として扱う。
+    private func backUpLegacyFile(originalData: Data) throws {
+        let fileManager = FileManager.default
+        var index = 1
+        while true {
+            let url = legacyBackupURL(index: index)
+            if fileManager.fileExists(atPath: url.path) {
+                if let existing = try? Data(contentsOf: url), existing == originalData {
+                    return
+                }
+                index += 1
+                continue
+            }
+            try originalData.write(to: url, options: .atomic)
+            guard let written = try? Data(contentsOf: url), written == originalData else {
+                throw CocoaError(.fileWriteUnknown)
+            }
+            return
+        }
+    }
+
+    /// 端末内に残っている旧形式退避ファイル（基本名＋連番）の一覧。リセット時の削除対象。
+    private func legacyBackupFileURLs() -> [URL] {
+        let directory = fileURL.deletingLastPathComponent()
+        let baseName = fileURL.deletingPathExtension().lastPathComponent
+        let prefix = "\(baseName).legacy-v1"
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
+        return names
+            .filter { $0 == "\(prefix).json" || ($0.hasPrefix("\(prefix)-") && $0.hasSuffix(".json")) }
+            .sorted()
+            .map { directory.appendingPathComponent($0) }
+    }
+
+    /// 現在のメモリ内容を指定の内容として保存する。成功した時だけ true。
+    /// 非永続ストアでは書く先が無いので常に true（メモリ反映のみで成立する）。
+    /// loadFailed の間は、明示リセット以外からは書かない。
+    @discardableResult
+    private func persist(plans newPlans: [Plan], series newSeries: [RecurrenceSeries]) -> Bool {
+        guard persists else { return true }
+        guard !loadFailed else { return false }
         let container = PlansFile(schemaVersion: PlansFile.currentVersion,
-                                  plans: plans, series: series)
-        guard let data = try? Self.makeEncoder().encode(container) else { return }
-        try? data.write(to: fileURL, options: .atomic)
+                                  plans: newPlans, series: newSeries)
+        guard let data = try? Self.makeEncoder().encode(container) else { return false }
+        do {
+            try data.write(to: fileURL, options: .atomic)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    /// 現在のメモリ内容をそのまま保存する（移行直後など、メモリが正の場面用）
+    @discardableResult
+    private func save() -> Bool {
+        persist(plans: plans, series: series)
     }
 
     private static func makeEncoder() -> JSONEncoder {

@@ -16,7 +16,9 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var showResetConfirm = false
-    @State private var resetDone = false
+    /// リセット結果の表示文。失敗を成功として見せないため、結果に応じて出し分ける
+    @State private var resetMessage: String?
+    @State private var resetHadFailure = false
 
     var body: some View {
         @Bindable var location = location
@@ -98,7 +100,7 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                     if location.authorizationStatus == .authorizedWhenInUse {
-                        Button("アプリを閉じている間も反映する（常に許可）") {
+                        Button("アプリを閉じている間の移動も検知する（常に許可）") {
                             Task { await location.requestAlwaysUpgrade() }
                         }
                     }
@@ -112,10 +114,10 @@ struct SettingsView: View {
                     Button("データをリセット", role: .destructive) {
                         showResetConfirm = true
                     }
-                    if resetDone {
-                        Text("リセットしました")
+                    if let resetMessage {
+                        Text(resetMessage)
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(resetHadFailure ? Color.red : Color.secondary)
                     }
                 }
             }
@@ -131,10 +133,21 @@ struct SettingsView: View {
             }
             .confirmationDialog("データをリセット", isPresented: $showResetConfirm) {
                 Button("すべて消す", role: .destructive) {
-                    planStore.resetAllData()
+                    let result = planStore.resetAllData()
                     friendStore.resetAll()
                     userPlaceStore.resetAll()
-                    resetDone = true
+                    if !result.fileReset {
+                        // 予定ファイル自体を初期化できなかった場合は成功として見せない
+                        resetHadFailure = true
+                        resetMessage = "予定のリセットに失敗しました：" + result.failures.joined(separator: "／")
+                    } else if result.failures.isEmpty {
+                        resetHadFailure = false
+                        resetMessage = "リセットしました"
+                    } else {
+                        // 本体の初期化はできたが、退避ファイルの削除などで失敗が残った
+                        resetHadFailure = true
+                        resetMessage = "リセットしました（ただし一部失敗：" + result.failures.joined(separator: "／") + "）"
+                    }
                 }
                 Button("キャンセル", role: .cancel) {}
             } message: {
@@ -184,12 +197,12 @@ struct SettingsView: View {
     }
 
     private var locationFooterText: String {
-        var text = "位置はこの端末の中だけに保存され、外に送られることはありません。「今ここ」は置いてから2時間で自動的に消え、新しい位置を置くと前の場所は残りません。"
+        var text = "位置はこの端末の中だけに保存され、外に送られることはありません。「今ここ」は置いてから2時間で自動的に消え、新しい位置を置くと前の場所は残りません。「今ここ」は本人が地図で置いた時だけ動き、移動に自動ではついてきません。"
         switch location.authorizationStatus {
         case .authorizedAlways:
-            text += "「常に許可」なので、アプリを閉じている間も大きな移動があった時に「今ここ」が置き換わります（常時GPSではなく、大きな移動の検知ベースです）。"
+            text += "「常に許可」なので、アプリを閉じている間も大きな移動を検知して現在地を更新できます（常時GPSではなく、大きな移動の検知ベースです）。"
         case .authorizedWhenInUse:
-            text += "今の許可では、位置が反映されるのはアプリを開いている間だけです。閉じている間も反映するには「常に許可」が必要です。"
+            text += "今の許可では、現在地が更新されるのはアプリを開いている間だけです。閉じている間の移動も検知するには「常に許可」が必要です。"
         case .denied, .restricted:
             text += "位置情報が許可されていないため、「今ここ」は使えません。端末の設定アプリから許可できます。"
         default:

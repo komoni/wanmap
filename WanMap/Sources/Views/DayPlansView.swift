@@ -12,6 +12,8 @@ struct DayPlansView: View {
     @State private var showNewForm = false
     /// 削除範囲ダイアログの対象（シリーズの子をスワイプ削除する時だけ使う）
     @State private var deletionTarget: Plan?
+    /// 削除の保存に失敗した時の表示（失敗を成功として見せない）
+    @State private var showDeleteFailure = false
 
     private var plans: [Plan] { planStore.plans(on: day) }
 
@@ -53,7 +55,13 @@ struct DayPlansView: View {
                         .accessibilityIdentifier("dayPlansAddButton")
                 }
             }
-            .seriesDeletionDialog(target: $deletionTarget, store: planStore)
+            .seriesDeletionDialog(target: $deletionTarget, store: planStore,
+                                  onFailure: { showDeleteFailure = true })
+            .alert("削除できませんでした", isPresented: $showDeleteFailure) {
+                Button("OK") {}
+            } message: {
+                Text("保存に失敗したため、削除は取り消されました。")
+            }
             .sheet(item: $editingPlan) { plan in
                 PlanFormView(editing: plan, defaultDate: day, defaultDogName: planStore.lastDogName)
             }

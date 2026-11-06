@@ -1,5 +1,20 @@
 import Foundation
 
+/// アプリ全体で共用する暦（フェーズQレビュー R6）。
+/// 端末の既定カレンダーがグレゴリオ暦以外の環境（和暦・仏暦など）でも
+/// 「毎月同日」「毎月第○曜日」の意味が変わらないよう、グレゴリオ暦・
+/// Asia/Tokyo を単一の生成箇所から配る。生成（RecurrenceGenerator）・
+/// フォーム（PlanFormView）・保存（PlanStore）のすべてがこの1つを使う。
+enum WanMapCalendar {
+    static let shared: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Asia/Tokyo") ?? .current
+        calendar.firstWeekday = 1
+        calendar.minimumDaysInFirstWeek = 1
+        return calendar
+    }()
+}
+
 /// 繰り返しの種類（確定仕様：毎週／毎月同日／毎月第○曜日 の3種のみ）
 enum RecurrenceKind: String, Codable, CaseIterable {
     case weekly

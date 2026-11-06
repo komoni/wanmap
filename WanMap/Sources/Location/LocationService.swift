@@ -7,15 +7,17 @@ import SwiftLocation
 ///
 /// 決定済み仕様：
 /// - 位置は「勝手に出る」ことが禁止。本人が操作して置いた時だけ表示する。
-/// - 「今ここ」の保持は PlanStore 側（isPresence の予定として保存し、2時間で自動消去、
-///   移動したら新しい位置に置き換える）。ここは現在地の取得だけを担う。
+/// - 「今ここ」の保持は PlanStore 側（isPresence の予定として保存し、2時間で自動消去）。
+///   「今ここ」は本人が地図のボタンを押して置いた時だけ動き、位置情報への
+///   自動追従はしない（フェーズQレビュー R7 で確定）。ここは現在地の取得だけを担う。
 /// - 非表示モード中は取得自体を止める（「今ここ」の取り消しは地図側が PlanStore で行う）。
 /// - 地図の中心を勝手に動かさない（初回表示と現在地ボタンの時だけ）。
 ///
 /// バッテリー方針：
 /// - 常時高精度GPSは回さない。フォアグラウンドは精度10m級（nearestTenMeters）の継続取得、
 ///   バックグラウンド／アプリ終了後の再開は「有意な位置変化（significant-change）」ベース。
-///   大きな移動があった時だけシステムに起こされ、新しい位置が「今ここ」に流れる。
+///   大きな移動があった時だけシステムに起こされ、現在地が更新される
+///   （「今ここ」自体は自動では動かない）。
 /// - バックグラウンドで実際に反映され得るのは「常に許可（Always）」の時だけ。
 ///   「アプリ使用中のみ（WhenInUse）」では開いている間に限られる
 ///   （設定画面にもその状態を正直に表示する。許可導線は段階式：
@@ -32,8 +34,8 @@ final class LocationService {
     }
 
     /// 新しい位置が適用されるたびに呼ばれるフック。
-    /// RootView が PlanStore.moveOwnPresence に繋ぐことで、地図を開いていない時
-    /// （バックグラウンドで起こされた時）でも「今ここ」が新しい位置に置き換わる。
+    /// 現在は「今ここ」の自動追従には使っていない（R7：配置は手動のみが仕様で、
+    /// RootView は PlanStore へ繋がない）。将来の明示的な用途のためにフック自体は残す。
     @ObservationIgnored var onLocationFix: ((CLLocation) -> Void)?
 
     @ObservationIgnored private let location: Location
@@ -88,7 +90,8 @@ final class LocationService {
         startSignificantMonitoring()
     }
 
-    /// 「常に許可」＝アプリを閉じている間も「今ここ」が反映され得る状態かどうか
+    /// 「常に許可」＝アプリを閉じている間も大きな移動を拾って現在地を
+    /// 更新できる状態かどうか（「今ここ」は自動では動かない）
     var isBackgroundReflectionAvailable: Bool {
         authorizationStatus == .authorizedAlways
     }

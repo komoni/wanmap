@@ -120,8 +120,8 @@ extension LocationService {
 
 /// モック位置の動作確認用ビュー（DEBUG専用プレビュー）。
 /// 「次の地点へ」を押すたびに仮想の現在地が進み、LocationService.currentFix が
-/// 置き換わることを実機なしで確認する。本番の「今ここ」も同じ fix の流れで
-/// PlanStore.moveOwnPresence に繋がっている（RootView の onLocationFix）。
+/// 置き換わることを実機なしで確認する。本番の「今ここ」は、本人が地図のボタンを
+/// 押した時にこの fix を使って置かれる（位置情報への自動追従はしない）。
 private struct LocationMockDemoView: View {
     @State private var service: LocationService
     private let manager: MockLocationManager

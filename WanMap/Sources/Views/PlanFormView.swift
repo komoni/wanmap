@@ -35,6 +35,18 @@ struct PlanFormView: View {
     @State private var editScope: PlanEditScope = .occurrence
     /// 削除範囲ダイアログの対象（シリーズの子を削除する時だけ使う）
     @State private var deletionTarget: Plan?
+    /// 保存に失敗した時の表示（失敗したらフォームは閉じず、入力を保持する。R3）
+    @State private var saveErrorMessage: String?
+    /// シリーズ全体編集の基準にする、保存済み場所（親の共通内容）の控え（R5）
+    @State private var seriesPlaceSnapshot: SavedPlace?
+
+    /// 保存済みの場所の控え。編集の基準は常にこの控えとし、名前の照合だけで
+    /// 別の登録場所の座標に暗黙に差し替わることはない（R5）。
+    private struct SavedPlace {
+        var name: String
+        var latitude: Double?
+        var longitude: Double?
+    }
 
     /// initialFacility：施設シートから開く時にその施設（名前・座標）を選択済みにする
     /// initialUserPlace：自分の場所のシートから開く時にその場所を選択済みにする
@@ -77,9 +89,23 @@ struct PlanFormView: View {
         return planStore.seriesFor(editing)
     }
 
+    /// 保存失敗アラートの表示制御（メッセージが入っている間だけ出す）
+    private var saveErrorPresented: Binding<Bool> {
+        Binding(get: { saveErrorMessage != nil },
+                set: { if !$0 { saveErrorMessage = nil } })
+    }
+
     var body: some View {
         NavigationStack {
             Form {
+                if planStore.loadFailed {
+                    Section {
+                        Label("保存データを読み込めなかったため、変更は保存されません。設定からデータをリセットすると、空の状態から始められます。",
+                              systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+                }
                 placeSection
                 if editingSeries != nil { scopeSection }
                 dateSection
@@ -99,7 +125,14 @@ struct PlanFormView: View {
                     Button("保存") { save() }.bold()
                 }
             }
-            .seriesDeletionDialog(target: $deletionTarget, store: planStore) { dismiss() }
+            .seriesDeletionDialog(target: $deletionTarget, store: planStore,
+                                  onDeleted: { dismiss() },
+                                  onFailure: { saveErrorMessage = "削除を保存できませんでした。" })
+            .alert("保存できませんでした", isPresented: saveErrorPresented) {
+                Button("OK") { saveErrorMessage = nil }
+            } message: {
+                Text(saveErrorMessage ?? "")
+            }
             .onAppear(perform: resolvePlaceFromEditingPlan)
             .onChange(of: placeQuery) { _, newValue in
                 // 手で書き換えたら選択は解除する（そのまま住所テキストとして扱う）
@@ -293,14 +326,15 @@ struct PlanFormView: View {
     private static let weekdayNames = ["日", "月", "火", "水", "木", "金", "土"]
 
     /// 選択中の日付を基準にした、繰り返しの具体的な読み（例：毎月第1木曜日）
+    /// 規則の解釈は生成・保存と必ず同じ暦（グレゴリオ暦・Asia/Tokyo）で読む（R6）
     private func recurrenceDetailText(_ kind: RecurrenceKind) -> String {
-        let weekday = Calendar.current.component(.weekday, from: date)
+        let weekday = WanMapCalendar.shared.component(.weekday, from: date)
         let weekdayName = Self.weekdayNames[weekday - 1]
         switch kind {
         case .weekly:
             return "毎週\(weekdayName)曜日"
         case .monthlyDay:
-            return "毎月\(Calendar.current.component(.day, from: date))日"
+            return "毎月\(WanMapCalendar.shared.component(.day, from: date))日"
         case .monthlyOrdinalWeekday:
             return "毎月第\(selectedOrdinal)\(weekdayName)曜日"
         }
@@ -308,7 +342,7 @@ struct PlanFormView: View {
 
     /// 選択した日付が「第○曜日」の何番目か
     private var selectedOrdinal: Int {
-        (Calendar.current.component(.day, from: date) - 1) / 7 + 1
+        (WanMapCalendar.shared.component(.day, from: date) - 1) / 7 + 1
     }
 
     private var recurrenceFooterText: String? {
@@ -316,7 +350,7 @@ struct PlanFormView: View {
         case .monthlyDay:
             return "その月にない日は、月末になります"
         case .monthlyOrdinalWeekday where selectedOrdinal == 5:
-            let weekday = Calendar.current.component(.weekday, from: date)
+            let weekday = WanMapCalendar.shared.component(.weekday, from: date)
             return "第5曜日がない月は、その月の最後の\(Self.weekdayNames[weekday - 1])曜日になります"
         default:
             return nil
@@ -326,14 +360,16 @@ struct PlanFormView: View {
     /// 繰り返しを選んだ時に生成される開催日（プレビュー用）
     private var previewDates: [Date] {
         guard let kind = recurrenceKind else { return [] }
-        let rule = RecurrenceRule(kind: kind, startDate: date, calendar: .current)
+        let rule = RecurrenceRule(kind: kind, startDate: date, calendar: WanMapCalendar.shared)
         return RecurrenceGenerator.dates(rule: rule, start: date,
-                                         count: occurrenceCount, calendar: .current) ?? []
+                                         count: occurrenceCount, calendar: WanMapCalendar.shared) ?? []
     }
 
     private static func dateLabel(_ date: Date) -> String {
         let f = DateFormatter()
         f.locale = Locale(identifier: "ja_JP")
+        f.calendar = WanMapCalendar.shared
+        f.timeZone = WanMapCalendar.shared.timeZone
         f.dateFormat = "M月d日（EEE）"
         return f.string(from: date)
     }
@@ -397,8 +433,11 @@ struct PlanFormView: View {
                     // シリーズの子は範囲を選んでから消す（日別一覧のスワイプ削除と共通）
                     deletionTarget = editing
                 } else {
-                    planStore.remove(editing)
-                    dismiss()
+                    if planStore.remove(editing) {
+                        dismiss()
+                    } else {
+                        saveErrorMessage = "削除を保存できませんでした。"
+                    }
                 }
             } label: {
                 HStack { Spacer(); Label("この予定を削除", systemImage: "trash"); Spacer() }
@@ -431,10 +470,17 @@ struct PlanFormView: View {
         placeQuery = plan.placeName
         selectedFacility = nil
         selectedUserPlace = nil
-        resolvePlace(named: plan.placeName)
+        resolvePlace(named: plan.placeName,
+                     savedLatitude: plan.latitude, savedLongitude: plan.longitude)
     }
 
     private func loadFields(from template: PlanTemplate) {
+        // シリーズ全体編集の基準は、最初に読み込んだ親の保存済み場所の控え（R5）
+        if seriesPlaceSnapshot == nil {
+            seriesPlaceSnapshot = SavedPlace(name: template.placeName,
+                                             latitude: template.latitude,
+                                             longitude: template.longitude)
+        }
         timeBand = template.timeBand
         level = template.level
         dogName = template.dogName ?? ""
@@ -444,23 +490,28 @@ struct PlanFormView: View {
         placeQuery = template.placeName
         selectedFacility = nil
         selectedUserPlace = nil
-        resolvePlace(named: template.placeName)
+        resolvePlace(named: template.placeName,
+                     savedLatitude: template.latitude, savedLongitude: template.longitude)
     }
 
     /// 編集時、保存済みの場所名が自分の場所／登録施設と一致したら選択状態を復元する
     private func resolvePlaceFromEditingPlan() {
         guard !hasSelection, let editing, !editing.placeName.isEmpty else { return }
-        resolvePlace(named: editing.placeName)
+        resolvePlace(named: editing.placeName,
+                     savedLatitude: editing.latitude, savedLongitude: editing.longitude)
     }
 
     /// 場所名が自分の場所／登録施設と一致したら選択状態を復元する
-    /// （自分で追加した情報の方が優先度が高いので、自分の場所から先に照合する）
-    private func resolvePlace(named name: String) {
+    /// （自分で追加した情報の方が優先度が高いので、自分の場所から先に照合する）。
+    /// ただし復元は、候補の座標が保存済みの座標と一致する時だけ（R5）：
+    /// 名前が同じでも座標の違う登録場所を、保存済みの座標と暗黙に差し替えない。
+    private func resolvePlace(named name: String, savedLatitude: Double?, savedLongitude: Double?) {
         guard !hasSelection, !name.isEmpty else { return }
         let target = FacilityStore.normalize(name)
         if let place = userPlaceStore.places.first(where: {
             FacilityStore.normalize($0.name) == target
         }) {
+            guard place.latitude == savedLatitude, place.longitude == savedLongitude else { return }
             selectedUserPlace = place
             placeQuery = place.name
             return
@@ -468,13 +519,31 @@ struct PlanFormView: View {
         if let facility = facilityStore.facilities.first(where: {
             FacilityStore.normalize($0.displayName) == target || FacilityStore.normalize($0.name) == target
         }) {
+            guard facility.lat == savedLatitude, facility.lng == savedLongitude else { return }
             selectedFacility = facility
             placeQuery = facility.displayName
         }
     }
 
     private func save() {
-        let day = Calendar.current.startOfDay(for: date)
+        let day = WanMapCalendar.shared.startOfDay(for: date)
+
+        // この保存で基準にする「保存済みの場所」（R5）。スコープごとに切り替える：
+        // シリーズ全体＝親の共通内容の控え、この回だけ／通常編集＝編集中の予定の控え。
+        let isSeriesScope = editing?.seriesID != nil && editScope == .series
+        let baseline: SavedPlace?
+        if isSeriesScope, let series = editingSeries {
+            baseline = seriesPlaceSnapshot
+                ?? SavedPlace(name: series.template.placeName,
+                              latitude: series.template.latitude,
+                              longitude: series.template.longitude)
+        } else if let editing {
+            baseline = SavedPlace(name: editing.placeName,
+                                  latitude: editing.latitude, longitude: editing.longitude)
+        } else {
+            baseline = nil
+        }
+
         let placeName: String
         let latitude: Double?
         let longitude: Double?
@@ -487,10 +556,12 @@ struct PlanFormView: View {
             latitude = facility.lat
             longitude = facility.lng
         } else {
+            // 候補から選んでいない場合は、名前が控えと同一の時だけ座標を引き継ぐ。
+            // 名前の照合で、別の登録場所の座標を暗黙に持ってくることはしない（R5）。
             placeName = placeQuery.trimmingCharacters(in: .whitespaces)
-            if let editing, editing.placeName == placeName {
-                latitude = editing.latitude
-                longitude = editing.longitude
+            if let baseline, baseline.name == placeName {
+                latitude = baseline.latitude
+                longitude = baseline.longitude
             } else {
                 latitude = nil
                 longitude = nil
@@ -502,8 +573,7 @@ struct PlanFormView: View {
 
         // シリーズ全体の共通内容変更：日付と締切は対象外なので、雛形だけを組み立てて渡す
         // （変わった項目だけが全回へ反映される。PlanStore.updateSeriesContent 側で差分を取る）
-        if let editing, editing.seriesID != nil, editScope == .series,
-           let series = editingSeries {
+        if isSeriesScope, let series = editingSeries {
             let newTemplate = PlanTemplate(
                 personName: resolvedDogName ?? "自分",
                 dogName: resolvedDogName,
@@ -511,8 +581,11 @@ struct PlanFormView: View {
                 timeBand: timeBand, level: level, isEvent: isEvent,
                 hidesOwnLocation: hidesOwnLocation
             )
-            planStore.updateSeriesContent(seriesID: series.id, newTemplate: newTemplate)
-            dismiss()
+            if planStore.updateSeriesContent(seriesID: series.id, newTemplate: newTemplate) {
+                dismiss()
+            } else {
+                saveErrorMessage = "保存できませんでした。入力内容はそのまま残っています。"
+            }
             return
         }
 
@@ -539,21 +612,28 @@ struct PlanFormView: View {
                 // 繰り返し：全回を実体化してシリーズとして保存する。
                 // 締切は各回で個別に設定するものなので、ここでは付けない。
                 plan.eventDeadline = nil
-                let rule = RecurrenceRule(kind: kind, startDate: day, calendar: .current)
+                let rule = RecurrenceRule(kind: kind, startDate: day, calendar: WanMapCalendar.shared)
                 if planStore.addSeries(rule: rule, occurrenceCount: occurrenceCount,
                                        templatePlan: plan) != nil {
                     dismiss()
+                } else {
+                    saveErrorMessage = "保存できませんでした。入力内容はそのまま残っています。"
                 }
-            } else {
-                planStore.add(plan)
+            } else if planStore.add(plan) {
                 dismiss()
+            } else {
+                saveErrorMessage = "保存できませんでした。入力内容はそのまま残っています。"
             }
         } else if editing?.seriesID != nil {
-            planStore.updateOccurrence(plan)
+            if planStore.updateOccurrence(plan) {
+                dismiss()
+            } else {
+                saveErrorMessage = "保存できませんでした。入力内容はそのまま残っています。"
+            }
+        } else if planStore.update(plan) {
             dismiss()
         } else {
-            planStore.update(plan)
-            dismiss()
+            saveErrorMessage = "保存できませんでした。入力内容はそのまま残っています。"
         }
     }
 }
