@@ -84,3 +84,15 @@ jobs:
           name: wanmap-screenshots
           path: WanMap/build/screenshots
           if-no-files-found: warn
+      # UIテスト中にアプリが終了した場合の切り分け用に、結果バンドル本体も残す
+      # （.xcresult 内の Diagnostics にクラッシュレポート .ips が格納されるため。
+      # 添付抽出だけでは診断情報が残らない）。バンドルはスクリーンショットや
+      # 画面録画を含むため数十〜数百MBになり得るので、保持期間は短めにする。
+      - name: Upload UI test result bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wanmap-xcresult
+          path: WanMap/build/UITestResults.xcresult
+          if-no-files-found: warn
+          retention-days: 14
