@@ -26,9 +26,9 @@ final class BreedStoreTests: XCTestCase {
         XCTAssertEqual(colorCount, 107, "毛色の総数はラインアップ表（107）と一致すること")
     }
 
-    func testBundledMaster_制作済みアイコンは15枚() {
+    func testBundledMaster_制作済みアイコンは22枚() {
         let iconCount = store.breeds.flatMap(\.colors).filter { $0.icon != nil }.count
-        XCTAssertEqual(iconCount, 15, "ハスキー4＋プードル5＋チワワ5＋ミックス1")
+        XCTAssertEqual(iconCount, 22, "ハスキー4＋プードル5＋チワワ5＋ミックス1＋柴4＋マルプー3")
     }
 
     // MARK: - 正規化と検索
