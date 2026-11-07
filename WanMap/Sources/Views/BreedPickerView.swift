@@ -38,7 +38,7 @@ struct BreedPickerView: View {
                     if isSearching {
                         Button {
                             query = ""
-                        } label {
+                        } label: {
                             Image(systemName: "xmark.circle.fill")
                                 .foregroundStyle(.secondary)
                         }
