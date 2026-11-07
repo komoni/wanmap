@@ -141,6 +141,10 @@ struct BreedPickerView: View {
                         .foregroundStyle(WanStyle.coral)
                 }
             }
+            // .plain では Spacer 部分がタップ判定から外れ、行の中央が無反応になる。
+            // ラベル全体をタップ領域にして、行のどこを押しても選べるようにする
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
         }
         // 既定のボタンスタイルだとラベル全体がタブのティント（コーラル）に染まるため、
         // 行の文字色（primary/secondary）を保つよう plain にする
@@ -167,6 +171,8 @@ struct BreedPickerView: View {
                         .foregroundStyle(WanStyle.coral)
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("breedRow_none")
