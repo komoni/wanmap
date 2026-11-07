@@ -98,8 +98,17 @@ final class BreedStoreTests: XCTestCase {
                        "breed_siberian-husky_black-white")
     }
 
-    func testMarkerIcon_未制作の色はミックスに倒れる() {
-        XCTAssertEqual(store.markerIconAsset(breedId: "shiba", colorId: "red"),
+    func testMarkerIcon_未制作の色はミックスに倒れる() throws {
+        // 制作状況に依存しないよう、マスタから「未制作（icon無し）」の色を動的に選ぶ。
+        // 固定の犬種・色を書くと、そのアイコンが制作された途端に期待が古くなる
+        // （2026-11-08、柴・赤で実際に発生）
+        let unproduced = store.breeds.flatMap { breed in
+            breed.colors.compactMap { color in
+                color.icon == nil ? (breedId: breed.id, colorId: color.id) : nil
+            }
+        }.first
+        let pair = try XCTUnwrap(unproduced, "未制作の色がマスタに1件も無い")
+        XCTAssertEqual(store.markerIconAsset(breedId: pair.breedId, colorId: pair.colorId),
                        BreedStore.fallbackIconAsset)
     }
 

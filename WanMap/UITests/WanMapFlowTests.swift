@@ -946,25 +946,22 @@ final class WanMapFlowTests: XCTestCase {
                       "「犬種アイコン」の選択肢が出ませんでした")
         breedIconItem.tap()
 
-        // 犬種選択画面へ。検索して柴犬を選ぶ
+        // 犬種選択画面へ。一覧（人気順）から柴犬を選ぶ。
+        // 検索入力はこのフローでは使わない：検索キーボードが開いていると行のタップが
+        // キーボードを閉じる動作に消費され、選択が流れることがある（CI #67・#70で発生、
+        // 失敗時の階層でもキーボードが開いたままピッカーに留まっていた）。
+        // 検索そのものの確認は単体テストと撮影テスト13が担う
         let breedLink = app.buttons["breedPickerLink"]
         XCTAssertTrue(breedLink.waitForExistence(timeout: 10),
                       "犬種の行が見つかりませんでした")
         breedLink.tap()
         XCTAssertTrue(app.navigationBars["犬種を選ぶ"].waitForExistence(timeout: 10),
                       "犬種選択画面が開きませんでした")
-        let searchField = app.textFields["breedSearchField"]
-        XCTAssertTrue(searchField.waitForExistence(timeout: 10),
-                      "犬種の検索欄が見つかりませんでした")
-        searchField.tap()
-        searchField.typeText("しば")
         let shibaRow = app.buttons["breedRow_shiba"]
         XCTAssertTrue(shibaRow.waitForExistence(timeout: 10),
-                      "検索結果に柴犬が出ませんでした")
+                      "一覧に柴犬が出ませんでした")
         shibaRow.tap()
-        // 検索キーボードが開いていると、1回目のタップがキーボードを閉じる動作に
-        // 消費されて行が選ばれないことがある（CI #67で発生）。設定に戻らなければ
-        // 行が残っているはずなので、もう一度タップする
+        // 遷移が遅い場合に備え、設定に戻らなければもう一度タップする
         if !app.navigationBars["設定"].waitForExistence(timeout: 8), shibaRow.exists {
             shibaRow.tap()
         }
