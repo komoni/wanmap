@@ -962,7 +962,13 @@ final class WanMapFlowTests: XCTestCase {
         XCTAssertTrue(shibaRow.waitForExistence(timeout: 10),
                       "検索結果に柴犬が出ませんでした")
         shibaRow.tap()
-        XCTAssertTrue(app.navigationBars["設定"].waitForExistence(timeout: 10),
+        // 検索キーボードが開いていると、1回目のタップがキーボードを閉じる動作に
+        // 消費されて行が選ばれないことがある（CI #67で発生）。設定に戻らなければ
+        // 行が残っているはずなので、もう一度タップする
+        if !app.navigationBars["設定"].waitForExistence(timeout: 8), shibaRow.exists {
+            shibaRow.tap()
+        }
+        XCTAssertTrue(app.navigationBars["設定"].waitForExistence(timeout: 15),
                       "設定画面に戻れませんでした")
         XCTAssertTrue(app.staticTexts["柴犬"].waitForExistence(timeout: 10),
                       "設定に犬種（柴犬）が反映されませんでした")
