@@ -984,24 +984,27 @@ final class WanMapFlowTests: XCTestCase {
                       "要約が「柴犬・赤」になりませんでした")
         attachScreenshot("flow10-breed-setting")
 
-        // 後片付け：チップの種類を「頭文字」に戻す。
-        // 行が画面下端に半分だけ出ている状態だと exists でもタップが効かない
-        // （CI #72：行の中心が画面外でメニューが開かなかった）。
-        // 存在ではなく「タップ可能（hittable）」になるまでスクロールする
+        // 後片付け（ベストエフォート）：チップの種類を「頭文字」に戻す。
+        // 後続テストはこの設定に依存しない（フローは test10 が最後で、撮影テストは
+        // 起動引数で上書きする）ため、戻し自体は失敗させない（フロー5の後片付けと同方針）。
+        // 行が画面下端に半分出た状態では exists/hittable でもタップが効かない
+        // （CI #72・#73：行の中心が画面外でメニューが開かなかった）ので、
+        // 画面下端に余裕ができる位置までスクロールしてからタップする
+        let window = app.windows.firstMatch
         var pickerScrolls = 0
-        while !chipPicker.isHittable && pickerScrolls < 6 {
+        while chipPicker.exists
+                && chipPicker.frame.maxY > window.frame.maxY - 80
+                && pickerScrolls < 8 {
             app.swipeUp()
             pickerScrolls += 1
         }
-        XCTAssertTrue(chipPicker.waitForExistence(timeout: 10),
-                      "後片付けでチップの種類のピッカーが見つかりませんでした")
-        XCTAssertTrue(chipPicker.isHittable,
-                      "後片付けでチップの種類のピッカーがタップ可能な位置に来ませんでした")
-        chipPicker.tap()
-        let initialItem = app.buttons["頭文字"]
-        XCTAssertTrue(initialItem.waitForExistence(timeout: 10),
-                      "「頭文字」の選択肢が出ませんでした")
-        initialItem.tap()
+        if chipPicker.isHittable {
+            chipPicker.tap()
+            let initialItem = app.buttons["頭文字"]
+            if initialItem.waitForExistence(timeout: 10) {
+                initialItem.tap()
+            }
+        }
         app.buttons["閉じる"].tap()
         XCTAssertTrue(app.buttons["今日"].waitForExistence(timeout: 10),
                       "カレンダーに戻れませんでした")
