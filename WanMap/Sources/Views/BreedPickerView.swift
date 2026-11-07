@@ -47,8 +47,7 @@ struct BreedPickerView: View {
                     }
                 }
                 HStack {
-                    Text("並び替え")
-                    Spacer()
+                    // 見出しは Picker 自身のタイトルが担う（重ねて置くと二重表示になる）
                     Picker("並び替え", selection: $markerSettings.breedSort) {
                         ForEach(BreedSort.allCases, id: \.self) { sort in
                             Text(sort.displayName).tag(sort)
@@ -143,6 +142,9 @@ struct BreedPickerView: View {
                 }
             }
         }
+        // 既定のボタンスタイルだとラベル全体がタブのティント（コーラル）に染まるため、
+        // 行の文字色（primary/secondary）を保つよう plain にする
+        .buttonStyle(.plain)
         .accessibilityIdentifier("breedRow_\(breed.id)")
     }
 
@@ -166,6 +168,7 @@ struct BreedPickerView: View {
                 }
             }
         }
+        .buttonStyle(.plain)
         .accessibilityIdentifier("breedRow_none")
     }
 

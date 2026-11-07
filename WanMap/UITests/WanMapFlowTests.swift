@@ -981,7 +981,15 @@ final class WanMapFlowTests: XCTestCase {
                       "要約が「柴犬・赤」になりませんでした")
         attachScreenshot("flow10-breed-setting")
 
-        // 後片付け：チップの種類を「頭文字」に戻す
+        // 後片付け：チップの種類を「頭文字」に戻す。
+        // リストは遅延生成のため、スクロールして行を出現させてからタップする
+        var pickerScrolls = 0
+        while !chipPicker.exists && pickerScrolls < 5 {
+            app.swipeUp()
+            pickerScrolls += 1
+        }
+        XCTAssertTrue(chipPicker.waitForExistence(timeout: 10),
+                      "後片付けでチップの種類のピッカーが見つかりませんでした")
         chipPicker.tap()
         let initialItem = app.buttons["頭文字"]
         XCTAssertTrue(initialItem.waitForExistence(timeout: 10),
