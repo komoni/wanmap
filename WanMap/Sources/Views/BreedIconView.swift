@@ -9,7 +9,7 @@ struct BreedIconView: View {
 
     var body: some View {
         ZStack {
-            Circle().fill(WanStyle.milk)
+            Circle().fill(WanStyle.canvas)
             if let asset, UIImage(named: asset) != nil {
                 Image(asset)
                     .resizable()
