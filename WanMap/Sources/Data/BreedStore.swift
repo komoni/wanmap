@@ -88,15 +88,18 @@ final class BreedStore {
 
     // MARK: - 並び替え
 
-    func sorted(_ list: [Breed], by sort: BreedSort) -> [Breed] {
+    /// 並び替え。ascending=false（下から＝降順）なら、昇順の結果をそのまま反転する
+    func sorted(_ list: [Breed], by sort: BreedSort, ascending: Bool = true) -> [Breed] {
+        let base: [Breed]
         switch sort {
         case .popularity:
-            return list.sorted { ($0.popularity, $0.kana, $0.id) < ($1.popularity, $1.kana, $1.id) }
+            base = list.sorted { ($0.popularity, $0.kana, $0.id) < ($1.popularity, $1.kana, $1.id) }
         case .kana:
-            return list.sorted { ($0.kana, $0.id) < ($1.kana, $1.id) }
+            base = list.sorted { ($0.kana, $0.id) < ($1.kana, $1.id) }
         case .size:
-            return list.sorted { ($0.size.sortOrder, $0.kana, $0.id) < ($1.size.sortOrder, $1.kana, $1.id) }
+            base = list.sorted { ($0.size.sortOrder, $0.kana, $0.id) < ($1.size.sortOrder, $1.kana, $1.id) }
         }
+        return ascending ? base : Array(base.reversed())
     }
 
     var allSortedByPopularity: [Breed] { sorted(breeds, by: .popularity) }
@@ -140,7 +143,7 @@ final class BreedStore {
 
     /// 検索：空白で分けた各語が、名前・読み・英名・別名のどれかに一致する犬種を返す（AND）。
     /// 並びは一致度優先、その中では指定の並び替えを適用する。
-    func search(_ query: String, sort: BreedSort = .popularity) -> [Breed] {
+    func search(_ query: String, sort: BreedSort = .popularity, ascending: Bool = true) -> [Breed] {
         let words = query.split(whereSeparator: { $0.isWhitespace })
             .map { Self.normalize(String($0)) }
             .filter { !$0.isEmpty }
@@ -154,7 +157,7 @@ final class BreedStore {
             }
             if let worst { scored.append((breed, worst)) }
         }
-        let ordered = sorted(scored.map(\.breed), by: sort)
+        let ordered = sorted(scored.map(\.breed), by: sort, ascending: ascending)
         let rank = Dictionary(uniqueKeysWithValues: ordered.enumerated().map { ($1.id, $0) })
         return scored
             .sorted { ($0.level, rank[$0.breed.id] ?? 0) < ($1.level, rank[$1.breed.id] ?? 0) }

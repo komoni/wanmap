@@ -23,7 +23,8 @@ struct BreedPickerView: View {
     }
 
     private var searchResults: [Breed] {
-        breedStore.search(query, sort: markerSettings.breedSort)
+        breedStore.search(query, sort: markerSettings.breedSort,
+                          ascending: markerSettings.breedSortAscending)
     }
 
     var body: some View {
@@ -55,6 +56,21 @@ struct BreedPickerView: View {
                     }
                     .pickerStyle(.menu)
                     .accessibilityIdentifier("breedSortPicker")
+                    // 並びの向き（上から＝昇順／下から＝降順）の切り替え
+                    Button {
+                        markerSettings.breedSortAscending.toggle()
+                    } label: {
+                        HStack(spacing: 2) {
+                            Image(systemName: markerSettings.breedSortAscending
+                                  ? "arrow.up" : "arrow.down")
+                            Text(markerSettings.breedSortAscending ? "上から" : "下から")
+                        }
+                        .font(.caption)
+                    }
+                    .accessibilityIdentifier("breedSortDirectionButton")
+                    .accessibilityLabel(markerSettings.breedSortAscending
+                                        ? "上から並び替え中。下からに切り替える"
+                                        : "下から並び替え中。上からに切り替える")
                 }
             }
 
@@ -77,7 +93,8 @@ struct BreedPickerView: View {
                 switch markerSettings.breedSort {
                 case .popularity:
                     Section {
-                        ForEach(breedStore.sorted(breedStore.breeds, by: .popularity)) { breed in
+                        ForEach(breedStore.sorted(breedStore.breeds, by: .popularity,
+                                                  ascending: markerSettings.breedSortAscending)) { breed in
                             breedRow(breed)
                         }
                     }
@@ -171,7 +188,8 @@ struct BreedPickerView: View {
             ("ま行", "まみむめも"), ("や行", "やゆよ"),
             ("ら行", "らりるれろ"), ("わ行", "わをん"),
         ]
-        let sortedBreeds = breedStore.sorted(breedStore.breeds, by: .kana)
+        let sortedBreeds = breedStore.sorted(breedStore.breeds, by: .kana,
+                                             ascending: markerSettings.breedSortAscending)
         var sections: [BreedSection] = []
         for row in rows {
             let members = sortedBreeds.filter { breed in
@@ -187,16 +205,20 @@ struct BreedPickerView: View {
         if !rest.isEmpty {
             sections.append(BreedSection(title: "その他", breeds: rest))
         }
-        return sections
+        // 下から（降順）では行セクションの順も逆にする（わ行→あ行）
+        return markerSettings.breedSortAscending ? sections : sections.reversed()
     }
 
     private var sizeSections: [BreedSection] {
-        BreedSize.allCases
-            .sorted { $0.sortOrder < $1.sortOrder }
+        let ascending = markerSettings.breedSortAscending
+        let sizes = BreedSize.allCases
+            .sorted { ascending ? $0.sortOrder < $1.sortOrder : $0.sortOrder > $1.sortOrder }
+        return sizes
             .map { size in
                 BreedSection(title: size.displayName,
                              breeds: breedStore.sorted(
-                                breedStore.breeds.filter { $0.size == size }, by: .kana))
+                                breedStore.breeds.filter { $0.size == size },
+                                by: .kana, ascending: ascending))
             }
             .filter { !$0.breeds.isEmpty }
     }

@@ -41,6 +41,14 @@ final class MarkerSettingsTests: XCTestCase {
         XCTAssertEqual(reloaded.breedSort, .kana)
     }
 
+    func testBreedSortDirection_既定は上で変更が保存される() {
+        let settings = MarkerSettings(defaults: defaults)
+        XCTAssertTrue(settings.breedSortAscending, "既定は上から（昇順）")
+        settings.breedSortAscending = false
+        let reloaded = MarkerSettings(defaults: defaults)
+        XCTAssertFalse(reloaded.breedSortAscending, "下から（降順）が保存されること")
+    }
+
     func testLaunchArgument_撮影用の強制は保存値より優先し保存されない() {
         let settings = MarkerSettings(defaults: defaults,
                                       launchArguments: ["-wmChipStyle", "breedIcon"])

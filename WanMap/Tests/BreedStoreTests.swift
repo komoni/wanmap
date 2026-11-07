@@ -82,6 +82,15 @@ final class BreedStoreTests: XCTestCase {
         XCTAssertEqual(sorted.map(\.kana), sorted.map(\.kana).sorted())
     }
 
+    func testSort_下からは昇順の反転になる() {
+        for sort in BreedSort.allCases {
+            let ascending = store.sorted(store.breeds, by: sort, ascending: true)
+            let descending = store.sorted(store.breeds, by: sort, ascending: false)
+            XCTAssertEqual(descending.map(\.id), ascending.map(\.id).reversed(),
+                           "\(sort) の降順は昇順の反転であること")
+        }
+    }
+
     // MARK: - アイコン解決（本人の決定：未設定・未制作はミックス）
 
     func testMarkerIcon_制作済みの犬種と色はそのアイコン() {
