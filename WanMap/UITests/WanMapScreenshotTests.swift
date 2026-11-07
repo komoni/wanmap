@@ -195,6 +195,71 @@ final class WanMapScreenshotTests: XCTestCase {
         attachScreenshot("design-calendar-sixweeks")
     }
 
+    // MARK: - 犬種アイコン（自分の犬の設定とチップの種類）
+
+    /// ⑫ 設定画面：自分の犬セクション（プレビュー・名前・犬種の行）が見える位置で撮影
+    func test12_breedSettings() throws {
+        launchAndSettleOnCalendar()
+        let settingsButton = app.buttons["calendarSettingsButton"]
+        XCTAssertTrue(settingsButton.waitForExistence(timeout: 15),
+                      "設定ボタンが見つかりませんでした")
+        settingsButton.tap()
+        XCTAssertTrue(app.navigationBars["設定"].waitForExistence(timeout: 15),
+                      "設定画面が開きませんでした")
+        // 「自分の犬」セクションの犬種の行が見えるまで少しスクロールする
+        let breedLink = app.buttons["breedPickerLink"]
+        var attempts = 0
+        while !breedLink.exists && attempts < 4 {
+            app.swipeUp()
+            attempts += 1
+        }
+        XCTAssertTrue(breedLink.exists, "「自分の犬」の犬種の行が見つかりませんでした")
+        attachScreenshot("breed-settings")
+    }
+
+    /// ⑬ 犬種選択画面：人気順の一覧と、検索（しば）の結果を撮影
+    func test13_breedPicker() throws {
+        launchAndSettleOnCalendar()
+        let settingsButton = app.buttons["calendarSettingsButton"]
+        XCTAssertTrue(settingsButton.waitForExistence(timeout: 15),
+                      "設定ボタンが見つかりませんでした")
+        settingsButton.tap()
+        XCTAssertTrue(app.navigationBars["設定"].waitForExistence(timeout: 15),
+                      "設定画面が開きませんでした")
+        let breedLink = app.buttons["breedPickerLink"]
+        var attempts = 0
+        while !breedLink.exists && attempts < 4 {
+            app.swipeUp()
+            attempts += 1
+        }
+        XCTAssertTrue(breedLink.waitForExistence(timeout: 10),
+                      "「自分の犬」の犬種の行が見つかりませんでした")
+        breedLink.tap()
+        XCTAssertTrue(app.navigationBars["犬種を選ぶ"].waitForExistence(timeout: 15),
+                      "犬種選択画面が開きませんでした")
+        attachScreenshot("breed-picker-popularity")
+        let searchField = app.textFields["breedSearchField"]
+        XCTAssertTrue(searchField.waitForExistence(timeout: 10),
+                      "犬種の検索欄が見つかりませんでした")
+        searchField.tap()
+        searchField.typeText("しば")
+        XCTAssertTrue(app.buttons["breedRow_shiba"].waitForExistence(timeout: 10),
+                      "検索結果に柴犬が出ませんでした")
+        attachScreenshot("breed-picker-search")
+    }
+
+    /// ⑭ 地図：チップの種類＝犬種アイコン（起動引数で強制）で、
+    /// 友達レールとマーカーが犬の顔アイコンになることを撮影
+    func test14_mapBreedIcons() throws {
+        app.launchArguments += ["-wmChipStyle", "breedIcon"]
+        launchAndSettleOnCalendar()
+        app.tabBars.buttons["地図"].tap()
+        XCTAssertTrue(app.maps.firstMatch.waitForExistence(timeout: 15),
+                      "地図が表示されませんでした")
+        Thread.sleep(forTimeInterval: 4)
+        attachScreenshot("map-breed-icons")
+    }
+
     // MARK: - 共通処理
 
     /// ヘッダー要素が画面（window）の内側に収まっていることの回帰ガード。

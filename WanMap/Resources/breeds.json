@@ -1,0 +1,1063 @@
+{
+ "version": 1,
+ "breeds": [
+  {
+   "id": "mixed",
+   "name": "ミックス",
+   "kana": "みっくす",
+   "english": "Mixed Dog",
+   "size": "varies",
+   "kind": "genericMix",
+   "popularity": 1,
+   "aliases": [],
+   "colors": [
+    {
+     "id": "brown-white",
+     "name": "茶＆白",
+     "icon": "breed_mixed_brown-white"
+    }
+   ]
+  },
+  {
+   "id": "toy-poodle",
+   "name": "トイプードル",
+   "kana": "といぷーどる",
+   "english": "Toy Poodle",
+   "size": "small",
+   "kind": "purebred",
+   "popularity": 2,
+   "aliases": [
+    "トイプー",
+    "プードル"
+   ],
+   "colors": [
+    {
+     "id": "red",
+     "name": "レッド",
+     "icon": "breed_toy-poodle_red"
+    },
+    {
+     "id": "apricot",
+     "name": "アプリコット",
+     "icon": "breed_toy-poodle_apricot"
+    },
+    {
+     "id": "black",
+     "name": "ブラック",
+     "icon": "breed_toy-poodle_black"
+    },
+    {
+     "id": "white",
+     "name": "ホワイト",
+     "icon": "breed_toy-poodle_white"
+    },
+    {
+     "id": "silver",
+     "name": "シルバー",
+     "icon": "breed_toy-poodle_silver"
+    }
+   ]
+  },
+  {
+   "id": "chihuahua",
+   "name": "チワワ",
+   "kana": "ちわわ",
+   "english": "Chihuahua",
+   "size": "small",
+   "kind": "purebred",
+   "popularity": 3,
+   "aliases": [
+    "ロングコートチワワ",
+    "スムースチワワ"
+   ],
+   "colors": [
+    {
+     "id": "black-tan",
+     "name": "ブラック＆タン",
+     "icon": "breed_chihuahua_black-tan"
+    },
+    {
+     "id": "choco-tan",
+     "name": "チョコ＆タン",
+     "icon": "breed_chihuahua_choco-tan"
+    },
+    {
+     "id": "fawn",
+     "name": "フォーン",
+     "icon": "breed_chihuahua_fawn"
+    },
+    {
+     "id": "cream",
+     "name": "クリーム",
+     "icon": "breed_chihuahua_cream"
+    },
+    {
+     "id": "red",
+     "name": "レッド",
+     "icon": "breed_chihuahua_red"
+    }
+   ]
+  },
+  {
+   "id": "shiba",
+   "name": "柴犬",
+   "kana": "しばいぬ",
+   "english": "Shiba Inu",
+   "size": "medium",
+   "kind": "purebred",
+   "popularity": 4,
+   "aliases": [
+    "柴",
+    "豆柴"
+   ],
+   "colors": [
+    {
+     "id": "red",
+     "name": "赤",
+     "icon": null
+    },
+    {
+     "id": "black",
+     "name": "黒",
+     "icon": null
+    },
+    {
+     "id": "sesame",
+     "name": "胡麻",
+     "icon": null
+    },
+    {
+     "id": "white",
+     "name": "白",
+     "icon": null
+    }
+   ]
+  },
+  {
+   "id": "maltipoo",
+   "name": "マルプー",
+   "kana": "まるぷー",
+   "english": "Maltipoo",
+   "size": "small",
+   "kind": "namedMix",
+   "popularity": 5,
+   "aliases": [],
+   "colors": [
+    {
+     "id": "cream",
+     "name": "クリーム",
+     "icon": null
+    },
+    {
+     "id": "apricot",
+     "name": "アプリコット",
+     "icon": null
+    },
+    {
+     "id": "white",
+     "name": "ホワイト",
+     "icon": null
+    }
+   ]
+  },
+  {
+   "id": "miniature-dachshund",
+   "name": "ミニチュアダックスフンド",
+   "kana": "みにちゅあだっくすふんど",
+   "english": "Miniature Dachshund",
+   "size": "small",
+   "kind": "purebred",
+   "popularity": 6,
+   "aliases": [
+    "ダックス",
+    "カニンヘンダックスフンド"
+   ],
+   "colors": [
+    {
+     "id": "black-tan",
+     "name": "ブラック＆タン",
+     "icon": null
+    },
+    {
+     "id": "choco-tan",
+     "name": "チョコ＆タン",
+     "icon": null
+    },
+    {
+     "id": "red",
+     "name": "レッド",
+     "icon": null
+    },
+    {
+     "id": "silver-dapple",
+     "name": "シルバーダップル",
+     "icon": null
+    }
+   ]
+  },
+  {
+   "id": "pomeranian",
+   "name": "ポメラニアン",
+   "kana": "ぽめらにあん",
+   "english": "Pomeranian",
+   "size": "small",
+   "kind": "purebred",
+   "popularity": 7,
+   "aliases": [],
+   "colors": [
+    {
+     "id": "orange",
+     "name": "オレンジ",
+     "icon": null
+    },
+    {
+     "id": "cream",
+     "name": "クリーム",
+     "icon": null
+    },
+    {
+     "id": "white",
+     "name": "ホワイト",
+     "icon": null
+    },
+    {
+     "id": "black",
+     "name": "ブラック",
+     "icon": null
+    },
+    {
+     "id": "orange-sable",
+     "name": "オレンジセーブル",
+     "icon": null
+    }
+   ]
+  },
+  {
+   "id": "border-collie",
+   "name": "ボーダーコリー",
+   "kana": "ぼーだーこりー",
+   "english": "Border Collie",
+   "size": "medium",
+   "kind": "purebred",
+   "popularity": 8,
+   "aliases": [],
+   "colors": [
+    {
+     "id": "black-white",
+     "name": "ブラック＆ホワイト",
+     "icon": null
+    },
+    {
+     "id": "red-white",
+     "name": "レッド＆ホワイト",
+     "icon": null
+    },
+    {
+     "id": "choco-white",
+     "name": "チョコ＆ホワイト",
+     "icon": null
+    },
+    {
+     "id": "blue-merle",
+     "name": "ブルーマール",
+     "icon": null
+    }
+   ]
+  },
+  {
+   "id": "golden-retriever",
+   "name": "ゴールデンレトリーバー",
+   "kana": "ごーるでんれとりーばー",
+   "english": "Golden Retriever",
+   "size": "large",
+   "kind": "purebred",
+   "popularity": 9,
+   "aliases": [
+    "ゴールデン"
+   ],
+   "colors": [
+    {
+     "id": "gold",
+     "name": "ゴールド",
+     "icon": null
+    },
+    {
+     "id": "cream",
+     "name": "クリーム",
+     "icon": null
+    }
+   ]
+  },
+  {
+   "id": "miniature-schnauzer",
+   "name": "ミニチュアシュナウザー",
+   "kana": "みにちゅあしゅなうざー",
+   "english": "Miniature Schnauzer",
+   "size": "small",
+   "kind": "purebred",
+   "popularity": 10,
+   "aliases": [
+    "シュナウザー"
+   ],
+   "colors": [
+    {
+     "id": "salt-pepper",
+     "name": "ソルト＆ペッパー",
+     "icon": null
+    },
+    {
+     "id": "black-silver",
+     "name": "ブラック＆シルバー",
+     "icon": null
+    },
+    {
+     "id": "black",
+     "name": "ブラック",
+     "icon": null
+    },
+    {
+     "id": "white",
+     "name": "ホワイト",
+     "icon": null
+    }
+   ]
+  },
+  {
+   "id": "french-bulldog",
+   "name": "フレンチブルドッグ",
+   "kana": "ふれんちぶるどっぐ",
+   "english": "French Bulldog",
+   "size": "medium",
+   "kind": "purebred",
+   "popularity": 11,
+   "aliases": [
+    "フレブル"
+   ],
+   "colors": [
+    {
+     "id": "brindle",
+     "name": "ブリンドル",
+     "icon": null
+    },
+    {
+     "id": "fawn",
+     "name": "フォーン",
+     "icon": null
+    },
+    {
+     "id": "pied",
+     "name": "パイド",
+     "icon": null
+    },
+    {
+     "id": "cream",
+     "name": "クリーム",
+     "icon": null
+    }
+   ]
+  },
+  {
+   "id": "chipu",
+   "name": "チワプー",
+   "kana": "ちわぷー",
+   "english": "Chipu",
+   "size": "small",
+   "kind": "namedMix",
+   "popularity": 12,
+   "aliases": [],
+   "colors": [
+    {
+     "id": "apricot",
+     "name": "アプリコット",
+     "icon": null
+    },
+    {
+     "id": "black-tan",
+     "name": "ブラック＆タン",
+     "icon": null
+    }
+   ]
+  },
+  {
+   "id": "goldendoodle",
+   "name": "ゴールデンドゥードル",
+   "kana": "ごーるでんどぅーどる",
+   "english": "Goldendoodle",
+   "size": "large",
+   "kind": "namedMix",
+   "popularity": 13,
+   "aliases": [],
+   "colors": [
+    {
+     "id": "cream",
+     "name": "クリーム",
+     "icon": null
+    },
+    {
+     "id": "apricot",
+     "name": "アプリコット",
+     "icon": null
+    }
+   ]
+  },
+  {
+   "id": "maltese",
+   "name": "マルチーズ",
+   "kana": "まるちーず",
+   "english": "Maltese",
+   "size": "small",
+   "kind": "purebred",
+   "popularity": 14,
+   "aliases": [],
+   "colors": [
+    {
+     "id": "white",
+     "name": "ホワイト",
+     "icon": null
+    }
+   ]
+  },
+  {
+   "id": "bichon-frise",
+   "name": "ビションフリーゼ",
+   "kana": "びしょんふりーぜ",
+   "english": "Bichon Frise",
+   "size": "small",
+   "kind": "purebred",
+   "popularity": 15,
+   "aliases": [],
+   "colors": [
+    {
+     "id": "white",
+     "name": "ホワイト",
+     "icon": null
+    }
+   ]
+  },
+  {
+   "id": "welsh-corgi",
+   "name": "ウェルシュコーギーペンブローク",
+   "kana": "うぇるしゅこーぎーぺんぶろーく",
+   "english": "Welsh Corgi Pembroke",
+   "size": "medium",
+   "kind": "purebred",
+   "popularity": 16,
+   "aliases": [
+    "コーギー"
+   ],
+   "colors": [
+    {
+     "id": "red-white",
+     "name": "レッド＆ホワイト",
+     "icon": null
+    },
+    {
+     "id": "tricolor",
+     "name": "トライカラー",
+     "icon": null
+    }
+   ]
+  },
+  {
+   "id": "siberian-husky",
+   "name": "シベリアンハスキー",
+   "kana": "しべりあんはすきー",
+   "english": "Siberian Husky",
+   "size": "large",
+   "kind": "purebred",
+   "popularity": 17,
+   "aliases": [
+    "ハスキー"
+   ],
+   "colors": [
+    {
+     "id": "black-white",
+     "name": "ブラック＆ホワイト",
+     "icon": "breed_siberian-husky_black-white"
+    },
+    {
+     "id": "silver-white",
+     "name": "シルバー＆ホワイト",
+     "icon": "breed_siberian-husky_silver-white"
+    },
+    {
+     "id": "red-white",
+     "name": "レッド＆ホワイト",
+     "icon": "breed_siberian-husky_red-white"
+    },
+    {
+     "id": "choco-white",
+     "name": "チョコ＆ホワイト",
+     "icon": "breed_siberian-husky_choco-white"
+    }
+   ]
+  },
+  {
+   "id": "cavalier",
+   "name": "キャバリアキングチャールズスパニエル",
+   "kana": "きゃばりあきんぐちゃーるずすぱにえる",
+   "english": "Cavalier King Charles Spaniel",
+   "size": "small",
+   "kind": "purebred",
+   "popularity": 18,
+   "aliases": [
+    "キャバリア"
+   ],
+   "colors": [
+    {
+     "id": "blenheim",
+     "name": "ブレンハイム",
+     "icon": null
+    },
+    {
+     "id": "tricolor",
+     "name": "トライカラー",
+     "icon": null
+    },
+    {
+     "id": "black-tan",
+     "name": "ブラック＆タン",
+     "icon": null
+    },
+    {
+     "id": "ruby",
+     "name": "ルビー",
+     "icon": null
+    }
+   ]
+  },
+  {
+   "id": "yorkshire-terrier",
+   "name": "ヨークシャーテリア",
+   "kana": "よーくしゃーてりあ",
+   "english": "Yorkshire Terrier",
+   "size": "small",
+   "kind": "purebred",
+   "popularity": 19,
+   "aliases": [
+    "ヨーキー"
+   ],
+   "colors": [
+    {
+     "id": "steel-blue-tan",
+     "name": "スチールブルー＆タン",
+     "icon": null
+    }
+   ]
+  },
+  {
+   "id": "shih-tzu",
+   "name": "シーズー",
+   "kana": "しーずー",
+   "english": "Shih Tzu",
+   "size": "small",
+   "kind": "purebred",
+   "popularity": 20,
+   "aliases": [],
+   "colors": [
+    {
+     "id": "gold-white",
+     "name": "ゴールド＆ホワイト",
+     "icon": null
+    },
+    {
+     "id": "black-white",
+     "name": "ブラック＆ホワイト",
+     "icon": null
+    },
+    {
+     "id": "brindle-white",
+     "name": "ブリンドル＆ホワイト",
+     "icon": null
+    }
+   ]
+  },
+  {
+   "id": "labrador-retriever",
+   "name": "ラブラドールレトリバー",
+   "kana": "らぶらどーるれとりばー",
+   "english": "Labrador Retriever",
+   "size": "large",
+   "kind": "purebred",
+   "popularity": 21,
+   "aliases": [
+    "ラブラドール"
+   ],
+   "colors": [
+    {
+     "id": "yellow",
+     "name": "イエロー",
+     "icon": null
+    },
+    {
+     "id": "black",
+     "name": "ブラック",
+     "icon": null
+    },
+    {
+     "id": "chocolate",
+     "name": "チョコレート",
+     "icon": null
+    }
+   ]
+  },
+  {
+   "id": "italian-greyhound",
+   "name": "イタリアングレーハウンド",
+   "kana": "いたりあんぐれーはうんど",
+   "english": "Italian Greyhound",
+   "size": "small",
+   "kind": "purebred",
+   "popularity": 22,
+   "aliases": [
+    "イタグレ"
+   ],
+   "colors": [
+    {
+     "id": "black",
+     "name": "ブラック",
+     "icon": null
+    },
+    {
+     "id": "gray",
+     "name": "グレー",
+     "icon": null
+    },
+    {
+     "id": "isabella",
+     "name": "イザベラ",
+     "icon": null
+    }
+   ]
+  },
+  {
+   "id": "jack-russell-terrier",
+   "name": "ジャックラッセルテリア",
+   "kana": "じゃっくらっせるてりあ",
+   "english": "Jack Russell Terrier",
+   "size": "small",
+   "kind": "purebred",
+   "popularity": 23,
+   "aliases": [],
+   "colors": [
+    {
+     "id": "white-tan",
+     "name": "ホワイト＆タン",
+     "icon": null
+    },
+    {
+     "id": "white-black",
+     "name": "ホワイト＆ブラック",
+     "icon": null
+    },
+    {
+     "id": "tricolor",
+     "name": "トライカラー",
+     "icon": null
+    }
+   ]
+  },
+  {
+   "id": "pug",
+   "name": "パグ",
+   "kana": "ぱぐ",
+   "english": "Pug",
+   "size": "small",
+   "kind": "purebred",
+   "popularity": 24,
+   "aliases": [],
+   "colors": [
+    {
+     "id": "fawn",
+     "name": "フォーン",
+     "icon": null
+    },
+    {
+     "id": "black",
+     "name": "ブラック",
+     "icon": null
+    },
+    {
+     "id": "apricot",
+     "name": "アプリコット",
+     "icon": null
+    }
+   ]
+  },
+  {
+   "id": "pekingese",
+   "name": "ペキニーズ",
+   "kana": "ぺきにーず",
+   "english": "Pekingese",
+   "size": "small",
+   "kind": "purebred",
+   "popularity": 25,
+   "aliases": [],
+   "colors": [
+    {
+     "id": "fawn",
+     "name": "フォーン",
+     "icon": null
+    },
+    {
+     "id": "black",
+     "name": "ブラック",
+     "icon": null
+    },
+    {
+     "id": "parti",
+     "name": "パーティ（フォーン＆ホワイト）",
+     "icon": null
+    }
+   ]
+  },
+  {
+   "id": "miniature-pinscher",
+   "name": "ミニチュアピンシャー",
+   "kana": "みにちゅあぴんしゃー",
+   "english": "Miniature Pinscher",
+   "size": "small",
+   "kind": "purebred",
+   "popularity": 26,
+   "aliases": [
+    "ミニピン"
+   ],
+   "colors": [
+    {
+     "id": "black-tan",
+     "name": "ブラック＆タン",
+     "icon": null
+    },
+    {
+     "id": "choco-tan",
+     "name": "チョコ＆タン",
+     "icon": null
+    },
+    {
+     "id": "deer-red",
+     "name": "ディアーレッド",
+     "icon": null
+    }
+   ]
+  },
+  {
+   "id": "boston-terrier",
+   "name": "ボストンテリア",
+   "kana": "ぼすとんてりあ",
+   "english": "Boston Terrier",
+   "size": "small",
+   "kind": "purebred",
+   "popularity": 27,
+   "aliases": [],
+   "colors": [
+    {
+     "id": "black-white",
+     "name": "ブラック＆ホワイト",
+     "icon": null
+    },
+    {
+     "id": "brindle-white",
+     "name": "ブリンドル＆ホワイト",
+     "icon": null
+    }
+   ]
+  },
+  {
+   "id": "shetland-sheepdog",
+   "name": "シェットランドシープドッグ",
+   "kana": "しぇっとらんどしーぷどっぐ",
+   "english": "Shetland Sheepdog",
+   "size": "medium",
+   "kind": "purebred",
+   "popularity": 28,
+   "aliases": [
+    "シェルティ"
+   ],
+   "colors": [
+    {
+     "id": "sable",
+     "name": "セーブル",
+     "icon": null
+    },
+    {
+     "id": "tricolor",
+     "name": "トライカラー",
+     "icon": null
+    },
+    {
+     "id": "blue-merle",
+     "name": "ブルーマール",
+     "icon": null
+    }
+   ]
+  },
+  {
+   "id": "samoyed",
+   "name": "サモエド",
+   "kana": "さもえど",
+   "english": "Samoyed",
+   "size": "large",
+   "kind": "purebred",
+   "popularity": 29,
+   "aliases": [],
+   "colors": [
+    {
+     "id": "white",
+     "name": "ホワイト",
+     "icon": null
+    }
+   ]
+  },
+  {
+   "id": "american-cocker-spaniel",
+   "name": "アメリカンコッカースパニエル",
+   "kana": "あめりかんこっかーすぱにえる",
+   "english": "American Cocker Spaniel",
+   "size": "medium",
+   "kind": "purebred",
+   "popularity": 30,
+   "aliases": [
+    "アメコカ"
+   ],
+   "colors": [
+    {
+     "id": "black",
+     "name": "ブラック",
+     "icon": null
+    },
+    {
+     "id": "buff",
+     "name": "バフ",
+     "icon": null
+    },
+    {
+     "id": "parti",
+     "name": "パーティ",
+     "icon": null
+    }
+   ]
+  },
+  {
+   "id": "doberman",
+   "name": "ドーベルマン",
+   "kana": "どーべるまん",
+   "english": "Doberman Pinscher",
+   "size": "large",
+   "kind": "purebred",
+   "popularity": 31,
+   "aliases": [],
+   "colors": [
+    {
+     "id": "black-tan",
+     "name": "ブラック＆タン",
+     "icon": null
+    },
+    {
+     "id": "brown-tan",
+     "name": "ブラウン＆タン",
+     "icon": null
+    }
+   ]
+  },
+  {
+   "id": "alaskan-malamute",
+   "name": "アラスカンマラミュート",
+   "kana": "あらすかんまらみゅーと",
+   "english": "Alaskan Malamute",
+   "size": "large",
+   "kind": "purebred",
+   "popularity": 32,
+   "aliases": [
+    "マラミュート"
+   ],
+   "colors": [
+    {
+     "id": "gray-white",
+     "name": "グレー＆ホワイト",
+     "icon": null
+    },
+    {
+     "id": "black-white",
+     "name": "ブラック＆ホワイト",
+     "icon": null
+    },
+    {
+     "id": "red-white",
+     "name": "レッド＆ホワイト",
+     "icon": null
+    }
+   ]
+  },
+  {
+   "id": "bernese-mountain-dog",
+   "name": "バーニーズマウンテンドッグ",
+   "kana": "ばーにーずまうんてんどっぐ",
+   "english": "Bernese Mountain Dog",
+   "size": "large",
+   "kind": "purebred",
+   "popularity": 33,
+   "aliases": [
+    "バーニーズ"
+   ],
+   "colors": [
+    {
+     "id": "tricolor",
+     "name": "トライカラー",
+     "icon": null
+    }
+   ]
+  },
+  {
+   "id": "west-highland-white-terrier",
+   "name": "ウエストハイランドホワイトテリア",
+   "kana": "うえすとはいらんどほわいとてりあ",
+   "english": "West Highland White Terrier",
+   "size": "small",
+   "kind": "purebred",
+   "popularity": 34,
+   "aliases": [
+    "ウェスティ"
+   ],
+   "colors": [
+    {
+     "id": "white",
+     "name": "ホワイト",
+     "icon": null
+    }
+   ]
+  },
+  {
+   "id": "bulldog",
+   "name": "ブルドッグ",
+   "kana": "ぶるどっぐ",
+   "english": "Bulldog",
+   "size": "medium",
+   "kind": "purebred",
+   "popularity": 35,
+   "aliases": [],
+   "colors": [
+    {
+     "id": "brindle",
+     "name": "ブリンドル",
+     "icon": null
+    },
+    {
+     "id": "red",
+     "name": "レッド",
+     "icon": null
+    },
+    {
+     "id": "fawn-white",
+     "name": "フォーン＆ホワイト",
+     "icon": null
+    }
+   ]
+  },
+  {
+   "id": "papillon",
+   "name": "パピヨン",
+   "kana": "ぱぴよん",
+   "english": "Papillon",
+   "size": "small",
+   "kind": "purebred",
+   "popularity": 36,
+   "aliases": [],
+   "colors": [
+    {
+     "id": "white-red",
+     "name": "ホワイト＆レッド",
+     "icon": null
+    },
+    {
+     "id": "white-black",
+     "name": "ホワイト＆ブラック",
+     "icon": null
+    },
+    {
+     "id": "white-sable",
+     "name": "ホワイト＆セーブル",
+     "icon": null
+    }
+   ]
+  },
+  {
+   "id": "beagle",
+   "name": "ビーグル",
+   "kana": "びーぐる",
+   "english": "Beagle",
+   "size": "medium",
+   "kind": "purebred",
+   "popularity": 37,
+   "aliases": [],
+   "colors": [
+    {
+     "id": "tricolor",
+     "name": "トライカラー",
+     "icon": null
+    },
+    {
+     "id": "lemon-white",
+     "name": "レモン＆ホワイト",
+     "icon": null
+    }
+   ]
+  },
+  {
+   "id": "japanese-spitz",
+   "name": "日本スピッツ",
+   "kana": "にほんすぴっつ",
+   "english": "Japanese Spitz",
+   "size": "medium",
+   "kind": "purebred",
+   "popularity": 38,
+   "aliases": [],
+   "colors": [
+    {
+     "id": "white",
+     "name": "ホワイト",
+     "icon": null
+    }
+   ]
+  },
+  {
+   "id": "akita",
+   "name": "秋田犬",
+   "kana": "あきたいぬ",
+   "english": "Akita Inu",
+   "size": "large",
+   "kind": "purebred",
+   "popularity": 39,
+   "aliases": [
+    "秋田"
+   ],
+   "colors": [
+    {
+     "id": "red",
+     "name": "赤",
+     "icon": null
+    },
+    {
+     "id": "white",
+     "name": "白",
+     "icon": null
+    },
+    {
+     "id": "tiger",
+     "name": "虎",
+     "icon": null
+    }
+   ]
+  },
+  {
+   "id": "other",
+   "name": "その他の犬種",
+   "kana": "そのたのけんしゅ",
+   "english": "Other",
+   "size": "varies",
+   "kind": "other",
+   "popularity": 40,
+   "aliases": [],
+   "colors": []
+  }
+ ]
+}

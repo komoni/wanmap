@@ -15,11 +15,15 @@ struct SettingsView: View {
     @Environment(AppearanceStore.self) private var appearanceStore
     @Environment(FeedbackSettings.self) private var feedbackSettings
     @Environment(FeedbackService.self) private var feedback
+    @Environment(BreedStore.self) private var breedStore
+    @Environment(MarkerSettings.self) private var markerSettings
     @Environment(PlanStore.self) private var planStore
     @Environment(UserPlaceStore.self) private var userPlaceStore
     @Environment(LocationService.self) private var location
     @Environment(\.dismiss) private var dismiss
 
+    /// 自分の犬の名前の入力欄（確定タイミングでのみ FriendStore へ反映する）
+    @State private var dogNameText = ""
     @State private var showResetConfirm = false
     /// リセット結果の表示文。失敗を成功として見せないため、結果に応じて出し分ける
     @State private var resetMessage: String?
@@ -29,6 +33,7 @@ struct SettingsView: View {
         @Bindable var location = location
         @Bindable var appearanceStore = appearanceStore
         @Bindable var feedbackSettings = feedbackSettings
+        @Bindable var markerSettings = markerSettings
         NavigationStack {
             List {
                 Section("自分のID") {
@@ -47,6 +52,79 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                             .textSelection(.enabled)
                     }
+                }
+
+                // 自分の犬（任意設定）。初回に強制はしない。犬種・毛色は
+                // 地図の犬種アイコンの材料になり、未設定の犬はミックスで表示される。
+                Section {
+                    HStack(spacing: 12) {
+                        BreedIconView(asset: breedStore.markerIconAsset(
+                            breedId: friendStore.me.breedId,
+                            colorId: friendStore.me.dogColorId), size: 52)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(friendStore.me.dogName ?? "名前は未設定")
+                                .font(.headline)
+                            Text(myDogSummary)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    HStack {
+                        Text("名前")
+                        TextField("犬の名前", text: $dogNameText)
+                            .multilineTextAlignment(.trailing)
+                            .onSubmit { commitDogName() }
+                            .accessibilityIdentifier("myDogNameField")
+                    }
+                    NavigationLink {
+                        BreedPickerView(currentBreedId: friendStore.me.breedId) { breedId in
+                            friendStore.updateMyDogBreed(breedId: breedId)
+                        }
+                    } label: {
+                        HStack {
+                            Text("犬種")
+                            Spacer()
+                            Text(myBreed?.name ?? "未設定")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .accessibilityIdentifier("breedPickerLink")
+                    if let breed = myBreed, !breed.colors.isEmpty {
+                        LazyVGrid(columns: colorColumns, spacing: 8) {
+                            ForEach(breed.colors) { color in
+                                BreedColorCell(
+                                    color: color,
+                                    isSelected: friendStore.me.dogColorId == color.id
+                                ) {
+                                    friendStore.updateMyDogColor(colorId: color.id)
+                                }
+                            }
+                        }
+                        .padding(.vertical, 4)
+                        if friendStore.me.dogColorId != nil {
+                            Button("毛色を設定しない") {
+                                friendStore.updateMyDogColor(colorId: nil)
+                            }
+                            .font(.caption)
+                        }
+                    }
+                } header: {
+                    Text("自分の犬")
+                } footer: {
+                    Text("任意の設定です。設定しなくても今まで通り使えます。犬種を選ぶと、地図の「犬種アイコン」で自分の犬の顔が出ます。")
+                }
+
+                Section {
+                    Picker("チップの種類", selection: $markerSettings.chipStyle) {
+                        ForEach(MarkerChipStyle.allCases, id: \.self) { style in
+                            Text(style.displayName).tag(style)
+                        }
+                    }
+                    .accessibilityIdentifier("markerChipStylePicker")
+                } header: {
+                    Text("地図の表示")
+                } footer: {
+                    Text("地図に出る予定・今ここのチップの見た目です。「犬種アイコン」では、犬種が未設定の犬はミックスのアイコンで表示されます。")
                 }
 
                 Section("デザイン") {
@@ -154,6 +232,12 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("設定")
+            .onAppear { dogNameText = friendStore.me.dogName ?? "" }
+            .onChange(of: friendStore.me.internalId) { _, _ in
+                // データリセットで自分が作り直されたら入力欄も追随させる
+                dogNameText = friendStore.me.dogName ?? ""
+            }
+            .onDisappear { commitDogName() }
             .onChange(of: location.hideMode) { _, hidden in
                 // 非表示をやめたら、本人の操作として取得を再開する
                 if !hidden { location.requestPermissionAndStart() }
@@ -185,6 +269,29 @@ struct SettingsView: View {
             } message: {
                 Text("この端末に保存した予定・友達・追加した場所のデータをすべて消します。自分のIDも新しく作り直されます。")
             }
+        }
+    }
+
+    // MARK: - 自分の犬まわり
+
+    private var myBreed: Breed? { breedStore.breed(id: friendStore.me.breedId) }
+
+    private var myDogSummary: String {
+        guard let breed = myBreed else { return "犬種は未設定（ミックスで表示）" }
+        if let color = breed.color(id: friendStore.me.dogColorId) {
+            return "\(breed.name)・\(color.name)"
+        }
+        return breed.name
+    }
+
+    private var colorColumns: [GridItem] {
+        [GridItem(.adaptive(minimum: 84), spacing: 8)]
+    }
+
+    /// 名前入力の確定（改行・画面を閉じる時に呼ぶ）。変わっていない時は何もしない
+    private func commitDogName() {
+        if dogNameText != (friendStore.me.dogName ?? "") {
+            friendStore.updateMyDogName(dogNameText)
         }
     }
 
@@ -247,6 +354,8 @@ struct SettingsView: View {
 #Preview {
     SettingsView()
         .environment(FriendStore.preview)
+        .environment(BreedStore())
+        .environment(MarkerSettings(defaults: UserDefaults(suiteName: "preview-marker")!))
         .environment(ThemeStore())
         .environment(AppearanceStore())
         .environment(FeedbackSettings())

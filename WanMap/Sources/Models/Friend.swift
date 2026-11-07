@@ -10,6 +10,10 @@ struct AppUser: Codable, Identifiable, Equatable {
     var appIssuedId: String         // 未連携時の表示・検索用ID（例: wan-xxxxxx）
     var displayName: String
     var dogName: String?
+    /// 自分の犬の犬種（Breed マスタのID）。未設定は nil（地図では汎用ミックスで表示）
+    var breedId: String? = nil
+    /// 毛色（その犬種の colors のID）。犬種と組で意味を持つ
+    var dogColorId: String? = nil
 
     var publicId: String { instagramUsername.map { "@\($0)" } ?? appIssuedId }
 }

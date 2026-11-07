@@ -1,0 +1,39 @@
+import Foundation
+import Observation
+
+/// 地図チップの種類の設定（設定タブ「地図の表示」）
+/// 既定は頭文字（今までの表示）。犬種アイコンは本人が選んだ時だけ使う。
+/// FeedbackSettings と同じく、変更したら即 UserDefaults に保存する。
+@Observable
+final class MarkerSettings {
+    private static let chipStyleKey = "wanmap.marker.chipStyle"
+    /// 犬種選択画面の並び替えの記憶（本人が変えた並びは次回もその並びで開く）
+    private static let breedSortKey = "wanmap.breed.sort"
+
+    private let defaults: UserDefaults
+
+    var chipStyle: MarkerChipStyle {
+        didSet { defaults.set(chipStyle.rawValue, forKey: Self.chipStyleKey) }
+    }
+
+    var breedSort: BreedSort {
+        didSet { defaults.set(breedSort.rawValue, forKey: Self.breedSortKey) }
+    }
+
+    init(defaults: UserDefaults = .standard, launchArguments: [String] = []) {
+        self.defaults = defaults
+        var style = defaults.string(forKey: Self.chipStyleKey)
+            .flatMap(MarkerChipStyle.init(rawValue:)) ?? .initial
+        // 画面撮影用（DEBUGの起動引数 -wmChipStyle breedIcon / initial）。
+        // AppearanceStore と同じ流儀で、引数があれば保存値より優先する。
+        // init 内の代入では didSet が動かないため、保存はされない（撮影専用の一時上書き）。
+        if let index = launchArguments.firstIndex(of: "-wmChipStyle"),
+           index + 1 < launchArguments.count,
+           let forced = MarkerChipStyle(rawValue: launchArguments[index + 1]) {
+            style = forced
+        }
+        chipStyle = style
+        breedSort = defaults.string(forKey: Self.breedSortKey)
+            .flatMap(BreedSort.init(rawValue:)) ?? .popularity
+    }
+}

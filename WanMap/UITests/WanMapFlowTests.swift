@@ -926,6 +926,72 @@ final class WanMapFlowTests: XCTestCase {
         button.tap()
     }
 
+    // MARK: - フロー10：自分の犬（犬種・毛色）とチップの種類
+
+    /// 設定でチップの種類を「犬種アイコン」に変え、犬種を検索して柴犬を選び、
+    /// 毛色（赤）を選ぶと、設定の要約が「柴犬・赤」になることを確認する。
+    /// 最後にチップの種類を「頭文字」に戻す（後続の撮影に影響を残さない）。
+    /// 犬種・毛色の選択自体は残してよい（自分の犬の設定は初期モックに含まれない）。
+    func test10_breedSetting() throws {
+        launchAndSettleOnCalendar()
+        openSettings()
+
+        // チップの種類を「犬種アイコン」へ（Picker はメニュー形式）
+        let chipPicker = app.buttons["markerChipStylePicker"]
+        XCTAssertTrue(chipPicker.waitForExistence(timeout: 10),
+                      "チップの種類のピッカーが見つかりませんでした")
+        chipPicker.tap()
+        let breedIconItem = app.buttons["犬種アイコン"]
+        XCTAssertTrue(breedIconItem.waitForExistence(timeout: 10),
+                      "「犬種アイコン」の選択肢が出ませんでした")
+        breedIconItem.tap()
+
+        // 犬種選択画面へ。検索して柴犬を選ぶ
+        let breedLink = app.buttons["breedPickerLink"]
+        XCTAssertTrue(breedLink.waitForExistence(timeout: 10),
+                      "犬種の行が見つかりませんでした")
+        breedLink.tap()
+        XCTAssertTrue(app.navigationBars["犬種を選ぶ"].waitForExistence(timeout: 10),
+                      "犬種選択画面が開きませんでした")
+        let searchField = app.textFields["breedSearchField"]
+        XCTAssertTrue(searchField.waitForExistence(timeout: 10),
+                      "犬種の検索欄が見つかりませんでした")
+        searchField.tap()
+        searchField.typeText("しば")
+        let shibaRow = app.buttons["breedRow_shiba"]
+        XCTAssertTrue(shibaRow.waitForExistence(timeout: 10),
+                      "検索結果に柴犬が出ませんでした")
+        shibaRow.tap()
+        XCTAssertTrue(app.navigationBars["設定"].waitForExistence(timeout: 10),
+                      "設定画面に戻れませんでした")
+        XCTAssertTrue(app.staticTexts["柴犬"].waitForExistence(timeout: 10),
+                      "設定に犬種（柴犬）が反映されませんでした")
+
+        // 毛色（赤）を選ぶと要約が「柴犬・赤」になる
+        let redCell = app.buttons["breedColor_red"]
+        XCTAssertTrue(redCell.waitForExistence(timeout: 10),
+                      "毛色（赤）のマスが見つかりませんでした")
+        var scrolls = 0
+        while !redCell.isHittable && scrolls < 4 {
+            app.swipeUp()
+            scrolls += 1
+        }
+        redCell.tap()
+        XCTAssertTrue(app.staticTexts["柴犬・赤"].waitForExistence(timeout: 10),
+                      "要約が「柴犬・赤」になりませんでした")
+        attachScreenshot("flow10-breed-setting")
+
+        // 後片付け：チップの種類を「頭文字」に戻す
+        chipPicker.tap()
+        let initialItem = app.buttons["頭文字"]
+        XCTAssertTrue(initialItem.waitForExistence(timeout: 10),
+                      "「頭文字」の選択肢が出ませんでした")
+        initialItem.tap()
+        app.buttons["閉じる"].tap()
+        XCTAssertTrue(app.buttons["今日"].waitForExistence(timeout: 10),
+                      "カレンダーに戻れませんでした")
+    }
+
     // MARK: - 共通処理
 
     /// シード付きで起動し、カレンダー表示で落ち着かせる（画面撮影側と同じ手順）

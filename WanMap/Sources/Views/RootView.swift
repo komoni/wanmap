@@ -10,6 +10,8 @@ struct RootView: View {
     @State private var userPlaceStore = UserPlaceStore()
     @State private var planStore: PlanStore
     @State private var friendStore = FriendStore()
+    @State private var breedStore = BreedStore()
+    @State private var markerSettings: MarkerSettings
     @State private var themeStore = ThemeStore()
     @State private var appearanceStore: AppearanceStore
     @State private var feedbackSettings: FeedbackSettings
@@ -70,6 +72,13 @@ struct RootView: View {
         let feedbackSettings = FeedbackSettings()
         _feedbackSettings = State(initialValue: feedbackSettings)
         _feedbackService = State(initialValue: FeedbackService(settings: feedbackSettings))
+        // チップの種類は画面撮影時だけ起動引数で強制できる（DEBUGのみ）
+        #if DEBUG
+        _markerSettings = State(initialValue: MarkerSettings(
+            launchArguments: ProcessInfo.processInfo.arguments))
+        #else
+        _markerSettings = State(initialValue: MarkerSettings())
+        #endif
     }
 
     @Environment(\.scenePhase) private var scenePhase
@@ -97,6 +106,8 @@ struct RootView: View {
         .environment(userPlaceStore)
         .environment(planStore)
         .environment(friendStore)
+        .environment(breedStore)
+        .environment(markerSettings)
         .environment(themeStore)
         .environment(appearanceStore)
         .environment(feedbackSettings)
@@ -104,6 +115,7 @@ struct RootView: View {
         .environment(location)
         .task {
             await facilityStore.refreshFromRemote()
+            await breedStore.refreshFromRemote()
             // 「今ここ」は位置情報で自動的には動かさない（フェーズQレビュー R7）。
             // 配置・置き直しは本人が地図の「今ここ」ボタンを押した時だけ。
             // そのため LocationService.onLocationFix は PlanStore へ繋がない。

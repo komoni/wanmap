@@ -36,6 +36,9 @@ struct DogMapView: View {
     @Environment(LocationService.self) private var location
     @Environment(AppearanceStore.self) private var appearanceStore
     @Environment(FeedbackService.self) private var feedback
+    @Environment(FriendStore.self) private var friendStore
+    @Environment(BreedStore.self) private var breedStore
+    @Environment(MarkerSettings.self) private var markerSettings
     @State private var position: MapCameraPosition = .japanFallback
     @State private var selectedFacility: Facility?
     @State private var selectedUserPlace: UserPlace?
@@ -124,6 +127,7 @@ struct DogMapView: View {
             guard let targetPlan, let coord = targetPlan.coordinate else { return nil }
             return MapPerson(personName: name,
                              label: String((targetPlan.dogName ?? name).prefix(1)),
+                             iconAsset: markerIconAsset(personName: name),
                              hasPresence: presence != nil,
                              target: coord)
         }
@@ -353,7 +357,33 @@ struct DogMapView: View {
     private func planMarker(_ plan: Plan) -> some View {
         FloatingPlanMarker(plan: plan,
                            isOwn: plan.id == planStore.ownPresence?.id,
+                           iconAsset: markerIconAsset(for: plan),
                            fleeOffset: fleeOffsets[plan.id] ?? .zero)
+    }
+
+    /// 表示名から AppUser を引く（端末内モックの範囲：自分・友達・仮想ユーザー）。
+    private func user(forPersonName name: String) -> AppUser? {
+        if friendStore.me.displayName == name { return friendStore.me }
+        return friendStore.relations.map(\.user).first { $0.displayName == name }
+            ?? FriendStore.mockDirectory.first { $0.displayName == name }
+    }
+
+    /// チップの種類が「犬種アイコン」の時だけ、犬種アイコンのアセット名を返す。
+    /// 犬種未設定・アイコン未制作の犬は汎用ミックスになる（BreedStore 側の解決）。
+    /// 頭文字モードでは nil を返し、従来の頭文字チップ表示になる。
+    private func markerIconAsset(for plan: Plan) -> String? {
+        guard markerSettings.chipStyle == .breedIcon else { return nil }
+        if plan.id == planStore.ownPresence?.id {
+            return breedStore.markerIconAsset(breedId: friendStore.me.breedId,
+                                              colorId: friendStore.me.dogColorId)
+        }
+        return markerIconAsset(personName: plan.personName)
+    }
+
+    private func markerIconAsset(personName: String) -> String? {
+        guard markerSettings.chipStyle == .breedIcon else { return nil }
+        let user = user(forPersonName: personName)
+        return breedStore.markerIconAsset(breedId: user?.breedId, colorId: user?.dogColorId)
     }
 
     /// 指位置の観察専用ジェスチャ。地図本体のジェスチャと同時認識させるため、
@@ -760,15 +790,29 @@ struct DogMapView: View {
                         fly(to: person.target)
                     } label: {
                         ZStack {
-                            Circle()
-                                .fill(person.hasPresence ? WanStyle.coral : WanStyle.lavender)
-                                .frame(width: 28, height: 28)
-                                .overlay(Circle().stroke(Color.white, lineWidth: 1.5))
-                                .shadow(radius: 1)
-                            Text(person.label)
-                                .font(.caption2).bold()
-                                // ラベンダー地は薄いので文字はココア（白では読めない）
-                                .foregroundStyle(person.hasPresence ? Color.white : WanStyle.cocoa)
+                            if let iconAsset = person.iconAsset {
+                                // 犬種アイコンモード：犬の顔を丸く出す。
+                                // presence の人はコーラルのリングで区別する
+                                Image(iconAsset)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 28, height: 28)
+                                    .clipShape(Circle())
+                                    .overlay(Circle().stroke(
+                                        person.hasPresence ? WanStyle.coral : Color.white,
+                                        lineWidth: 1.5))
+                                    .shadow(radius: 1)
+                            } else {
+                                Circle()
+                                    .fill(person.hasPresence ? WanStyle.coral : WanStyle.lavender)
+                                    .frame(width: 28, height: 28)
+                                    .overlay(Circle().stroke(Color.white, lineWidth: 1.5))
+                                    .shadow(radius: 1)
+                                Text(person.label)
+                                    .font(.caption2).bold()
+                                    // ラベンダー地は薄いので文字はココア（白では読めない）
+                                    .foregroundStyle(person.hasPresence ? Color.white : WanStyle.cocoa)
+                            }
                         }
                     }
                     .buttonStyle(.plain)
@@ -874,6 +918,7 @@ private struct FacilityCluster: Identifiable {
 private struct MapPerson: Identifiable {
     let personName: String
     let label: String                  // アイコンに出す頭文字（犬の名前優先）
+    let iconAsset: String?             // 犬種アイコンモード時のアセット名（頭文字モードは nil）
     let hasPresence: Bool              // 「今ここ」が出ている人か
     let target: CLLocationCoordinate2D // タップで飛ぶ先
     var id: String { personName }
@@ -888,24 +933,37 @@ private struct MapPerson: Identifiable {
 private struct FloatingPlanMarker: View {
     let plan: Plan
     let isOwn: Bool
+    /// 犬種アイコンモード時のアセット名（頭文字モードは nil で従来表示）
+    let iconAsset: String?
     let fleeOffset: CGSize
     @State private var bob: CGFloat = -2.5
 
     var body: some View {
         ZStack {
-            Circle()
-                .fill(isOwn ? WanStyle.coral : WanStyle.cocoa)
-                .frame(width: 26, height: 26)
-                .overlay(Circle().stroke(Color.white, lineWidth: 1.5))
-            if plan.isPresence {
-                Image(systemName: "person.fill")
-                    .font(.caption)
-                    .foregroundStyle(.white)
+            if let iconAsset {
+                // 犬種アイコンモード：顔アイコンを丸く出す。自分の分はコーラルのリング
+                Image(iconAsset)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 26, height: 26)
+                    .clipShape(Circle())
+                    .overlay(Circle().stroke(isOwn ? WanStyle.coral : Color.white,
+                                             lineWidth: 1.5))
             } else {
-                Text(String((plan.dogName ?? plan.personName).prefix(1)))
-                    .font(.caption)
-                    .bold()
-                    .foregroundStyle(.white)
+                Circle()
+                    .fill(isOwn ? WanStyle.coral : WanStyle.cocoa)
+                    .frame(width: 26, height: 26)
+                    .overlay(Circle().stroke(Color.white, lineWidth: 1.5))
+                if plan.isPresence {
+                    Image(systemName: "person.fill")
+                        .font(.caption)
+                        .foregroundStyle(.white)
+                } else {
+                    Text(String((plan.dogName ?? plan.personName).prefix(1)))
+                        .font(.caption)
+                        .bold()
+                        .foregroundStyle(.white)
+                }
             }
         }
         // 逃げる動き（指を離して fleeOffset が .zero に戻ると spring でゆっくり戻る）

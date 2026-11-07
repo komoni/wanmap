@@ -47,6 +47,9 @@ targets:
       # （FacilityStore / FeedbackService / CalendarView）。
       - path: Resources/facilities.json
         buildPhase: resources
+      # 犬種マスタ（設定の犬種選択・犬種アイコンの材料。施設と同じ配信方式）
+      - path: Resources/breeds.json
+        buildPhase: resources
       - path: Resources/Assets.xcassets
         buildPhase: resources
       # 完了フィードバックの短い合成音（デザイン・気持ちよさ第一弾）

@@ -60,17 +60,23 @@ final class FriendStore {
     /// SeedData の予定と名前を揃えてある（飼い主名／犬の名前）。
     static let mockDirectory: [AppUser] = [
         AppUser(internalId: "usr-mock-mugi", instagramUsername: "mugi_husky",
-                appIssuedId: "wan-mugi27", displayName: "ケン", dogName: "ムギ"),
+                appIssuedId: "wan-mugi27", displayName: "ケン", dogName: "ムギ",
+                breedId: "siberian-husky", dogColorId: "black-white"),
         AppUser(internalId: "usr-mock-sora", instagramUsername: nil,
-                appIssuedId: "wan-sora31", displayName: "タクミ", dogName: "ソラ"),
+                appIssuedId: "wan-sora31", displayName: "タクミ", dogName: "ソラ",
+                breedId: "toy-poodle", dogColorId: "red"),
         AppUser(internalId: "usr-mock-haru", instagramUsername: nil,
-                appIssuedId: "wan-haru08", displayName: "ミサキ", dogName: "ハル"),
+                appIssuedId: "wan-haru08", displayName: "ミサキ", dogName: "ハル",
+                breedId: "siberian-husky", dogColorId: "silver-white"),
         AppUser(internalId: "usr-mock-momo", instagramUsername: nil,
-                appIssuedId: "wan-momo52", displayName: "ユイ", dogName: "モモ"),
+                appIssuedId: "wan-momo52", displayName: "ユイ", dogName: "モモ",
+                breedId: "chihuahua", dogColorId: "fawn"),
         AppUser(internalId: "usr-mock-kotaro", instagramUsername: nil,
-                appIssuedId: "wan-kota66", displayName: "シン", dogName: "コタロウ"),
+                appIssuedId: "wan-kota66", displayName: "シン", dogName: "コタロウ",
+                breedId: "mixed", dogColorId: "brown-white"),
         AppUser(internalId: "usr-mock-reo", instagramUsername: nil,
-                appIssuedId: "wan-reo19", displayName: "あかり", dogName: "レオ"),
+                appIssuedId: "wan-reo19", displayName: "あかり", dogName: "レオ",
+                breedId: "chihuahua", dogColorId: "black-tan"),
     ]
 
     /// 初期モック：ムギからの受信申請が1件届いている
@@ -157,6 +163,29 @@ final class FriendStore {
         upsert(user: user, state: .friends)
         save()
         return .added(user)
+    }
+
+    // MARK: - 自分の犬（設定タブ「自分の犬」。すべて任意項目で、未設定でも困らない）
+
+    /// 自分の犬の名前。空文字は未設定（nil）として持つ
+    func updateMyDogName(_ name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        me.dogName = trimmed.isEmpty ? nil : trimmed
+        save()
+    }
+
+    /// 自分の犬の犬種。犬種を変えたら毛色は未設定に戻す
+    /// （色名が同じでも犬種ごとに意味が違うため、機械的に引き継がない）
+    func updateMyDogBreed(breedId: String?) {
+        if me.breedId != breedId { me.dogColorId = nil }
+        me.breedId = breedId
+        save()
+    }
+
+    /// 自分の犬の毛色
+    func updateMyDogColor(colorId: String?) {
+        me.dogColorId = colorId
+        save()
     }
 
     // MARK: - 見せないリスト
