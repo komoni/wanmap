@@ -56,16 +56,13 @@ struct BreedPickerView: View {
                     }
                     .pickerStyle(.menu)
                     .accessibilityIdentifier("breedSortPicker")
-                    // 並びの向き（上から＝昇順／下から＝降順）の切り替え
+                    // 並びの向き（上から＝昇順／下から＝降順）の切り替え。
+                    // 意味が図柄で伝わるボタンは文字でなくアイコンで表す（本人の基本ルール）
                     Button {
                         markerSettings.breedSortAscending.toggle()
                     } label: {
-                        HStack(spacing: 2) {
-                            Image(systemName: markerSettings.breedSortAscending
-                                  ? "arrow.up" : "arrow.down")
-                            Text(markerSettings.breedSortAscending ? "上から" : "下から")
-                        }
-                        .font(.caption)
+                        Image(systemName: "arrow.up.arrow.down")
+                            .font(.body)
                     }
                     .accessibilityIdentifier("breedSortDirectionButton")
                     .accessibilityLabel(markerSettings.breedSortAscending
