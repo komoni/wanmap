@@ -985,14 +985,18 @@ final class WanMapFlowTests: XCTestCase {
         attachScreenshot("flow10-breed-setting")
 
         // 後片付け：チップの種類を「頭文字」に戻す。
-        // リストは遅延生成のため、スクロールして行を出現させてからタップする
+        // 行が画面下端に半分だけ出ている状態だと exists でもタップが効かない
+        // （CI #72：行の中心が画面外でメニューが開かなかった）。
+        // 存在ではなく「タップ可能（hittable）」になるまでスクロールする
         var pickerScrolls = 0
-        while !chipPicker.exists && pickerScrolls < 5 {
+        while !chipPicker.isHittable && pickerScrolls < 6 {
             app.swipeUp()
             pickerScrolls += 1
         }
         XCTAssertTrue(chipPicker.waitForExistence(timeout: 10),
                       "後片付けでチップの種類のピッカーが見つかりませんでした")
+        XCTAssertTrue(chipPicker.isHittable,
+                      "後片付けでチップの種類のピッカーがタップ可能な位置に来ませんでした")
         chipPicker.tap()
         let initialItem = app.buttons["頭文字"]
         XCTAssertTrue(initialItem.waitForExistence(timeout: 10),
