@@ -114,22 +114,22 @@
     {
      "id": "red",
      "name": "赤",
-     "icon": null
+     "icon": "breed_shiba_red"
     },
     {
      "id": "black",
      "name": "黒",
-     "icon": null
+     "icon": "breed_shiba_black"
     },
     {
      "id": "sesame",
      "name": "胡麻",
-     "icon": null
+     "icon": "breed_shiba_sesame"
     },
     {
      "id": "white",
      "name": "白",
-     "icon": null
+     "icon": "breed_shiba_white"
     }
    ]
   },
@@ -146,17 +146,17 @@
     {
      "id": "cream",
      "name": "クリーム",
-     "icon": null
+     "icon": "breed_maltipoo_cream"
     },
     {
      "id": "apricot",
      "name": "アプリコット",
-     "icon": null
+     "icon": "breed_maltipoo_apricot"
     },
     {
      "id": "white",
      "name": "ホワイト",
-     "icon": null
+     "icon": "breed_maltipoo_white"
     }
    ]
   },
