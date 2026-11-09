@@ -570,8 +570,7 @@ final class WanMapFlowTests: XCTestCase {
         XCTAssertTrue(app.maps.firstMatch.waitForExistence(timeout: 15),
                       "地図が表示されませんでした")
         Thread.sleep(forTimeInterval: 2)
-        let stripLabel = "\(cal.component(.month, from: first1))/\(cal.component(.day, from: first1))(日)"
-        selectMapDay(label: stripLabel)
+        selectMapDay(on: first1)
         // 友達レールは座標のある予定から組み立てられる（初文字がラベルになる）
         XCTAssertTrue(app.buttons["ハ"].waitForExistence(timeout: 10),
                       "地図の友達レールに登録した犬が出ませんでした")
@@ -914,16 +913,32 @@ final class WanMapFlowTests: XCTestCase {
     }
 
     /// 地図の日付ストリップを横スクロールしながら、対象日のボタンを選ぶ
-    private func selectMapDay(label: String) {
-        let button = app.buttons[label]
+    /// 地図の日付ストリップで対象日を選ぶ（フロー7の安定化A案）。
+    /// 日付ボタンは表示ラベルでなく識別子（mapDayButton-yyyy-MM-dd）で特定し、
+    /// スワイプするのはストリップ（mapDateStrip）だけに限る。以前の実装は
+    /// `app.scrollViews.firstMatch` をスワイプしていたため、友達レール等の
+    /// 別スクロールを誤って動かし、対象日が永遠に出ないことがあった。
+    /// LazyHStack は画面外ボタンを階層に持たないことがあるので、存在と
+    /// タップ可否を分けて見ながら少しずつ進め、上限まで見つからなければ
+    /// タップせずに失敗させる。
+    private func selectMapDay(on day: Date) {
+        let c = Calendar.current.dateComponents([.year, .month, .day], from: day)
+        let identifier = String(format: "mapDayButton-%04d-%02d-%02d",
+                                c.year ?? 0, c.month ?? 0, c.day ?? 0)
+        let strip = app.scrollViews["mapDateStrip"]
+        XCTAssertTrue(strip.waitForExistence(timeout: 10),
+                      "地図の日付ストリップが見つかりませんでした")
+        let button = app.buttons[identifier]
         var attempts = 0
-        while !button.isHittable && attempts < 20 {
-            app.scrollViews.firstMatch.swipeLeft()
+        while attempts < 30 {
+            if button.exists && button.isHittable {
+                button.tap()
+                return
+            }
+            strip.swipeLeft()
             attempts += 1
         }
-        XCTAssertTrue(button.exists && button.isHittable,
-                      "地図の日付ボタン \(label) が見つかりませんでした")
-        button.tap()
+        XCTFail("地図の日付ボタン \(identifier) がストリップ内に見つかりませんでした")
     }
 
     // MARK: - フロー10：自分の犬（犬種・毛色）とチップの種類

@@ -671,6 +671,7 @@ struct DogMapView: View {
                     }
                     .padding(.horizontal, 2)
                 }
+                .accessibilityIdentifier("mapDateStrip")
                 .onAppear {
                     // 初回だけ今日の位置から見せる（選択状態は変えない）
                     proxy.scrollTo(selectedDate, anchor: .leading)
@@ -714,6 +715,16 @@ struct DogMapView: View {
             .clipShape(Capsule())
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier(mapDayIdentifier(day))
+    }
+
+    /// 日付ボタンの識別子（例：mapDayButton-2026-12-06）。ストリップの日ごとに一意。
+    /// UIテストが表示ラベルでなく識別子で日を特定するためのもの（CalendarView の
+    /// dayCellIdentifier と同じ書式・同じ暦で組み立てる）
+    private func mapDayIdentifier(_ day: Date) -> String {
+        let c = Calendar.current.dateComponents([.year, .month, .day], from: day)
+        return String(format: "mapDayButton-%04d-%02d-%02d",
+                      c.year ?? 0, c.month ?? 0, c.day ?? 0)
     }
 
     /// 「11/1(月)」形式
