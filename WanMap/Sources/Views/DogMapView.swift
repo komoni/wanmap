@@ -322,19 +322,28 @@ struct DogMapView: View {
     }
 
     /// 施設クラスタ：件数バッジ（ClusterMap 標準に近い見た目）。タップでその地点へ少し寄せる
+    /// 「今ここ」ボタンの装飾用の足跡1つ（白の透かし。大きさ・濃さ・傾き・上下のずれで歩行の遠近感を出す）
+    private func pawprint(size: CGFloat, opacity: Double, rotation: Double, y: CGFloat) -> some View {
+        Image(systemName: "pawprint.fill")
+            .font(.system(size: size))
+            .foregroundStyle(.white.opacity(opacity))
+            .rotationEffect(.degrees(rotation))
+            .offset(y: y)
+    }
+
     private func clusterMarker(_ cluster: FacilityCluster) -> some View {
         Button {
             zoomIn(on: cluster.coordinate)
         } label: {
             ZStack {
                 Circle()
-                    .fill(WanStyle.cocoaSoft)
+                    .fill(WanStyle.caramel)
                     .frame(width: 34, height: 34)
                     .overlay(Circle().stroke(Color.white, lineWidth: 2))
                 Text("\(cluster.count)")
                     .font(.caption)
                     .bold()
-                    .foregroundStyle(.white)
+                    .foregroundStyle(WanStyle.cocoa)
             }
         }
         .buttonStyle(.plain)
@@ -452,10 +461,23 @@ struct DogMapView: View {
                 togglePresence()
             } label: {
                 if planStore.ownPresence == nil {
-                    // 置く操作だと一目で分かるようピンのアイコンを添える（取消側は文言のみ）
-                    HStack(spacing: 4) {
-                        Image(systemName: "mappin")
-                        Text("今ここ")
+                    // 置く操作だと一目で分かるようピンのアイコンを添える（取消側は文言のみ）。
+                    // 背景には足跡の装飾：両端から中心へ向かって大きくなる＝歩いて近づいてくる遠近感（2026-11-10 本人の案）
+                    ZStack {
+                        HStack(spacing: 7) {
+                            pawprint(size: 8, opacity: 0.16, rotation: -16, y: 3)
+                            pawprint(size: 11, opacity: 0.26, rotation: 14, y: -3)
+                            pawprint(size: 14, opacity: 0.38, rotation: -10, y: 2)
+                            Spacer()
+                            pawprint(size: 14, opacity: 0.38, rotation: 10, y: -2)
+                            pawprint(size: 11, opacity: 0.26, rotation: -14, y: 3)
+                            pawprint(size: 8, opacity: 0.16, rotation: 16, y: -3)
+                        }
+                        .accessibilityHidden(true)
+                        HStack(spacing: 4) {
+                            Image(systemName: "mappin")
+                            Text("今ここ")
+                        }
                     }
                     .frame(maxWidth: .infinity)
                 } else {
