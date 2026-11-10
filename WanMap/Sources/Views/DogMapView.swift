@@ -53,6 +53,11 @@ struct DogMapView: View {
     @State private var didCenterInitially = false
     @State private var statusMessage: String?
     @State private var statusTask: Task<Void, Never>?
+    /// 今ここを置いた直後の出現アニメーション用（設計原則メモ 2026-11-10）。
+    /// 保存成功の経路だけがセットし、マーカー側が一度だけ消費（claim）する。
+    /// 未消費のまま2秒経ったら破棄する（画面外のピンが後から現れて落下しないように）。
+    @State private var arrivalPlanID: UUID?
+    @State private var arrivalTask: Task<Void, Never>?
 
     // 日付ストリップの状態。selectedDate を書き換えるのは日付ボタンと年ジャンプだけ
     // （onAppear／onChange／タイマーは一切触らない＝選択が勝手に戻る経路が無い）。
@@ -358,7 +363,9 @@ struct DogMapView: View {
         FloatingPlanMarker(plan: plan,
                            isOwn: plan.id == planStore.ownPresence?.id,
                            iconAsset: markerIconAsset(for: plan),
-                           fleeOffset: fleeOffsets[plan.id] ?? .zero)
+                           fleeOffset: fleeOffsets[plan.id] ?? .zero,
+                           arrival: arrivalPlanID == plan.id,
+                           onClaimArrival: { arrivalPlanID = nil })
     }
 
     /// 表示名から AppUser を引く（端末内モックの範囲：自分・友達・仮想ユーザー）。
@@ -444,8 +451,17 @@ struct DogMapView: View {
             Button {
                 togglePresence()
             } label: {
-                Text(planStore.ownPresence == nil ? "今ここ" : "取消")
+                if planStore.ownPresence == nil {
+                    // 置く操作だと一目で分かるようピンのアイコンを添える（取消側は文言のみ）
+                    HStack(spacing: 4) {
+                        Image(systemName: "mappin")
+                        Text("今ここ")
+                    }
                     .frame(maxWidth: .infinity)
+                } else {
+                    Text("取消")
+                        .frame(maxWidth: .infinity)
+                }
             }
             // 主ボタン表現（配色案の地色＋白文字＋押し心地）。バーの高さ44に収める
             .buttonStyle(WanPrimaryButtonStyle(fill: appearanceStore.primaryColor,
@@ -838,6 +854,8 @@ struct DogMapView: View {
     private func togglePresence() {
         if planStore.ownPresence != nil {
             planStore.clearOwnPresence()
+            arrivalPlanID = nil
+            arrivalTask?.cancel()
             showStatus("今ここを消しました")
             return
         }
@@ -853,6 +871,16 @@ struct DogMapView: View {
         // 完了フィードバックは保存が本当に成功した時だけ出す（タップ時点では出さない）
         if planStore.placeOwnPresence(latitude: fix.coordinate.latitude,
                                       longitude: fix.coordinate.longitude) {
+            // 出現アニメーションは「置けた」という操作の結果にだけ付ける（復元・再表示では出さない）
+            if let placedID = planStore.ownPresence?.id {
+                arrivalPlanID = placedID
+                arrivalTask?.cancel()
+                arrivalTask = Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(2))
+                    guard !Task.isCancelled else { return }
+                    if arrivalPlanID == placedID { arrivalPlanID = nil }
+                }
+            }
             feedback.completion()
         }
         showStatus("今ここを表示しました")
@@ -947,46 +975,124 @@ private struct FloatingPlanMarker: View {
     /// 犬種アイコンモード時のアセット名（頭文字モードは nil で従来表示）
     let iconAsset: String?
     let fleeOffset: CGSize
-    @State private var bob: CGFloat = -2.5
+    /// 今ここを置いた直後だけ true（出現アニメーションの合図）。
+    /// 再生状態はこのビュー内の @State で持ち、親の再描画で打ち切られないようにする
+    let arrival: Bool
+    /// 出現の合図を一度だけ消費したことを親へ伝える（再生成されたビューで再生させない）
+    let onClaimArrival: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var bob: CGFloat
+    /// 出現時の落下オフセット（arrival の時だけ -24 から開始し、着地で 0）
+    @State private var dropOffset: CGFloat
+    /// 出現時の不透明度（「モーションを減らす」時は落下でなくフェードで出す）
+    @State private var faceOpacity: Double
+    /// 着地点の波紋を出すか（arrival の時だけ。アニメーション後は不透明度0で残る）
+    @State private var showRing: Bool
+    @State private var ringScale: CGFloat = 0.7
+    @State private var ringOpacity: Double = 0
+
+    init(plan: Plan, isOwn: Bool, iconAsset: String?, fleeOffset: CGSize,
+         arrival: Bool = false, onClaimArrival: @escaping () -> Void = {}) {
+        self.plan = plan
+        self.isOwn = isOwn
+        self.iconAsset = iconAsset
+        self.fleeOffset = fleeOffset
+        self.arrival = arrival
+        self.onClaimArrival = onClaimArrival
+        _bob = State(initialValue: arrival ? 0 : -2.5)
+        _dropOffset = State(initialValue: arrival ? -24 : 0)
+        _faceOpacity = State(initialValue: arrival ? 0 : 1)
+        _showRing = State(initialValue: arrival)
+    }
 
     var body: some View {
+        // 「モーションを減らす」時は逃げる動きも止める（HIG：既存の動きも含めて尊重する）
+        let effectiveFlee = reduceMotion ? CGSize.zero : fleeOffset
         ZStack {
-            if let iconAsset {
-                // 犬種アイコンモード：顔アイコンを丸く出す。自分の分はコーラルのリング
-                Image(iconAsset)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 26, height: 26)
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(isOwn ? WanStyle.coral : Color.white,
-                                             lineWidth: 1.5))
-            } else {
+            if showRing {
+                // 着地点の波紋：マーカーとは独立に広げる（一緒に落下させない）
                 Circle()
-                    .fill(isOwn ? WanStyle.coral : WanStyle.cocoa)
+                    .stroke(WanStyle.coral, lineWidth: 1.5)
                     .frame(width: 26, height: 26)
-                    .overlay(Circle().stroke(Color.white, lineWidth: 1.5))
-                if plan.isPresence {
-                    Image(systemName: "person.fill")
-                        .font(.caption)
-                        .foregroundStyle(.white)
+                    .scaleEffect(ringScale)
+                    .opacity(ringOpacity)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+            ZStack {
+                if let iconAsset {
+                    // 犬種アイコンモード：顔アイコンを丸く出す。自分の分はコーラルのリング
+                    Image(iconAsset)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 26, height: 26)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(isOwn ? WanStyle.coral : Color.white,
+                                                 lineWidth: 1.5))
                 } else {
-                    Text(String((plan.dogName ?? plan.personName).prefix(1)))
-                        .font(.caption)
-                        .bold()
-                        .foregroundStyle(.white)
+                    Circle()
+                        .fill(isOwn ? WanStyle.coral : WanStyle.cocoa)
+                        .frame(width: 26, height: 26)
+                        .overlay(Circle().stroke(Color.white, lineWidth: 1.5))
+                    if plan.isPresence {
+                        Image(systemName: "person.fill")
+                            .font(.caption)
+                            .foregroundStyle(.white)
+                    } else {
+                        Text(String((plan.dogName ?? plan.personName).prefix(1)))
+                            .font(.caption)
+                            .bold()
+                            .foregroundStyle(.white)
+                    }
                 }
             }
+            .offset(y: dropOffset)
+            .opacity(faceOpacity)
         }
         // 逃げる動き（指を離して fleeOffset が .zero に戻ると spring でゆっくり戻る）
-        .offset(x: fleeOffset.width, y: fleeOffset.height)
-        .animation(.spring(response: 0.35, dampingFraction: 0.6), value: fleeOffset)
+        .offset(x: effectiveFlee.width, y: effectiveFlee.height)
+        .animation(.spring(response: 0.35, dampingFraction: 0.6), value: effectiveFlee)
         // 浮遊（このオフセットは逃げ側の .animation の対象外に置き、repeatForever 側で回す）
         .offset(y: bob)
         .onAppear {
-            let duration = 1.3 + Double(abs(plan.id.hashValue % 80)) / 100.0  // 1.3〜2.1秒
-            withAnimation(.easeInOut(duration: duration).repeatForever(autoreverses: true)) {
-                bob = 2.5
+            if arrival {
+                onClaimArrival()
+                if reduceMotion {
+                    // 落下・波紋はせず、短いフェードで出す。浮遊もしない
+                    dropOffset = 0
+                    bob = 0
+                    showRing = false
+                    withAnimation(.easeIn(duration: 0.13)) { faceOpacity = 1 }
+                    return
+                }
+                faceOpacity = 1
+                withAnimation(.spring(response: 0.36, dampingFraction: 0.75)) {
+                    dropOffset = 0
+                }
+                ringOpacity = 0.25
+                withAnimation(.easeOut(duration: 0.22).delay(0.15)) {
+                    ringScale = 1.6
+                    ringOpacity = 0
+                }
+                // 浮遊は着地してから始める（落下と重ねない）
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(450))
+                    bob = -2.5
+                    startFloating()
+                }
+            } else if reduceMotion {
+                bob = 0
+            } else {
+                startFloating()
             }
+        }
+    }
+
+    /// ゆっくり上下に浮遊する動きを開始する（周期はアイコンごとにずらして同期を避ける）
+    private func startFloating() {
+        let duration = 1.3 + Double(abs(plan.id.hashValue % 80)) / 100.0  // 1.3〜2.1秒
+        withAnimation(.easeInOut(duration: duration).repeatForever(autoreverses: true)) {
+            bob = 2.5
         }
     }
 }

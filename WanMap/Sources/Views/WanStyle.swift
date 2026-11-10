@@ -33,6 +33,13 @@ extension Color {
 
 // MARK: - 共通の押し心地（デザイン・気持ちよさ第一弾）
 
+/// 押下フィードバックのアニメーション（設計原則メモ 2026-11-10）。
+/// 押込みは即応（easeOut 0.08）、戻りは軽いスプリングにして「軽くて気持ちいい」戻りにする。
+/// 押下中かどうかで使うアニメーションを切り替える。
+func wanPressAnimation(isPressed: Bool) -> Animation {
+    isPressed ? .easeOut(duration: 0.08) : .spring(response: 0.25, dampingFraction: 0.80)
+}
+
 /// 押下中に少しだけ沈む（scale 0.97）共通ボタン表現。
 /// 沈むのは描画だけで、ヒット領域・配置は変えない。
 /// 「モーションを減らす」設定時は拡大縮小を行わない。
@@ -42,7 +49,8 @@ struct WanPressButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed && !reduceMotion ? 0.97 : 1)
-            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+            .animation(wanPressAnimation(isPressed: configuration.isPressed),
+                       value: configuration.isPressed)
     }
 }
 
@@ -63,7 +71,8 @@ struct WanPrimaryButtonStyle: ButtonStyle {
             .background(fill, in: RoundedRectangle(cornerRadius: 10))
             .brightness(configuration.isPressed ? -0.06 : 0)
             .scaleEffect(configuration.isPressed && !reduceMotion ? 0.97 : 1)
-            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+            .animation(wanPressAnimation(isPressed: configuration.isPressed),
+                       value: configuration.isPressed)
     }
 }
 
