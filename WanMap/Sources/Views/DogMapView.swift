@@ -94,7 +94,28 @@ struct DogMapView: View {
         _days = State(initialValue: (0..<84).compactMap {
             Calendar.current.date(byAdding: .day, value: $0, to: today)
         })
-        _selectedDate = State(initialValue: today)
+        var initial = today
+        #if DEBUG
+        // UIテスト用（DEBUGの起動引数 -wmMapDate yyyy-MM-dd）：地図をその日付で開く。
+        // 日付帯をスワイプで探す操作は1回の移動量が大きく対象日を飛び越してしまうため
+        // （CI #77〜#80で連続失敗し、失敗時の画面録画で帯が対象日を通り過ぎて
+        // 範囲の末尾まで進んでいたことを確認）、初期選択日に寄せ、帯は onAppear の
+        // scrollTo でその位置に置く。MarkerSettings の -wmChipStyle と同じ流儀で、
+        // 引数が無ければ通常どおり今日で開く。
+        let arguments = ProcessInfo.processInfo.arguments
+        if let index = arguments.firstIndex(of: "-wmMapDate"), index + 1 < arguments.count {
+            let formatter = DateFormatter()
+            formatter.calendar = Calendar(identifier: .gregorian)
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.timeZone = .current
+            formatter.dateFormat = "yyyy-MM-dd"
+            if let parsed = formatter.date(from: arguments[index + 1]) {
+                let day = Calendar.current.startOfDay(for: parsed)
+                if day >= today { initial = day }
+            }
+        }
+        #endif
+        _selectedDate = State(initialValue: initial)
     }
 
     /// 座標のある施設だけをマーカーにする

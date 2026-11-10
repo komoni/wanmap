@@ -566,6 +566,18 @@ final class WanMapFlowTests: XCTestCase {
         dismissTopSheetByDrag()
 
         // --- 地図：初回の日を選ぶと、友達レールに登録した犬が出る ---
+        // 日付帯のスワイプ探索は1回の移動量が大きく対象日を飛び越すため
+        // （CI #77〜#80で連続失敗。失敗時の画面録画で、帯が対象日を通り過ぎて
+        // 範囲の末尾まで進んでいたことを確認）、DEBUG用の引数 -wmMapDate で
+        // 地図を対象日から開く形に変えた。再起動を挟むため永続化の確認も兼ねる。
+        let first1Components = Calendar.current.dateComponents([.year, .month, .day], from: first1)
+        let first1Argument = String(format: "%04d-%02d-%02d",
+                                    first1Components.year ?? 0,
+                                    first1Components.month ?? 0,
+                                    first1Components.day ?? 0)
+        app.terminate()
+        app.launchArguments = ["-UITestingPersistentPlans", "-wmMapDate", first1Argument] + Self.localeArguments
+        launchAndSettleOnCalendar()
         app.tabBars.buttons["地図"].tap()
         XCTAssertTrue(app.maps.firstMatch.waitForExistence(timeout: 15),
                       "地図が表示されませんでした")
