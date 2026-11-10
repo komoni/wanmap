@@ -487,20 +487,22 @@ struct DogMapView: View {
             } label: {
                 if planStore.ownPresence == nil {
                     // 置く操作だと一目で分かるようピンのアイコンを添える（取消側は文言のみ）。
-                    // 背景には足跡の装飾：右端から中心へ向かって大きくなる＝歩いて近づいてくる遠近感。
-                    // 片側からだけにし、文字には被せない。左右は右側が本人の選択（2026-11-10、左側版と比較して決定）
-                    ZStack {
-                        HStack(spacing: 5) {
-                            Spacer()
-                            pawprint(size: 13, opacity: 0.38, rotation: 10, y: 2)
-                            pawprint(size: 10, opacity: 0.26, rotation: -14, y: -3)
-                            pawprint(size: 8, opacity: 0.16, rotation: 16, y: 3)
-                        }
-                        .accessibilityHidden(true)
+                    // 足跡の装飾はラベルの流れの中に置く：文字の右に、中心側が大きく
+                    // 外へ向けて小さくなる並び＝右から歩いて近づいてくる遠近感。
+                    // 背景への重ね置きだとボタン幅によっては文字に触れてしまうため、
+                    // レイアウトとして隣に置き、幅によらず文字へ被らない形にした
+                    // （2026-11-10、右側配置の実画面で大の足跡が文字端に触れたための構造変更）
+                    HStack(spacing: 10) {
                         HStack(spacing: 4) {
                             Image(systemName: "mappin")
                             Text("今ここ")
                         }
+                        HStack(spacing: 5) {
+                            pawprint(size: 12, opacity: 0.38, rotation: 10, y: 2)
+                            pawprint(size: 10, opacity: 0.26, rotation: -14, y: -3)
+                            pawprint(size: 8, opacity: 0.16, rotation: 16, y: 3)
+                        }
+                        .accessibilityHidden(true)
                     }
                     .frame(maxWidth: .infinity)
                 } else {
