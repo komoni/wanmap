@@ -337,9 +337,13 @@ struct DogMapView: View {
         } label: {
             ZStack {
                 Circle()
-                    .fill(WanStyle.caramel)
+                    // 白っぽい上側からキャラメルへ落ちる放射グラデーション＋影で、丸の立体感を出す（2026-11-10 本人の指示）
+                    .fill(RadialGradient(
+                        colors: [Color(hex: 0xFFF6E3), Color(hex: 0xF3D09A), Color(hex: 0xE2B678)],
+                        center: UnitPoint(x: 0.35, y: 0.3), startRadius: 2, endRadius: 24))
                     .frame(width: 34, height: 34)
-                    .overlay(Circle().stroke(Color.white, lineWidth: 2))
+                    .overlay(Circle().stroke(Color.white.opacity(0.9), lineWidth: 1.5))
+                    .shadow(color: WanStyle.cocoa.opacity(0.28), radius: 2, x: 0, y: 1)
                 Text("\(cluster.count)")
                     .font(.caption)
                     .bold()
@@ -462,14 +466,14 @@ struct DogMapView: View {
             } label: {
                 if planStore.ownPresence == nil {
                     // 置く操作だと一目で分かるようピンのアイコンを添える（取消側は文言のみ）。
-                    // 背景には足跡の装飾：左端から中心へ向かって大きくなる＝歩いて近づいてくる遠近感。
-                    // 片側からだけにし、文字には被せない（2026-11-10 本人の指示で両側版から変更）
+                    // 背景には足跡の装飾：右端から中心へ向かって大きくなる＝歩いて近づいてくる遠近感。
+                    // 片側からだけにし、文字には被せない。左右は右側が本人の選択（2026-11-10、左側版と比較して決定）
                     ZStack {
                         HStack(spacing: 5) {
-                            pawprint(size: 8, opacity: 0.16, rotation: -16, y: 3)
-                            pawprint(size: 10, opacity: 0.26, rotation: 14, y: -3)
-                            pawprint(size: 13, opacity: 0.38, rotation: -10, y: 2)
                             Spacer()
+                            pawprint(size: 13, opacity: 0.38, rotation: 10, y: 2)
+                            pawprint(size: 10, opacity: 0.26, rotation: -14, y: -3)
+                            pawprint(size: 8, opacity: 0.16, rotation: 16, y: 3)
                         }
                         .accessibilityHidden(true)
                         HStack(spacing: 4) {
