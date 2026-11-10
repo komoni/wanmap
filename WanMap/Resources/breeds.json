@@ -176,22 +176,22 @@
     {
      "id": "black-tan",
      "name": "ブラック＆タン",
-     "icon": null
+     "icon": "breed_miniature-dachshund_black-tan"
     },
     {
      "id": "choco-tan",
      "name": "チョコ＆タン",
-     "icon": null
+     "icon": "breed_miniature-dachshund_choco-tan"
     },
     {
      "id": "red",
      "name": "レッド",
-     "icon": null
+     "icon": "breed_miniature-dachshund_red"
     },
     {
      "id": "silver-dapple",
      "name": "シルバーダップル",
-     "icon": null
+     "icon": "breed_miniature-dachshund_silver-dapple"
     }
    ]
   },
@@ -208,27 +208,27 @@
     {
      "id": "orange",
      "name": "オレンジ",
-     "icon": null
+     "icon": "breed_pomeranian_orange"
     },
     {
      "id": "cream",
      "name": "クリーム",
-     "icon": null
+     "icon": "breed_pomeranian_cream"
     },
     {
      "id": "white",
      "name": "ホワイト",
-     "icon": null
+     "icon": "breed_pomeranian_white"
     },
     {
      "id": "black",
      "name": "ブラック",
-     "icon": null
+     "icon": "breed_pomeranian_black"
     },
     {
      "id": "orange-sable",
      "name": "オレンジセーブル",
-     "icon": null
+     "icon": "breed_pomeranian_orange-sable"
     }
    ]
   },
