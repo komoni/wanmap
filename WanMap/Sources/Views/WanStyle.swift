@@ -16,8 +16,8 @@ enum WanStyle {
     static let lavender = Color(hex: 0xDCD5F2)
     /// 本文・クラスター：ココア
     static let cocoa = Color(hex: 0x533E38)
-    /// 施設クラスタの丸用。cocoa を薄めた色とアプリコットの中間（2026-11-10、本人が候補モックから指定）。数字は cocoa 文字で読ませる（コントラスト約3.8:1、太字の件数表示用）
-    static let caramel = Color(hex: 0xBC986D)
+    /// 施設クラスタの丸用。cocoa を薄めた色とアプリコットの中間を初版とし、本人の「もう少し明るい色調で」の指示でアプリコット寄りへ一段明るくした（2026-11-10）。数字は cocoa 文字で読ませる（コントラスト約5.1:1）
+    static let caramel = Color(hex: 0xDEB073)
     /// 土曜：ソフトブルー
     static let saturday = Color(hex: 0x709DC6)
 }

@@ -462,16 +462,14 @@ struct DogMapView: View {
             } label: {
                 if planStore.ownPresence == nil {
                     // 置く操作だと一目で分かるようピンのアイコンを添える（取消側は文言のみ）。
-                    // 背景には足跡の装飾：両端から中心へ向かって大きくなる＝歩いて近づいてくる遠近感（2026-11-10 本人の案）
+                    // 背景には足跡の装飾：左端から中心へ向かって大きくなる＝歩いて近づいてくる遠近感。
+                    // 片側からだけにし、文字には被せない（2026-11-10 本人の指示で両側版から変更）
                     ZStack {
-                        HStack(spacing: 7) {
+                        HStack(spacing: 5) {
                             pawprint(size: 8, opacity: 0.16, rotation: -16, y: 3)
-                            pawprint(size: 11, opacity: 0.26, rotation: 14, y: -3)
-                            pawprint(size: 14, opacity: 0.38, rotation: -10, y: 2)
+                            pawprint(size: 10, opacity: 0.26, rotation: 14, y: -3)
+                            pawprint(size: 13, opacity: 0.38, rotation: -10, y: 2)
                             Spacer()
-                            pawprint(size: 14, opacity: 0.38, rotation: 10, y: -2)
-                            pawprint(size: 11, opacity: 0.26, rotation: -14, y: 3)
-                            pawprint(size: 8, opacity: 0.16, rotation: 16, y: -3)
                         }
                         .accessibilityHidden(true)
                         HStack(spacing: 4) {
