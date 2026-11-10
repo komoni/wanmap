@@ -328,7 +328,7 @@ struct DogMapView: View {
         } label: {
             ZStack {
                 Circle()
-                    .fill(WanStyle.cocoa)
+                    .fill(WanStyle.cocoaSoft)
                     .frame(width: 34, height: 34)
                     .overlay(Circle().stroke(Color.white, lineWidth: 2))
                 Text("\(cluster.count)")
