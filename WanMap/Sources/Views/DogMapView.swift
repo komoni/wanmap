@@ -85,6 +85,10 @@ struct DogMapView: View {
     )
     @State private var visibleFacilities: [FacilityAnnotation] = []
     @State private var visibleClusters: [FacilityCluster] = []
+    /// 出現直後のクラスタ（短いフェードインの対象）。挿入時に登録し、
+    /// 約150ms後に外すと opacity が 0→1 へ遷移する（第2単位2-B）。
+    /// データ再構築（全件入れ直し）では登録しない＝即時表示
+    @State private var fadingClusterIDs: Set<UUID> = []
     @State private var mapSize: CGSize = .zero
     /// クラスタ計算に使う現在リージョン。カメラ確定時と明示操作（center／fly／zoomIn）でだけ更新する。
     @State private var currentRegion: MKCoordinateRegion = MKCoordinateRegion(
@@ -376,6 +380,8 @@ struct DogMapView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(cluster.count)件")
+        .opacity(fadingClusterIDs.contains(cluster.id) ? 0 : 1)
+        .animation(.linear(duration: 0.1), value: fadingClusterIDs.contains(cluster.id))
     }
 
     /// 自分の場所のマーカー：施設と同じ流儀（引いた表示は絵文字のみ、拡大時は名前も）
@@ -618,25 +624,29 @@ struct DogMapView: View {
     }
 
     private func requestClusterReload() {
-        Task { @MainActor in await reloadClusters() }
+        Task { @MainActor in await reloadClusters(animateInsertions: true) }
     }
 
-    /// 現在のリージョンと地図サイズでクラスタを再計算し、差分だけを表示へ反映する
+    /// 現在のリージョンと地図サイズでクラスタを再計算し、差分だけを表示へ反映する。
+    /// animateInsertions はカメラ確定・サイズ変更経由の再計算だけ true
+    /// （新規クラスタを軽くフェードインさせる）。データ再構築は即時表示
     @MainActor
-    private func reloadClusters() async {
+    private func reloadClusters(animateInsertions: Bool = false) async {
         guard mapSize.width > 0 else { return }
         let difference = await clusterManager.reload(mapViewSize: mapSize, coordinateRegion: currentRegion)
-        applyClusterChanges(difference)
+        applyClusterChanges(difference, animateInsertions: animateInsertions)
     }
 
     @MainActor
-    private func applyClusterChanges(_ difference: ClusterManager<FacilityAnnotation>.Difference) {
+    private func applyClusterChanges(_ difference: ClusterManager<FacilityAnnotation>.Difference,
+                                     animateInsertions: Bool) {
         for removal in difference.removals {
             switch removal {
             case .annotation(let annotation):
                 visibleFacilities.removeAll { $0 == annotation }
             case .cluster(let clusterAnnotation):
                 visibleClusters.removeAll { $0.id == clusterAnnotation.id }
+                fadingClusterIDs.remove(clusterAnnotation.id)
             }
         }
         for insertion in difference.insertions {
@@ -644,11 +654,23 @@ struct DogMapView: View {
             case .annotation(let newItem):
                 visibleFacilities.append(newItem)
             case .cluster(let newItem):
-                visibleClusters.append(FacilityCluster(
+                let cluster = FacilityCluster(
                     id: newItem.id,
                     coordinate: newItem.coordinate,
                     count: newItem.memberAnnotations.count
-                ))
+                )
+                visibleClusters.append(cluster)
+                // 出現の演出は最小形：位置は動かさず、透明度だけを
+                // 100ms linear で戻す。消去は即時（古い件数を残さない）。
+                // Reduce Motion 時は最初から不透明（第2単位2-B、2026-11-12）
+                if animateInsertions && !reduceMotion {
+                    fadingClusterIDs.insert(cluster.id)
+                    let fadingID = cluster.id
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(150))
+                        fadingClusterIDs.remove(fadingID)
+                    }
+                }
             }
         }
     }

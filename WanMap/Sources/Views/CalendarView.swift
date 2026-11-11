@@ -2,13 +2,15 @@ import SwiftUI
 
 /// 犬専用カレンダー（メイン画面）
 /// 仕様：柔らかいパステル、日曜コーラル／土曜スカイ、今日はアクセント丸＋小さな肉球。
-/// 各日はアイコン＋場所名だけ（件数や空状態メッセージは出さない）。月／年 切り替えあり。
+/// 各日はアイコン＋場所名だけ（件数や空状態メッセージは出さない。ただし
+/// セルに収まらず隠れた予定の残件数「＋N件」だけは出す＝情報の欠落を伝える）。月／年 切り替えあり。
 /// 予定は PlanStore の実データを表示し、日タップでその日の予定一覧シートを開く。
 struct CalendarView: View {
     @Environment(PlanStore.self) private var planStore
     @Environment(ThemeStore.self) private var themeStore
     @Environment(AppearanceStore.self) private var appearanceStore
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var displayedMonth: Date = Date()
     @State private var showYear = false
@@ -124,7 +126,7 @@ struct CalendarView: View {
 
     /// 「今日」ボタンは主ボタン表現（配色案の地色＋白文字）にする
     private var todayButton: some View {
-        Button("今日") { displayedMonth = Date(); showYear = false }
+        Button("今日") { setMonth(Date()); showYear = false }
             .buttonStyle(WanPrimaryButtonStyle(fill: appearanceStore.primaryColor,
                                                horizontalPadding: 8, verticalPadding: 6))
             .lineLimit(1)
@@ -207,7 +209,19 @@ struct CalendarView: View {
     private func shift(by value: Int) {
         let component: Calendar.Component = showYear ? .year : .month
         if let next = calendar.date(byAdding: component, value: value, to: displayedMonth) {
-            displayedMonth = next
+            setMonth(next)
+        }
+    }
+
+    /// 月（年）の切り替えはここを通す。グリッドだけが短くクロスフェードし、
+    /// タイトルは即座に新しい月を示す（monthArea 側の .id/.transition と対）。
+    /// 連打時は最新へ追従する（途中を順番に再生しない）。Reduce Motion 時は
+    /// アニメーションなしの即時切替（第2単位2-B、2026-11-12）
+    private func setMonth(_ date: Date) {
+        if reduceMotion {
+            displayedMonth = date
+        } else {
+            withAnimation(.easeOut(duration: 0.18)) { displayedMonth = date }
         }
     }
 
@@ -233,10 +247,21 @@ struct CalendarView: View {
             minRowHeight: minRowHeight)
         return VStack(spacing: 6) {
             monthGrid(weeks: weeks, rowHeight: layout.rowHeight)
+                // 月が変わったらグリッドだけをクロスフェードさせる
+                // （見出し・曜日・枠は安定。フェード時間は setMonth 側と対）
+                .id(monthTransitionKey)
+                .transition(.opacity)
             if layout.footerHeight > 0 {
                 DecorationFooterView(stage: layout.stage, height: layout.footerHeight)
             }
         }
+    }
+
+    /// クロスフェードの対象を月ごとに切り替えるためのキー
+    private var monthTransitionKey: String {
+        let year = calendar.component(.year, from: displayedMonth)
+        let month = calendar.component(.month, from: displayedMonth)
+        return "\(year)-\(month)-\(showYear)"
     }
 
     /// 月グリッド。週の行（HStack）を縦に積み、各行の高さは
@@ -304,6 +329,15 @@ struct CalendarView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(themeStore.chipColor, in: Capsule())
             }
+            // 3件目以降はセルに収まらない。隠れていること自体を伝える
+            // （第2単位の追加点、2026-11-12。情報の欠落は演出より先に直す）
+            if dayPlans.count > 2 {
+                Text("＋\(dayPlans.count - 2)件")
+                    .font(.caption2)
+                    .foregroundStyle(WanStyle.cocoa.opacity(0.75))
+                    .padding(.horizontal, 3)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
             Spacer(minLength: 0)
         }
         .padding(.vertical, 4)
@@ -362,7 +396,7 @@ struct CalendarView: View {
         .background(WanStyle.card)
         .clipShape(RoundedRectangle(cornerRadius: 10))
         .onTapGesture {
-            displayedMonth = first
+            setMonth(first)
             showYear = false
         }
     }
