@@ -39,6 +39,7 @@ struct DogMapView: View {
     @Environment(FriendStore.self) private var friendStore
     @Environment(BreedStore.self) private var breedStore
     @Environment(MarkerSettings.self) private var markerSettings
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var position: MapCameraPosition = .japanFallback
     @State private var selectedFacility: Facility?
     @State private var selectedUserPlace: UserPlace?
@@ -66,6 +67,8 @@ struct DogMapView: View {
     @State private var selectedBand: TimeBand = .allDay
     @State private var showYearSheet = false
     @State private var pendingScrollDate: Date?
+    /// 日付帯のスクロール基準点（最後に帯が止まった日）。近距離判定に使う
+    @State private var stripAnchorDate: Date?
 
     // 施設検索
     @State private var searchText = ""
@@ -736,11 +739,27 @@ struct DogMapView: View {
                 }
                 .accessibilityIdentifier("mapDateStrip")
                 .onAppear {
-                    // 初回だけ今日の位置から見せる（選択状態は変えない）
+                    // 初回だけ今日の位置から見せる（選択状態は変えない）。初回は即時
                     proxy.scrollTo(selectedDate, anchor: .leading)
+                    stripAnchorDate = selectedDate
                 }
                 .onChange(of: pendingScrollDate) { _, target in
-                    if let target { proxy.scrollTo(target, anchor: .leading) }
+                    guard let target else { return }
+                    // 帯のスクロールに動きを付けるのは、前回のアンカーから目で追える
+                    // 近距離（14日以内）だけ。遠距離ジャンプと Reduce Motion 時は即時
+                    // （第2単位、2026-11-12。原則は DESIGN_PRINCIPLES.md）
+                    let cal = Calendar.current
+                    let distance = stripAnchorDate.map {
+                        abs(cal.dateComponents([.day], from: $0, to: target).day ?? .max)
+                    } ?? .max
+                    if distance <= 14 && !reduceMotion {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            proxy.scrollTo(target, anchor: .leading)
+                        }
+                    } else {
+                        proxy.scrollTo(target, anchor: .leading)
+                    }
+                    stripAnchorDate = target
                 }
             }
         }
@@ -907,10 +926,12 @@ struct DogMapView: View {
             return
         }
         if location.hideMode {
+            feedback.error()
             showStatus("非表示モード中は置けません")
             return
         }
         guard let fix = location.currentFix else {
+            feedback.error()
             showStatus("現在地がまだ取れていません")
             return
         }

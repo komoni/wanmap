@@ -151,7 +151,7 @@ struct PlanFormView: View {
         .seriesDeletionDialog(target: $deletionTarget, isPresented: $showDeletionDialog,
                               store: planStore,
                               onDeleted: { dismiss() },
-                              onFailure: { saveErrorMessage = "削除を保存できませんでした。" })
+                              onFailure: { presentSaveError("削除を保存できませんでした。") })
     }
 
     private var placeSection: some View {
@@ -446,7 +446,7 @@ struct PlanFormView: View {
                     if planStore.remove(editing) {
                         dismiss()
                     } else {
-                        saveErrorMessage = "削除を保存できませんでした。"
+                        presentSaveError("削除を保存できませんでした。")
                     }
                 }
             } label: {
@@ -543,6 +543,13 @@ struct PlanFormView: View {
         dismiss()
     }
 
+    /// 保存・削除の最終失敗の提示：アラート表示と失敗の触覚を必ずセットにする
+    /// （第2単位、2026-11-12。線引きは DESIGN_PRINCIPLES.md の触覚の項）。
+    private func presentSaveError(_ message: String) {
+        saveErrorMessage = message
+        feedback.error()
+    }
+
     private func save() {
         let day = WanMapCalendar.shared.startOfDay(for: date)
 
@@ -602,7 +609,7 @@ struct PlanFormView: View {
             if planStore.updateSeriesContent(seriesID: series.id, newTemplate: newTemplate) {
                 completeSave()
             } else {
-                saveErrorMessage = "保存できませんでした。入力内容はそのまま残っています。"
+                presentSaveError("保存できませんでした。入力内容はそのまま残っています。")
             }
             return
         }
@@ -635,23 +642,23 @@ struct PlanFormView: View {
                                        templatePlan: plan) != nil {
                     completeSave()
                 } else {
-                    saveErrorMessage = "保存できませんでした。入力内容はそのまま残っています。"
+                    presentSaveError("保存できませんでした。入力内容はそのまま残っています。")
                 }
             } else if planStore.add(plan) {
                 completeSave()
             } else {
-                saveErrorMessage = "保存できませんでした。入力内容はそのまま残っています。"
+                presentSaveError("保存できませんでした。入力内容はそのまま残っています。")
             }
         } else if editing?.seriesID != nil {
             if planStore.updateOccurrence(plan) {
                 completeSave()
             } else {
-                saveErrorMessage = "保存できませんでした。入力内容はそのまま残っています。"
+                presentSaveError("保存できませんでした。入力内容はそのまま残っています。")
             }
         } else if planStore.update(plan) {
             completeSave()
         } else {
-            saveErrorMessage = "保存できませんでした。入力内容はそのまま残っています。"
+            presentSaveError("保存できませんでした。入力内容はそのまま残っています。")
         }
     }
 }
