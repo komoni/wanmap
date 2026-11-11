@@ -820,6 +820,18 @@ struct DogMapView: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier(mapDayIdentifier(day))
+        .accessibilityLabel(mapDayAccessibilityLabel(day, weekday: weekday))
+        .accessibilityAddTraits(selected ? [.isSelected] : [])
+    }
+
+    /// 日付帯ボタンの読み上げラベル（例：「11月12日（木）、今日、選択中」）
+    private func mapDayAccessibilityLabel(_ day: Date, weekday: Int) -> String {
+        let cal = Calendar.current
+        let symbols = ["日曜日", "月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日"]
+        var label = "\(cal.component(.month, from: day))月\(cal.component(.day, from: day))日（\(symbols[weekday - 1])）"
+        if cal.isDateInToday(day) { label += "、今日" }
+        if cal.isDate(day, inSameDayAs: selectedDate) { label += "、選択中" }
+        return label
     }
 
     /// 日付ボタンの識別子（例：mapDayButton-2026-12-06）。ストリップの日ごとに一意。

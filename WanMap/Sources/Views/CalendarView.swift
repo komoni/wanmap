@@ -344,11 +344,36 @@ struct CalendarView: View {
         // 高さは MonthDecorationLayout の行高に固定する（中身は末尾の Spacer と alignment で上寄せを維持）
         .frame(maxWidth: .infinity, minHeight: height, maxHeight: height, alignment: .top)
         .background(WanStyle.card)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .clipShape(RoundedRectangle(cornerRadius: WanStyle.cardRadius))
         .onTapGesture { daySelection = DaySelection(day: day) }
-        // UIテストが日セル自体を一意に掴むための識別子（見た目・挙動・読み上げは不変）。
+        // UIテストが日セル自体を一意に掴むための識別子。
         // セル内の数字テキストは中身やOSの表現に左右され、ラベル検索が安定しないため
         .accessibilityIdentifier(dayCellIdentifier(day))
+        // 読み上げは日付・今日・予定の内訳を1つにまとめる。セルは
+        // onTapGesture なのでボタン特性も付ける（第2単位スポット確認、2026-11-12）
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(dayCellAccessibilityLabel(day: day, plans: dayPlans))
+        .accessibilityHint("予定一覧が開きます")
+        .accessibilityAddTraits(.isButton)
+    }
+
+    /// 日セルの読み上げラベル（例：「11月15日（土）、予定3件：ドッグウィズ、sea、ほか1件」）
+    private func dayCellAccessibilityLabel(day: Date, plans: [Plan]) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "ja_JP")
+        f.dateFormat = "M月d日（E）"
+        var label = f.string(from: day)
+        if calendar.isDateInToday(day) { label += "、今日" }
+        if plans.isEmpty {
+            label += "、予定なし"
+        } else {
+            let names = plans.prefix(2).map { plan in
+                plan.isPresence ? "今ここ" : (plan.placeName.isEmpty ? "場所未定" : plan.placeName)
+            }
+            label += "、予定\(plans.count)件：" + names.joined(separator: "、")
+            if plans.count > 2 { label += "、ほか\(plans.count - 2)件" }
+        }
+        return label
     }
 
     /// 日セルの識別子（例：calendarDayCell-2026-12-06）。月表示の日ごとに一意
@@ -394,7 +419,7 @@ struct CalendarView: View {
         .frame(maxWidth: .infinity)
         .padding(6)
         .background(WanStyle.card)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .clipShape(RoundedRectangle(cornerRadius: WanStyle.cardRadius))
         .onTapGesture {
             setMonth(first)
             showYear = false

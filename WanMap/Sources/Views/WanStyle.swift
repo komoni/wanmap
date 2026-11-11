@@ -20,6 +20,12 @@ enum WanStyle {
     static let caramel = Color(hex: 0xDEB073)
     /// 土曜：ソフトブルー
     static let saturday = Color(hex: 0x709DC6)
+
+    // MARK: 角丸トークン（第2単位2-C、2026-11-12）
+    /// カード・セルの角丸
+    static let cardRadius: CGFloat = 10
+    /// 小さい面（バナー等）の角丸
+    static let smallRadius: CGFloat = 8
 }
 
 extension Color {
@@ -70,7 +76,7 @@ struct WanPrimaryButtonStyle: ButtonStyle {
             .foregroundStyle(Color.white)
             .padding(.horizontal, horizontalPadding)
             .padding(.vertical, verticalPadding)
-            .background(fill, in: RoundedRectangle(cornerRadius: 10))
+            .background(fill, in: RoundedRectangle(cornerRadius: WanStyle.cardRadius))
             .brightness(configuration.isPressed ? -0.06 : 0)
             .scaleEffect(configuration.isPressed && !reduceMotion ? 0.97 : 1)
             .animation(wanPressAnimation(isPressed: configuration.isPressed),

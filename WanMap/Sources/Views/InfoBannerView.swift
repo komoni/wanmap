@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// バナー1件分（広告 or イベント告知）
 struct BannerItem: Identifiable {
@@ -13,9 +14,12 @@ struct BannerItem: Identifiable {
 /// - 中身は直近のイベント告知＋広告プレースホルダを、数秒ごとに切り替える回転表示。
 ///   同じ枠で広告とイベント告知の両方を流す前提の作りにしてある。
 /// - 切り替えはタイマーを張らず、表示中だけ生きる .task で回す（消えれば自動で止まる）。
+/// - 読んでいる途中で情報が消えないように、Reduce Motion 中と VoiceOver
+///   使用中は自動で送らない（第2単位2-C、2026-11-12）。
 struct InfoBannerView: View {
     let items: [BannerItem]
     @State private var index = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack {
@@ -37,12 +41,14 @@ struct InfoBannerView: View {
             LinearGradient(colors: [WanStyle.apricot.opacity(0.6), WanStyle.apricot.opacity(0.25)],
                            startPoint: .leading, endPoint: .trailing)
         )
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .clipShape(RoundedRectangle(cornerRadius: WanStyle.smallRadius))
         .task {
             guard items.count > 1 else { return }
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(4))
                 if Task.isCancelled { break }
+                // 読み上げ・読解の途中で表示が差し替わらないようにする
+                if reduceMotion || UIAccessibility.isVoiceOverRunning { continue }
                 withAnimation(.easeInOut(duration: 0.35)) {
                     index = (index + 1) % items.count
                 }
