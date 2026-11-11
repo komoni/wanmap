@@ -245,22 +245,22 @@
     {
      "id": "black-white",
      "name": "ブラック＆ホワイト",
-     "icon": null
+     "icon": "breed_border-collie_black-white"
     },
     {
      "id": "red-white",
      "name": "レッド＆ホワイト",
-     "icon": null
+     "icon": "breed_border-collie_red-white"
     },
     {
      "id": "choco-white",
      "name": "チョコ＆ホワイト",
-     "icon": null
+     "icon": "breed_border-collie_choco-white"
     },
     {
      "id": "blue-merle",
      "name": "ブルーマール",
-     "icon": null
+     "icon": "breed_border-collie_blue-merle"
     }
    ]
   },
