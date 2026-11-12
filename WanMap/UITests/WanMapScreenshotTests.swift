@@ -116,6 +116,25 @@ final class WanMapScreenshotTests: XCTestCase {
         XCTAssertTrue(app.navigationBars["設定"].waitForExistence(timeout: 15),
                       "設定画面が開きませんでした")
         attachScreenshot("05-settings")
+        // 下部の仮項目（プライバシー・安全／アカウント・連携）も撮影・存在確認する
+        let blockedRow = app.buttons["blockedPeopleRow"]
+        var swipes = 0
+        while !blockedRow.exists && swipes < 8 {
+            app.swipeUp()
+            swipes += 1
+        }
+        XCTAssertTrue(blockedRow.waitForExistence(timeout: 5),
+                      "「ブロックした人」の仮項目が見つかりませんでした")
+        attachScreenshot("05-settings-lower")
+        let instagramRow = app.buttons["instagramLinkRow"]
+        swipes = 0
+        while !instagramRow.exists && swipes < 4 {
+            app.swipeUp()
+            swipes += 1
+        }
+        XCTAssertTrue(instagramRow.waitForExistence(timeout: 5),
+                      "「Instagramと連携」の仮項目が見つかりませんでした")
+        attachScreenshot("05-settings-bottom")
     }
 
     // MARK: - デザイン・気持ちよさ第一弾の比較撮影
