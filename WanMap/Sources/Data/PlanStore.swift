@@ -349,6 +349,140 @@ final class PlanStore {
         return true
     }
 
+    /// 「この回以降」の対象（対象回と、それより後ろの残っている回。枠順）。
+    /// 境界は対象回の枠位置（occurrenceIndex）で固定する。対象回の日付を
+    /// 個別に移動していても、元の枠より後ろの回が対象になる。
+    /// シリーズに属さない予定・見つからない予定では空を返す。
+    func occurrencesFrom(_ plan: Plan) -> [Plan] {
+        guard let stored = plans.first(where: { $0.id == plan.id }),
+              let seriesID = stored.seriesID,
+              let targetIndex = stored.occurrenceIndex else { return [] }
+        return plans.filter {
+            $0.seriesID == seriesID && ($0.occurrenceIndex ?? -1) >= targetIndex
+        }.sorted { ($0.occurrenceIndex ?? 0) < ($1.occurrenceIndex ?? 0) }
+    }
+
+    /// 雛形の差分（旧→新で変わった項目だけ）を1件へ適用する。
+    /// 場所（名前＋緯度＋経度）は1つの論理項目として3点まとめて差し替える（R4）。
+    private func applyTemplateDiff(to plan: inout Plan, old: PlanTemplate,
+                                   new: PlanTemplate, placeChanged: Bool) {
+        if new.personName != old.personName { plan.personName = new.personName }
+        if new.dogName != old.dogName { plan.dogName = new.dogName }
+        if placeChanged {
+            plan.placeName = new.placeName
+            plan.latitude = new.latitude
+            plan.longitude = new.longitude
+        }
+        if new.timeBand != old.timeBand { plan.timeBand = new.timeBand }
+        if new.level != old.level { plan.level = new.level }
+        if new.isEvent != old.isEvent { plan.isEvent = new.isEvent }
+        if new.hidesOwnLocation != old.hidesOwnLocation {
+            plan.hidesOwnLocation = new.hidesOwnLocation
+        }
+    }
+
+    /// 「この回以降」の変更（設定・カレンダーバッチ単位4、2026-11-12）。
+    /// 設計は files/batch-2026-11-12/CONSULT_CHAPI_SCOPE.md（ちゃぴ相談で分割方式を採用）。
+    ///
+    /// - 対象回より前に残っている回があれば、シリーズをそこで分割する：
+    ///   後半は新しいシリーズ（開始日＝対象回の元の日付、回数＝後半の枠数、
+    ///   雛形＝新しい共通内容）になり、各回の ID・元の日付・個別データは維持する。
+    ///   前半のシリーズは回数だけが対象回の手前までに短くなる。
+    /// - 前に残っている回が無い場合は分割しない（空の前半シリーズを作らない）。
+    ///   既存シリーズの雛形を更新し、同じ適用ルールで全回へ反映する。
+    /// - 適用は「旧雛形→新雛形」の差分だけ。個別編集済みの回（例外回）は
+    ///   保護して内容を変えないが、対象回自身には差分を必ず適用する
+    ///   （対象回の他の個別編集とイベント締切は残る）。
+    /// - 保存は plans＋series の一括保存に乗せ、一部だけ適用された状態にしない。
+    @discardableResult
+    func updateFollowing(_ plan: Plan, newTemplate: PlanTemplate) -> Bool {
+        guard let stored = plans.first(where: { $0.id == plan.id }),
+              let seriesID = stored.seriesID,
+              let seriesIndex = series.firstIndex(where: { $0.id == seriesID }),
+              let targetIndex = stored.occurrenceIndex,
+              let targetOriginalDate = stored.originalDate else { return false }
+        let parent = series[seriesIndex]
+        let old = parent.template
+        guard old != newTemplate else { return true }
+        let placeChanged = newTemplate.placeName != old.placeName
+            || newTemplate.latitude != old.latitude
+            || newTemplate.longitude != old.longitude
+
+        var newPlans = plans
+        var newSeriesList = series
+        let tailIndices = newPlans.indices.filter {
+            newPlans[$0].seriesID == seriesID
+                && (newPlans[$0].occurrenceIndex ?? -1) >= targetIndex
+        }
+        let hasSurvivingHead = newPlans.contains {
+            $0.seriesID == seriesID && ($0.occurrenceIndex ?? Int.max) < targetIndex
+        }
+
+        if hasSurvivingHead {
+            // 分割：後半を新しいシリーズとして切り出す
+            let tail = RecurrenceSeries(
+                id: UUID(), rule: parent.rule, startDate: targetOriginalDate,
+                occurrenceCount: parent.occurrenceCount - targetIndex,
+                timeZoneID: parent.timeZoneID, template: newTemplate, createdAt: Date())
+            newSeriesList[seriesIndex].occurrenceCount = targetIndex
+            newSeriesList.append(tail)
+            for index in tailIndices {
+                newPlans[index].seriesID = tail.id
+                newPlans[index].occurrenceIndex =
+                    (newPlans[index].occurrenceIndex ?? targetIndex) - targetIndex
+                if newPlans[index].id == stored.id || !newPlans[index].isSeriesException {
+                    applyTemplateDiff(to: &newPlans[index], old: old,
+                                      new: newTemplate, placeChanged: placeChanged)
+                }
+            }
+        } else {
+            // 分割しない：既存シリーズの雛形を更新し、同じ保護ルールで適用する
+            newSeriesList[seriesIndex].template = newTemplate
+            for index in tailIndices {
+                if newPlans[index].id == stored.id || !newPlans[index].isSeriesException {
+                    applyTemplateDiff(to: &newPlans[index], old: old,
+                                      new: newTemplate, placeChanged: placeChanged)
+                }
+            }
+        }
+        guard persist(plans: newPlans, series: newSeriesList) else { return false }
+        plans = newPlans
+        series = newSeriesList
+        rememberDogName(newTemplate.dogName)
+        return true
+    }
+
+    /// 「この回以降」を削除する。範囲内の例外回も含めてすべて削除する
+    /// （削除は編集と区別し、保護しない。設計は updateFollowing と同じ資料）。
+    /// 前半が残ればシリーズの回数を前半の枠数へ短縮し、残らなければ親も消す。
+    /// 削除した件数を返し、対象が無い・保存に失敗した場合は nil。
+    @discardableResult
+    func removeFollowing(_ plan: Plan) -> Int? {
+        guard let stored = plans.first(where: { $0.id == plan.id }),
+              let seriesID = stored.seriesID,
+              let targetIndex = stored.occurrenceIndex else { return nil }
+        var newPlans = plans
+        let removedCount = newPlans.count(where: {
+            $0.seriesID == seriesID && ($0.occurrenceIndex ?? -1) >= targetIndex
+        })
+        guard removedCount > 0 else { return nil }
+        newPlans.removeAll {
+            $0.seriesID == seriesID && ($0.occurrenceIndex ?? -1) >= targetIndex
+        }
+        var newSeriesList = series
+        if newPlans.contains(where: { $0.seriesID == seriesID }) {
+            if let index = newSeriesList.firstIndex(where: { $0.id == seriesID }) {
+                newSeriesList[index].occurrenceCount = targetIndex
+            }
+        } else {
+            newSeriesList.removeAll { $0.id == seriesID }
+        }
+        guard persist(plans: newPlans, series: newSeriesList) else { return nil }
+        plans = newPlans
+        series = newSeriesList
+        return removedCount
+    }
+
     /// シリーズ全体を削除する（所属する全回と親を消す。単発予定・別シリーズには触れない）
     @discardableResult
     func removeSeries(id: UUID) -> Bool {

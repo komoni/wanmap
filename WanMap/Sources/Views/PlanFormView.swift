@@ -226,12 +226,15 @@ struct PlanFormView: View {
         }
     }
 
-    /// シリーズの子の編集で、対象範囲を選ぶ（この回だけ／シリーズ全体）。
+    /// シリーズの子の編集で、対象範囲を選ぶ（この回だけ／この回以降／シリーズ全体）。
     /// 切り替えると入力欄は、選んだ範囲の内容（この回／シリーズの共通内容）で読み直される。
+    /// 「全体」と「以降」では例外回の扱いが違う（全体＝上書き、以降＝保護）ため、
+    /// その違いを各スコープの説明文で利用者に伝える（単位4の決定事項）。
     private var scopeSection: some View {
         Section {
             Picker("", selection: $editScope) {
                 Text("この回だけ").tag(PlanEditScope.occurrence)
+                Text("この回以降").tag(PlanEditScope.following)
                 Text("シリーズ全体").tag(PlanEditScope.series)
             }
             .pickerStyle(.segmented)
@@ -239,6 +242,11 @@ struct PlanFormView: View {
             .onChange(of: editScope) { _, scope in applyScope(scope) }
             if editScope == .series, let series = editingSeries {
                 Text("残っている\(planStore.occurrences(of: series.id).count)件すべてに、変更した項目だけが反映されます。個別に変更した同じ項目も上書きされます。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            if editScope == .following, let editing {
+                Text("この回を含む\(planStore.occurrencesFrom(editing).count)件に、変更した項目だけが反映されます。個別に変更した回は保持されます（この回自身には反映されます）。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -257,11 +265,12 @@ struct PlanFormView: View {
                           systemImage: "calendar")
                 }
             } else {
-                // シリーズ全体の変更では、日付は対象外
+                // シリーズ全体・この回以降の変更では、日付は対象外
                 HStack {
                     Label("日付", systemImage: "calendar")
                     Spacer()
-                    Text("全体変更の対象外").foregroundStyle(.secondary)
+                    Text(editScope == .series ? "全体変更の対象外" : "この回以降の変更では対象外")
+                        .foregroundStyle(.secondary)
                 }
             }
             VStack(alignment: .leading, spacing: 6) {
@@ -392,7 +401,7 @@ struct PlanFormView: View {
 
     /// 締切を直接編集できる場面かどうか。
     /// 締切は各回で個別に設定するものなので、繰り返しの新規作成と
-    /// シリーズ全体の変更では扱わない（各回だけの変更では従来どおり編集できる）。
+    /// シリーズ全体・この回以降の変更では扱わない（各回だけの変更では従来どおり編集できる）。
     private var showsDeadlineControls: Bool {
         if editing != nil {
             return editingSeries == nil || editScope == .occurrence
@@ -463,7 +472,8 @@ struct PlanFormView: View {
         switch scope {
         case .occurrence:
             loadFields(from: editing)
-        case .series:
+        case .following, .series:
+            // どちらの初期値もシリーズの共通内容（対象回の個別内容は持ち込まない）
             loadFields(from: series.template)
         }
     }
@@ -554,10 +564,11 @@ struct PlanFormView: View {
         let day = WanMapCalendar.shared.startOfDay(for: date)
 
         // この保存で基準にする「保存済みの場所」（R5）。スコープごとに切り替える：
-        // シリーズ全体＝親の共通内容の控え、この回だけ／通常編集＝編集中の予定の控え。
+        // シリーズ全体・この回以降＝親の共通内容の控え、この回だけ／通常編集＝編集中の予定の控え。
         let isSeriesScope = editing?.seriesID != nil && editScope == .series
+        let isFollowingScope = editing?.seriesID != nil && editScope == .following
         let baseline: SavedPlace?
-        if isSeriesScope, let series = editingSeries {
+        if isSeriesScope || isFollowingScope, let series = editingSeries {
             baseline = seriesPlaceSnapshot
                 ?? SavedPlace(name: series.template.placeName,
                               latitude: series.template.latitude,
@@ -607,6 +618,24 @@ struct PlanFormView: View {
                 hidesOwnLocation: hidesOwnLocation
             )
             if planStore.updateSeriesContent(seriesID: series.id, newTemplate: newTemplate) {
+                completeSave()
+            } else {
+                presentSaveError("保存できませんでした。入力内容はそのまま残っています。")
+            }
+            return
+        }
+
+        // この回以降の変更：日付と締切は対象外。雛形の差分だけが後半へ反映され、
+        // 個別に変更した回は保持される（PlanStore.updateFollowing が分割と適用を行う）
+        if isFollowingScope, let editing {
+            let newTemplate = PlanTemplate(
+                personName: resolvedDogName ?? "自分",
+                dogName: resolvedDogName,
+                placeName: placeName, latitude: latitude, longitude: longitude,
+                timeBand: timeBand, level: level, isEvent: isEvent,
+                hidesOwnLocation: hidesOwnLocation
+            )
+            if planStore.updateFollowing(editing, newTemplate: newTemplate) {
                 completeSave()
             } else {
                 presentSaveError("保存できませんでした。入力内容はそのまま残っています。")

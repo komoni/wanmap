@@ -111,9 +111,12 @@ struct RecurrenceSeries: Codable, Identifiable, Equatable {
 }
 
 /// シリーズ予定の編集・削除の対象範囲。
-/// 初期実装は「この回だけ」「シリーズ全体」の2種のみで、「この回以降」は作らない。
+/// 初期実装は「この回だけ」「シリーズ全体」の2種のみだったが、
+/// 設定・カレンダーバッチ単位4（2026-11-12）で「この回以降」を追加した。
+/// 「この回以降」の保存はシリーズ分割で行う（PlanStore.updateFollowing）。
 enum PlanEditScope {
     case occurrence
+    case following
     case series
 }
 

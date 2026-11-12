@@ -173,6 +173,185 @@ final class PlanStoreSeriesTests: XCTestCase {
         XCTAssertEqual(store.seriesFor(children[0])?.template.dogName, "ジロ")
     }
 
+    // MARK: - この回以降の変更・削除（単位4：シリーズ分割）
+
+    func testUpdateFollowing_途中から変更すると分割され後半だけ変わる() {
+        let (rule, template) = weeklyFixture()
+        let store = PlanStore(samplePlans: [])
+        let series = store.addSeries(rule: rule, occurrenceCount: 6,
+                                     templatePlan: template, calendar: tokyo)!
+        let before = store.occurrences(of: series.id)
+        let headIDs = before[0...1].map(\.id)
+        let tailIDs = before[2...].map(\.id)
+
+        var newTemplate = series.template
+        newTemplate.timeBand = .night
+        XCTAssertTrue(store.updateFollowing(before[2], newTemplate: newTemplate))
+
+        XCTAssertEqual(store.series.count, 2)
+        // 前半：回数だけが短くなり、雛形と各回は元のまま
+        let head = store.series.first { $0.id == series.id }!
+        XCTAssertEqual(head.occurrenceCount, 2)
+        XCTAssertEqual(head.template.timeBand, .allDay)
+        let headChildren = store.occurrences(of: series.id)
+        XCTAssertEqual(headChildren.map(\.id), headIDs)
+        XCTAssertTrue(headChildren.allSatisfy { $0.timeBand == .allDay })
+
+        // 後半：新しいシリーズ。開始日は対象回の元の日付、回数は後半の枠数
+        let tail = store.series.first { $0.id != series.id }!
+        XCTAssertEqual(tail.occurrenceCount, 4)
+        XCTAssertEqual(tail.template.timeBand, .night)
+        XCTAssertEqual(dateLabel(tail.startDate), "2026/11/15")
+        let tailChildren = store.occurrences(of: tail.id)
+        XCTAssertEqual(tailChildren.map(\.id), tailIDs, "各回のIDは維持されるはず")
+        XCTAssertEqual(tailChildren.map(\.occurrenceIndex), [0, 1, 2, 3])
+        XCTAssertTrue(tailChildren.allSatisfy { $0.timeBand == .night })
+        XCTAssertEqual(tailChildren.map { dateLabel($0.originalDate!) },
+                       ["2026/11/15", "2026/11/22", "2026/11/29", "2026/12/6"],
+                       "元の日付は分割後も維持されるはず")
+    }
+
+    func testUpdateFollowing_例外回は保護され対象回自身には適用される() {
+        let (rule, template) = weeklyFixture()
+        let store = PlanStore(samplePlans: [])
+        let series = store.addSeries(rule: rule, occurrenceCount: 6,
+                                     templatePlan: template, calendar: tokyo)!
+        let children = store.occurrences(of: series.id)
+
+        // 4回目（index 3）を例外化：場所を個別変更しておく
+        var exception = children[3]
+        exception.placeName = "海の公園"
+        store.updateOccurrence(exception)
+        // 対象回（index 2）自身も例外化：犬名の個別変更と締切を持たせておく
+        var target = children[2]
+        target.dogName = "ハナ"
+        target.isEvent = true
+        target.eventDeadline = tokyo.date(from: DateComponents(year: 2026, month: 11, day: 20))
+        store.updateOccurrence(target)
+
+        // 3回目から、場所と時間帯を変更する
+        var newTemplate = series.template
+        newTemplate.placeName = "SKドッグラン"
+        newTemplate.timeBand = .morning
+        let storedTarget = store.occurrences(of: series.id)[2]
+        XCTAssertTrue(store.updateFollowing(storedTarget, newTemplate: newTemplate))
+
+        let tail = store.occurrences(of: store.series.first { $0.id != series.id }!.id)
+        XCTAssertEqual(tail.count, 4)
+        // 対象回：変更した項目は反映され、未変更の個別内容（犬名・締切）は残る
+        XCTAssertEqual(tail[0].placeName, "SKドッグラン")
+        XCTAssertEqual(tail[0].timeBand, .morning)
+        XCTAssertEqual(tail[0].dogName, "ハナ")
+        XCTAssertEqual(tail[0].eventDeadline,
+                       tokyo.date(from: DateComponents(year: 2026, month: 11, day: 20)))
+        // 例外回（index 3→分割後 1）：場所は保護され、時間帯も変わらない
+        XCTAssertEqual(tail[1].placeName, "海の公園")
+        XCTAssertEqual(tail[1].timeBand, .allDay)
+        XCTAssertTrue(tail[1].isSeriesException)
+        // 例外でない回（index 4, 5）：両方とも反映される
+        XCTAssertEqual(tail[2].placeName, "SKドッグラン")
+        XCTAssertEqual(tail[2].timeBand, .morning)
+        XCTAssertEqual(tail[3].placeName, "SKドッグラン")
+    }
+
+    func testUpdateFollowing_初回からは分割せず例外は保護される() {
+        let (rule, template) = weeklyFixture()
+        let store = PlanStore(samplePlans: [])
+        let series = store.addSeries(rule: rule, occurrenceCount: 3,
+                                     templatePlan: template, calendar: tokyo)!
+        var second = store.occurrences(of: series.id)[1]
+        second.dogName = "ハナ"
+        store.updateOccurrence(second)
+
+        var newTemplate = series.template
+        newTemplate.dogName = "ジロ"
+        newTemplate.personName = "ジロ"
+        let first = store.occurrences(of: series.id)[0]
+        XCTAssertTrue(store.updateFollowing(first, newTemplate: newTemplate))
+
+        XCTAssertEqual(store.series.count, 1, "初回からは分割しないはず")
+        XCTAssertEqual(store.series.first?.template.dogName, "ジロ")
+        XCTAssertEqual(store.occurrences(of: series.id).map(\.dogName),
+                       ["ジロ", "ハナ", "ジロ"],
+                       "対象回と通常回は新しい犬名、例外回は個別の犬名が保持されるはず")
+    }
+
+    func testUpdateFollowing_先頭が削除済みでも空の前半シリーズを作らない() {
+        let (rule, template) = weeklyFixture()
+        let store = PlanStore(samplePlans: [])
+        let series = store.addSeries(rule: rule, occurrenceCount: 3,
+                                     templatePlan: template, calendar: tokyo)!
+        store.removeOccurrence(store.occurrences(of: series.id)[0])
+
+        var newTemplate = series.template
+        newTemplate.timeBand = .noon
+        let firstSurviving = store.occurrences(of: series.id)[0]
+        XCTAssertTrue(store.updateFollowing(firstSurviving, newTemplate: newTemplate))
+
+        XCTAssertEqual(store.series.count, 1, "残っている回が手前に無いので分割しないはず")
+        XCTAssertEqual(store.series.first?.occurrenceCount, 3, "枠数は元のままのはず")
+        XCTAssertTrue(store.occurrences(of: series.id).allSatisfy { $0.timeBand == .noon })
+    }
+
+    func testUpdateFollowing_分割後に前半を全体削除しても後半は残る() {
+        let (rule, template) = weeklyFixture()
+        let store = PlanStore(samplePlans: [])
+        let series = store.addSeries(rule: rule, occurrenceCount: 6,
+                                     templatePlan: template, calendar: tokyo)!
+        var newTemplate = series.template
+        newTemplate.timeBand = .night
+        store.updateFollowing(store.occurrences(of: series.id)[3], newTemplate: newTemplate)
+        XCTAssertEqual(store.series.count, 2)
+
+        XCTAssertTrue(store.removeSeries(id: series.id))
+        XCTAssertEqual(store.series.count, 1)
+        XCTAssertEqual(store.plans.count, 3, "後半の3件だけが残るはず")
+        XCTAssertTrue(store.plans.allSatisfy { $0.timeBand == .night })
+    }
+
+    func testOccurrencesFrom_対象回以降だけを枠順に返す() {
+        let (rule, template) = weeklyFixture()
+        let store = PlanStore(samplePlans: [])
+        let series = store.addSeries(rule: rule, occurrenceCount: 6,
+                                     templatePlan: template, calendar: tokyo)!
+        let children = store.occurrences(of: series.id)
+
+        XCTAssertEqual(store.occurrencesFrom(children[2]).map(\.id), children[2...].map(\.id))
+        XCTAssertEqual(store.occurrencesFrom(children[0]).count, 6)
+        XCTAssertEqual(store.occurrencesFrom(children[5]).count, 1)
+        // シリーズに属さない予定では空
+        XCTAssertTrue(store.occurrencesFrom(makePlan()).isEmpty)
+    }
+
+    func testRemoveFollowing_後半を例外含め削除し前半の回数を短縮する() {
+        let (rule, template) = weeklyFixture()
+        let store = PlanStore(samplePlans: [])
+        let series = store.addSeries(rule: rule, occurrenceCount: 6,
+                                     templatePlan: template, calendar: tokyo)!
+        var exception = store.occurrences(of: series.id)[4]
+        exception.placeName = "海の公園"
+        store.updateOccurrence(exception)
+
+        let target = store.occurrences(of: series.id)[2]
+        XCTAssertEqual(store.removeFollowing(target), 4,
+                       "例外回も含めた4件が削除されるはず")
+        let remaining = store.occurrences(of: series.id)
+        XCTAssertEqual(remaining.map { dateLabel($0.date) }, ["2026/11/1", "2026/11/8"])
+        XCTAssertEqual(store.series.first?.occurrenceCount, 2)
+    }
+
+    func testRemoveFollowing_初回から削除すると親も消える() {
+        let (rule, template) = weeklyFixture()
+        let store = PlanStore(samplePlans: [])
+        let series = store.addSeries(rule: rule, occurrenceCount: 3,
+                                     templatePlan: template, calendar: tokyo)!
+
+        let first = store.occurrences(of: series.id)[0]
+        XCTAssertEqual(store.removeFollowing(first), 3)
+        XCTAssertTrue(store.plans.isEmpty)
+        XCTAssertTrue(store.series.isEmpty)
+    }
+
     func testRemoveSeries_全回と親が消え単発予定と別シリーズは残る() {
         let (rule, template) = weeklyFixture()
         let store = PlanStore(samplePlans: [])

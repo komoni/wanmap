@@ -56,6 +56,17 @@ struct SeriesDeletionDialog: ViewModifier {
                 }
                 if succeeded { onDeleted() } else { onFailure() }
             }
+            Button("この回以降を削除（\(store.occurrencesFrom(plan).count)件）", role: .destructive) {
+                // 範囲内の例外回も含めて削除する。扱いは他の2ボタンと同じ
+                // （isPresented は書き換えない／アニメーション無効トランザクション）。
+                let targetPlan = plan
+                var deletionTransaction = Transaction(animation: nil)
+                deletionTransaction.disablesAnimations = true
+                let succeeded = withTransaction(deletionTransaction) {
+                    store.removeFollowing(targetPlan) != nil
+                }
+                if succeeded { onDeleted() } else { onFailure() }
+            }
             Button("シリーズ全体を削除", role: .destructive) {
                 // 「この回だけ削除」と同じく、isPresented は書き換えず
                 // 標準の dismiss に任せ（E2）、ストア操作はアニメーションを
@@ -73,7 +84,7 @@ struct SeriesDeletionDialog: ViewModifier {
                 isPresented = false
             }
         } message: { _ in
-            Text("削除する範囲を選んでください。削除した回は元に戻せません。")
+            Text("削除する範囲を選んでください。削除した回は元に戻せません。「この回以降」は、個別に変更した回も含めて削除します。")
         }
     }
 }
