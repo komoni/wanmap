@@ -279,12 +279,12 @@
     {
      "id": "gold",
      "name": "ゴールド",
-     "icon": null
+     "icon": "breed_golden-retriever_gold"
     },
     {
      "id": "cream",
      "name": "クリーム",
-     "icon": null
+     "icon": "breed_golden-retriever_cream"
     }
    ]
   },
