@@ -135,6 +135,17 @@ final class ThemeStore {
         }
     }
 
+    /// ヘッダーのショートカットアイコン色（月送り・取り込み・友達・設定）。
+    /// ダークでは差し色（淡いコーラル）が暗い地で黄色っぽく沈んで見えにくいため
+    /// 白にする（2026-11-13、本人の指摘）
+    var headerIconColor: Color {
+        switch appTheme {
+        case .pastel: return WanStyle.coral
+        case .dark: return Color(hex: 0xFFFFFF)
+        case .cool: return Color(hex: 0x2F6DB3)
+        }
+    }
+
     /// 土曜の色
     var saturdayColor: Color {
         switch appTheme {

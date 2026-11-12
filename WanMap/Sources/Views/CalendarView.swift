@@ -146,7 +146,7 @@ struct CalendarView: View {
     private func monthNavCluster(compact: Bool) -> some View {
         HStack(spacing: 2) {
             Button { shift(by: -1) } label: {
-                Image(systemName: "chevron.left").foregroundStyle(themeStore.accentColor)
+                Image(systemName: "chevron.left").foregroundStyle(themeStore.headerIconColor)
             }
             .buttonStyle(WanPressButtonStyle())
             .modifier(HeaderTapTarget(compact: compact))
@@ -159,7 +159,7 @@ struct CalendarView: View {
                 .fixedSize(horizontal: true, vertical: false)
                 .layoutPriority(2)
             Button { shift(by: 1) } label: {
-                Image(systemName: "chevron.right").foregroundStyle(themeStore.accentColor)
+                Image(systemName: "chevron.right").foregroundStyle(themeStore.headerIconColor)
             }
             .buttonStyle(WanPressButtonStyle())
             .modifier(HeaderTapTarget(compact: compact))
@@ -182,20 +182,20 @@ struct CalendarView: View {
     private func auxButtons(compact: Bool) -> some View {
         HStack(spacing: compact ? 2 : 8) {
             Button { showStoryImport = true } label: {
-                Image(systemName: "doc.on.clipboard").foregroundStyle(themeStore.accentColor)
+                Image(systemName: "doc.on.clipboard").foregroundStyle(themeStore.headerIconColor)
             }
             .buttonStyle(WanPressButtonStyle())
             .modifier(HeaderTapTarget(compact: compact))
             // アイコンのみのボタンはUIテストから確実に押せるよう識別子を付ける（見た目・挙動は不変）
             .accessibilityIdentifier("calendarStoryImportButton")
             Button { showFriends = true } label: {
-                Image(systemName: "person.2").foregroundStyle(themeStore.accentColor)
+                Image(systemName: "person.2").foregroundStyle(themeStore.headerIconColor)
             }
             .buttonStyle(WanPressButtonStyle())
             .modifier(HeaderTapTarget(compact: compact))
             .accessibilityIdentifier("calendarFriendsButton")
             Button { showSettings = true } label: {
-                Image(systemName: "gearshape").foregroundStyle(themeStore.accentColor)
+                Image(systemName: "gearshape").foregroundStyle(themeStore.headerIconColor)
             }
             .buttonStyle(WanPressButtonStyle())
             .modifier(HeaderTapTarget(compact: compact))

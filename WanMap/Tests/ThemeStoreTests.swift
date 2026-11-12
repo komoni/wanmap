@@ -83,6 +83,8 @@ final class ThemeStoreTests: XCTestCase {
         assertColor(reloaded.cardColor, hex: 0x3A3330)
         assertColor(reloaded.accentColor, hex: 0xF0997F)
         assertColor(reloaded.dayTextColor, hex: 0xF3EAE2)
+        // ダークではヘッダーのショートカットアイコンは白（差し色は沈んで見えるため）
+        assertColor(reloaded.headerIconColor, hex: 0xFFFFFF)
     }
 
     func testThemeCool_クールのパレット() {
