@@ -6,6 +6,8 @@ import SwiftUI
 /// - 見た目の比較案（ボタンの色／カレンダーヘッダーの段数。AppearanceStore）
 /// - 音と触覚（効果音・触覚のON/OFFと試聴。FeedbackSettings／FeedbackService）
 /// - 「見せない相手」リスト：友達画面と同じ FriendStore のデータを触るので連動する
+/// - 将来機能の仮項目（Instagram連携・ブロックした人・アカウント削除）：
+///   項目だけ先に置き、タップでは「準備中」を正直に表示する（嘘の動作はしない）
 /// - Instagram連携はモックである旨を正直に表示する
 /// - 位置情報の扱い（端末内のみ・「今ここ」は2時間で消去）の説明と非表示モード
 /// - ローカルデータ（予定・友達・追加した場所）のリセット（確認ダイアログ付き）
@@ -25,6 +27,8 @@ struct SettingsView: View {
     /// 自分の犬の名前の入力欄（確定タイミングでのみ FriendStore へ反映する）
     @State private var dogNameText = ""
     @State private var showResetConfirm = false
+    /// 仮項目（将来機能）をタップした時の「準備中」表示
+    @State private var showComingSoon = false
     /// リセット結果の表示文。失敗を成功として見せないため、結果に応じて出し分ける
     @State private var resetMessage: String?
     @State private var resetHadFailure = false
@@ -190,13 +194,56 @@ struct SettingsView: View {
                     Text("ここでオンにした相手には、自分の位置と存在が見えません。友達画面の「見せない」と同じリストです。")
                 }
 
+                // プライバシー・安全（仮項目）。ブロックとアカウント削除は
+                // アカウント機能の提供に合わせて実装する。今は置き場だけ作り、
+                // タップでは「準備中」を正直に表示する。
                 Section {
-                    HStack {
-                        Text("Instagram連携")
-                        Spacer()
-                        Text("未連携")
-                            .foregroundStyle(.secondary)
+                    Button {
+                        showComingSoon = true
+                    } label: {
+                        HStack {
+                            Text("ブロックした人")
+                                .foregroundStyle(.primary)
+                            Spacer()
+                            Text("0件")
+                                .foregroundStyle(.secondary)
+                            comingSoonBadge
+                        }
                     }
+                    .accessibilityIdentifier("blockedPeopleRow")
+                    Button {
+                        showComingSoon = true
+                    } label: {
+                        HStack {
+                            Text("アカウントを削除")
+                                .foregroundStyle(.primary)
+                            Spacer()
+                            comingSoonBadge
+                        }
+                    }
+                    .accessibilityIdentifier("deleteAccountRow")
+                } header: {
+                    Text("プライバシー・安全")
+                } footer: {
+                    Text("ブロックとアカウント削除は、アカウント機能の提供に合わせて使えるようになります。")
+                }
+
+                Section {
+                    Button {
+                        showComingSoon = true
+                    } label: {
+                        HStack {
+                            Text("Instagramと連携")
+                                .foregroundStyle(.primary)
+                            Spacer()
+                            Text("未連携")
+                                .foregroundStyle(.secondary)
+                            comingSoonBadge
+                        }
+                    }
+                    .accessibilityIdentifier("instagramLinkRow")
+                } header: {
+                    Text("アカウント・連携")
                 } footer: {
                     Text("連携はモックです。本物のInstagramとは接続していません（連携すると表示IDがユーザーネームになります）。投稿の取り込みは、共有シートや文面の貼り付けで本人が持ち込んだものだけです。自動で投稿を取得することはありません。")
                 }
@@ -269,7 +316,22 @@ struct SettingsView: View {
             } message: {
                 Text("この端末に保存した予定・友達・追加した場所のデータをすべて消します。自分のIDも新しく作り直されます。")
             }
+            .alert("準備中", isPresented: $showComingSoon) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("この機能は準備中です。")
+            }
         }
+    }
+
+    /// 仮項目の右端に出す「準備中」バッジ（将来機能の置き場であることを見た目でも伝える）
+    private var comingSoonBadge: some View {
+        Text("準備中")
+            .font(.caption2)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Capsule().fill(Color.secondary.opacity(0.15)))
+            .foregroundStyle(.secondary)
     }
 
     // MARK: - 自分の犬まわり
