@@ -69,9 +69,7 @@ struct FriendsView: View {
                 Text("内部ID \(friendStore.me.internalId)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Text(friendStore.me.instagramUsername == nil
-                     ? "Instagram未連携のため、アプリ発行IDで表示しています"
-                     : "Instagram連携済み")
+                Text("このIDやQRコードを友達に送ると、アプリで友達になれます")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

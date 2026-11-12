@@ -1,13 +1,14 @@
 import Foundation
 
 /// アプリ内ユーザー
-/// 表示・検索用IDは Instagram のユーザーネーム（連携時）。
-/// 内部IDは不変の数値IDで、ユーザーネーム変更でも友達関係は切れない（決定済み設計）。
+/// 表示・検索用IDはアプリ発行ID（wan-xxxxxx）。Instagram連携は行わない
+/// （公式APIでは友達判定ができないため、2026-11-13に不採用を決定）。
+/// 友達追加は、このIDやQRコードを相手に送り、相手が承認する形。
+/// 内部IDは不変で、表示名が変わっても友達関係は切れない。
 struct AppUser: Codable, Identifiable, Equatable {
     var id: String { internalId }
     let internalId: String          // 不変の内部ID（例: usr-xxxx）
-    var instagramUsername: String?  // 連携時の表示・検索用ID
-    var appIssuedId: String         // 未連携時の表示・検索用ID（例: wan-xxxxxx）
+    var appIssuedId: String         // 表示・検索用ID（例: wan-xxxxxx）
     var displayName: String
     var dogName: String?
     /// 自分の犬の犬種（Breed マスタのID）。未設定は nil（地図では汎用ミックスで表示）
@@ -15,7 +16,7 @@ struct AppUser: Codable, Identifiable, Equatable {
     /// 毛色（その犬種の colors のID）。犬種と組で意味を持つ
     var dogColorId: String? = nil
 
-    var publicId: String { instagramUsername.map { "@\($0)" } ?? appIssuedId }
+    var publicId: String { appIssuedId }
 }
 
 enum FriendRequestState: String, Codable {

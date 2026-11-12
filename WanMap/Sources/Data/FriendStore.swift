@@ -4,16 +4,16 @@ import Observation
 /// 友達データの保持と端末内保存（モック）
 ///
 /// 仕様（決定済み）：
-/// - IDは3層で区別する：表示・検索用ID（Instagram連携時はユーザーネーム＝@付き、
-///   未連携時はアプリ発行ID `wan-xxxxxx`）、不変の内部ID `usr-…`（AppUser 参照）。
-/// - 自分の AppUser は端末内に1件だけ保持する。初期状態は未連携（wan- 発行ID）。
+/// - IDは2層で区別する：表示・検索用ID（アプリ発行ID `wan-xxxxxx`）と
+///   不変の内部ID `usr-…`（AppUser 参照）。Instagram連携は行わない（2026-11-13決定）。
+/// - 自分の AppUser は端末内に1件だけ保持する。
 /// - 友達関係と申請状態は端末内のJSONファイル（Documents/friends.json）に保存する。
 ///   実通信はまだ無い：検索・申請・承認はすべて端末内のモック動作で、
 ///   申請は送ると自動承認される。仮想ユーザー「ムギ」からの受信申請が1件、
 ///   初期モックとして届いている。
 /// - 「見せない」（hideFromMe）は「この人には自分の位置・存在を見せない」リスト。
 ///   実データはこの relations の1か所だけで、友達画面と設定画面は同じデータを触る。
-/// - 共有範囲の原則：位置・予定が見えるのは「Instagram友達 ∩ アプリ利用者 ∩
+/// - 共有範囲の原則：位置・予定が見えるのは「アプリ内友達 ∩ アプリ利用者 ∩
 ///   共有同意 ∩ 見せないリスト外」だけ。全員に見える設計にはしない。
 @Observable
 final class FriendStore {
@@ -45,7 +45,7 @@ final class FriendStore {
 
     static var preview: FriendStore {
         FriendStore(
-            me: AppUser(internalId: "usr-preview", instagramUsername: nil,
+            me: AppUser(internalId: "usr-preview",
                         appIssuedId: "wan-prev00", displayName: "自分", dogName: nil),
             relations: [
                 FriendRelation(user: mockDirectory[0], state: .incoming, hideFromMe: false),
@@ -59,22 +59,21 @@ final class FriendStore {
     /// ID検索とコード追加でヒットする仮想ユーザー。
     /// SeedData の予定と名前を揃えてある（飼い主名／犬の名前）。
     static let mockDirectory: [AppUser] = [
-        AppUser(internalId: "usr-mock-mugi", instagramUsername: "mugi_husky",
-                appIssuedId: "wan-mugi27", displayName: "ケン", dogName: "ムギ",
+        AppUser(internalId: "usr-mock-mugi", appIssuedId: "wan-mugi27", displayName: "ケン", dogName: "ムギ",
                 breedId: "siberian-husky", dogColorId: "black-white"),
-        AppUser(internalId: "usr-mock-sora", instagramUsername: nil,
+        AppUser(internalId: "usr-mock-sora",
                 appIssuedId: "wan-sora31", displayName: "タクミ", dogName: "ソラ",
                 breedId: "toy-poodle", dogColorId: "red"),
-        AppUser(internalId: "usr-mock-haru", instagramUsername: nil,
+        AppUser(internalId: "usr-mock-haru",
                 appIssuedId: "wan-haru08", displayName: "ミサキ", dogName: "ハル",
                 breedId: "siberian-husky", dogColorId: "silver-white"),
-        AppUser(internalId: "usr-mock-momo", instagramUsername: nil,
+        AppUser(internalId: "usr-mock-momo",
                 appIssuedId: "wan-momo52", displayName: "ユイ", dogName: "モモ",
                 breedId: "chihuahua", dogColorId: "fawn"),
-        AppUser(internalId: "usr-mock-kotaro", instagramUsername: nil,
+        AppUser(internalId: "usr-mock-kotaro",
                 appIssuedId: "wan-kota66", displayName: "シン", dogName: "コタロウ",
                 breedId: "mixed", dogColorId: "brown-white"),
-        AppUser(internalId: "usr-mock-reo", instagramUsername: nil,
+        AppUser(internalId: "usr-mock-reo",
                 appIssuedId: "wan-reo19", displayName: "あかり", dogName: "レオ",
                 breedId: "chihuahua", dogColorId: "black-tan"),
     ]
@@ -86,7 +85,6 @@ final class FriendStore {
 
     private static func makeSelf() -> AppUser {
         AppUser(internalId: "usr-" + randomToken(6),
-                instagramUsername: nil,
                 appIssuedId: "wan-" + randomToken(6),
                 displayName: "自分",
                 dogName: nil)

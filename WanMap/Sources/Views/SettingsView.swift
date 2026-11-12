@@ -6,9 +6,9 @@ import SwiftUI
 /// - 見た目の比較案（ボタンの色／カレンダーヘッダーの段数。AppearanceStore）
 /// - 音と触覚（効果音・触覚のON/OFFと試聴。FeedbackSettings／FeedbackService）
 /// - 「見せない相手」リスト：友達画面と同じ FriendStore のデータを触るので連動する
-/// - 将来機能の仮項目（Instagram連携・ブロックした人・アカウント削除）：
+/// - 将来機能の仮項目（ブロックした人・アカウント削除）：
 ///   項目だけ先に置き、タップでは「準備中」を正直に表示する（嘘の動作はしない）
-/// - Instagram連携はモックである旨を正直に表示する
+/// - Instagram連携は行わない（公式APIの制約により2026-11-13に不採用を決定）
 /// - 位置情報の扱い（端末内のみ・「今ここ」は2時間で消去）の説明と非表示モード
 /// - ローカルデータ（予定・友達・追加した場所）のリセット（確認ダイアログ付き）
 struct SettingsView: View {
@@ -240,26 +240,6 @@ struct SettingsView: View {
                     Text("プライバシー・安全")
                 } footer: {
                     Text("ブロックとアカウント削除は、アカウント機能の提供に合わせて使えるようになります。")
-                }
-
-                Section {
-                    Button {
-                        showComingSoon = true
-                    } label: {
-                        HStack {
-                            Text("Instagramと連携")
-                                .foregroundStyle(.primary)
-                            Spacer()
-                            Text("未連携")
-                                .foregroundStyle(.secondary)
-                            comingSoonBadge
-                        }
-                    }
-                    .accessibilityIdentifier("instagramLinkRow")
-                } header: {
-                    Text("アカウント・連携")
-                } footer: {
-                    Text("連携はモックです。本物のInstagramとは接続していません（連携すると表示IDがユーザーネームになります）。投稿の取り込みは、共有シートや文面の貼り付けで本人が持ち込んだものだけです。自動で投稿を取得することはありません。")
                 }
 
                 Section {
