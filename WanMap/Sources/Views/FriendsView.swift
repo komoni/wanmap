@@ -21,6 +21,7 @@ func friendDisplayName(_ user: AppUser) -> String {
 /// そのことは画面下部の注記で隠さず伝える。
 struct FriendsView: View {
     @Environment(FriendStore.self) private var friendStore
+    @Environment(BreedStore.self) private var breedStore
     @Environment(\.dismiss) private var dismiss
 
     @State private var searchText = ""
@@ -150,12 +151,19 @@ struct FriendsView: View {
         }
     }
 
+    /// 友達の行のラベル：犬種アイコン＋名前＋表示ID。
+    /// アイコンの解決は地図・設定と同じ（未設定・未制作はミックスに寄せる）。
     private func userRowLabel(_ user: AppUser) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text("🐶 \(friendDisplayName(user))")
-            Text(user.publicId)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+        HStack(spacing: 10) {
+            BreedIconView(asset: breedStore.markerIconAsset(breedId: user.breedId,
+                                                             colorId: user.dogColorId),
+                          size: 36)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(friendDisplayName(user))
+                Text(user.publicId)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 }
@@ -292,4 +300,5 @@ struct QRAddView: View {
 #Preview {
     FriendsView()
         .environment(FriendStore.preview)
+        .environment(BreedStore())
 }

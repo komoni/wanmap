@@ -174,7 +174,10 @@ struct SettingsView: View {
                 Section {
                     ForEach(friendStore.friends) { relation in
                         HStack {
-                            Text("🐶 \(friendDisplayName(relation.user))")
+                            BreedIconView(asset: breedStore.markerIconAsset(
+                                breedId: relation.user.breedId,
+                                colorId: relation.user.dogColorId), size: 28)
+                            Text(friendDisplayName(relation.user))
                             Spacer()
                             Toggle("見せない",
                                    isOn: hideFromMeBinding(store: friendStore,
