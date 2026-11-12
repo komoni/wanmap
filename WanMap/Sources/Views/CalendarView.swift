@@ -64,6 +64,9 @@ struct CalendarView: View {
         }
         .padding(.horizontal, 12)
         .background(themeStore.canvasColor)
+        // ダークテーマではタブバーの未選択項目が暗い地に沈むため、
+        // タブバーだけ配色スキームをテーマに合わせる（単位3の撮影検品で発見）
+        .toolbarColorScheme(themeStore.appTheme == .dark ? .dark : .light, for: .tabBar)
         .sheet(item: $daySelection) { selection in
             DayPlansView(day: selection.day)
         }
