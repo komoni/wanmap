@@ -279,6 +279,24 @@ final class WanMapScreenshotTests: XCTestCase {
         attachScreenshot("map-breed-icons")
     }
 
+    // MARK: - 雰囲気テーマ（設定・カレンダーバッチ単位3）
+    // テーマは起動引数で確定的に切り替える（RootView の DEBUG 分岐 →
+    // ThemeStore の引数優先）。本人が見比べて選ぶための撮影。
+
+    /// ⑮ カレンダー：テーマ「ダーク」
+    func test15_themeDarkCalendar() throws {
+        app.launchArguments += ["-wmTheme", "dark"]
+        launchAndSettleOnCalendar()
+        attachScreenshot("theme-calendar-dark")
+    }
+
+    /// ⑯ カレンダー：テーマ「クール」
+    func test16_themeCoolCalendar() throws {
+        app.launchArguments += ["-wmTheme", "cool"]
+        launchAndSettleOnCalendar()
+        attachScreenshot("theme-calendar-cool")
+    }
+
     // MARK: - 共通処理
 
     /// ヘッダー要素が画面（window）の内側に収まっていることの回帰ガード。

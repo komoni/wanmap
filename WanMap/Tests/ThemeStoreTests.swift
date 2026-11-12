@@ -59,6 +59,55 @@ final class ThemeStoreTests: XCTestCase {
         assertColor(store.chipColor, hex: 0xDCD5F2)
     }
 
+    // MARK: - 雰囲気テーマ（単位3）
+
+    func testThemeDefault_初期状態はパステルで従来トークンと一致() {
+        let store = ThemeStore(defaults: defaults)
+        XCTAssertEqual(store.appTheme, .pastel)
+        assertColor(store.canvasColor, hex: 0xFFF8EF)
+        assertColor(store.cardColor, hex: 0xFFFEFC)
+        assertColor(store.accentColor, hex: 0xEE7869)
+        assertColor(store.saturdayColor, hex: 0x709DC6)
+        assertColor(store.dayTextColor, hex: 0x533E38)
+    }
+
+    func testThemeSelect_選ぶと即保存され再生成で読み戻せる() {
+        let store = ThemeStore(defaults: defaults)
+        store.appTheme = .dark
+
+        XCTAssertEqual(defaults.string(forKey: "wanmap.appTheme"), "dark")
+        let reloaded = ThemeStore(defaults: defaults)
+        XCTAssertEqual(reloaded.appTheme, .dark)
+        // ダークのパレット（地は暗く、本文は明るく、アクセントは淡いコーラル）
+        assertColor(reloaded.canvasColor, hex: 0x26211F)
+        assertColor(reloaded.cardColor, hex: 0x3A3330)
+        assertColor(reloaded.accentColor, hex: 0xF0997F)
+        assertColor(reloaded.dayTextColor, hex: 0xF3EAE2)
+    }
+
+    func testThemeCool_クールのパレット() {
+        let store = ThemeStore(defaults: defaults)
+        store.appTheme = .cool
+        assertColor(store.canvasColor, hex: 0xE9EEF3)
+        assertColor(store.cardColor, hex: 0xFFFFFF)
+        assertColor(store.accentColor, hex: 0x2F6DB3)
+        assertColor(store.dayTextColor, hex: 0x2E4A5E)
+    }
+
+    func testThemeFallback_保存値が不明なテーマならパステルになる() {
+        defaults.set("no-such-theme", forKey: "wanmap.appTheme")
+        let store = ThemeStore(defaults: defaults)
+        XCTAssertEqual(store.appTheme, .pastel)
+    }
+
+    func testThemeLaunchArgument_起動引数が保存値より優先され保存値は書き換わらない() {
+        let store = ThemeStore(defaults: defaults, launchArguments: ["-wmTheme", "dark"])
+        XCTAssertEqual(store.appTheme, .dark)
+        // 引数は表示だけの強制で、保存値（未保存＝既定パステル）は変わらない
+        let reloaded = ThemeStore(defaults: defaults)
+        XCTAssertEqual(reloaded.appTheme, .pastel)
+    }
+
     // MARK: - ヘルパー
 
     private func assertColor(_ color: Color, hex: UInt32, file: StaticString = #filePath, line: UInt = #line) {

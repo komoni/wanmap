@@ -63,7 +63,7 @@ struct CalendarView: View {
             }
         }
         .padding(.horizontal, 12)
-        .background(WanStyle.canvas)
+        .background(themeStore.canvasColor)
         .sheet(item: $daySelection) { selection in
             DayPlansView(day: selection.day)
         }
@@ -116,19 +116,22 @@ struct CalendarView: View {
         .padding(.vertical, 4)
         .background {
             if reduceTransparency {
-                WanStyle.canvas
+                themeStore.canvasColor
             } else {
-                GinghamBand()
+                GinghamBand(base: themeStore.cardColor)
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 
-    /// 「今日」ボタンは主ボタン表現（配色案の地色＋白文字）にする
+    /// 「今日」ボタンは主ボタン表現（配色案の地色＋白文字）にする。
+    /// テーマがパステル以外の時は、配色案ではなくテーマのアクセントを使う
     private var todayButton: some View {
         Button("今日") { setMonth(Date()); showYear = false }
-            .buttonStyle(WanPrimaryButtonStyle(fill: appearanceStore.primaryColor,
-                                               horizontalPadding: 8, verticalPadding: 6))
+            .buttonStyle(WanPrimaryButtonStyle(
+                fill: themeStore.appTheme == .pastel
+                    ? appearanceStore.primaryColor : themeStore.accentColor,
+                horizontalPadding: 8, verticalPadding: 6))
             .lineLimit(1)
             .fixedSize(horizontal: true, vertical: false)
     }
@@ -140,7 +143,7 @@ struct CalendarView: View {
     private func monthNavCluster(compact: Bool) -> some View {
         HStack(spacing: 2) {
             Button { shift(by: -1) } label: {
-                Image(systemName: "chevron.left").foregroundStyle(WanStyle.coral)
+                Image(systemName: "chevron.left").foregroundStyle(themeStore.accentColor)
             }
             .buttonStyle(WanPressButtonStyle())
             .modifier(HeaderTapTarget(compact: compact))
@@ -148,11 +151,12 @@ struct CalendarView: View {
             .accessibilityIdentifier("calendarPrevMonthButton")
             Text(headerTitle)
                 .font(compact ? .subheadline.weight(.semibold) : .headline)
+                .foregroundStyle(themeStore.dayTextColor)
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
                 .layoutPriority(2)
             Button { shift(by: 1) } label: {
-                Image(systemName: "chevron.right").foregroundStyle(WanStyle.coral)
+                Image(systemName: "chevron.right").foregroundStyle(themeStore.accentColor)
             }
             .buttonStyle(WanPressButtonStyle())
             .modifier(HeaderTapTarget(compact: compact))
@@ -175,20 +179,20 @@ struct CalendarView: View {
     private func auxButtons(compact: Bool) -> some View {
         HStack(spacing: compact ? 2 : 8) {
             Button { showStoryImport = true } label: {
-                Image(systemName: "doc.on.clipboard").foregroundStyle(WanStyle.coral)
+                Image(systemName: "doc.on.clipboard").foregroundStyle(themeStore.accentColor)
             }
             .buttonStyle(WanPressButtonStyle())
             .modifier(HeaderTapTarget(compact: compact))
             // アイコンのみのボタンはUIテストから確実に押せるよう識別子を付ける（見た目・挙動は不変）
             .accessibilityIdentifier("calendarStoryImportButton")
             Button { showFriends = true } label: {
-                Image(systemName: "person.2").foregroundStyle(WanStyle.coral)
+                Image(systemName: "person.2").foregroundStyle(themeStore.accentColor)
             }
             .buttonStyle(WanPressButtonStyle())
             .modifier(HeaderTapTarget(compact: compact))
             .accessibilityIdentifier("calendarFriendsButton")
             Button { showSettings = true } label: {
-                Image(systemName: "gearshape").foregroundStyle(WanStyle.coral)
+                Image(systemName: "gearshape").foregroundStyle(themeStore.accentColor)
             }
             .buttonStyle(WanPressButtonStyle())
             .modifier(HeaderTapTarget(compact: compact))
@@ -230,8 +234,9 @@ struct CalendarView: View {
             ForEach(["日", "月", "火", "水", "木", "金", "土"], id: \.self) { label in
                 Text(label)
                     .font(.caption)
-                    .foregroundStyle(label == "日" ? WanStyle.coral.opacity(0.75)
-                                     : label == "土" ? WanStyle.saturday.opacity(0.75) : Color.secondary)
+                    .foregroundStyle(label == "日" ? themeStore.accentColor.opacity(0.75)
+                                     : label == "土" ? themeStore.saturdayColor.opacity(0.75)
+                                     : themeStore.subTextColor)
             }
         }
     }
@@ -293,7 +298,7 @@ struct CalendarView: View {
         return VStack(spacing: 2) {
             ZStack {
                 if isToday {
-                    Circle().fill(WanStyle.coral).frame(width: 24, height: 24)
+                    Circle().fill(themeStore.accentColor).frame(width: 24, height: 24)
                 }
                 Text("\(calendar.component(.day, from: day))")
                     .font(.subheadline)
@@ -312,7 +317,7 @@ struct CalendarView: View {
                         if plan.isPresence {
                             Image(systemName: "person.fill")
                                 .font(.system(size: 7))
-                                .foregroundStyle(WanStyle.coral)
+                                .foregroundStyle(themeStore.accentColor)
                         } else {
                             Text("🐶").font(.system(size: 8))
                         }
@@ -334,7 +339,7 @@ struct CalendarView: View {
             if dayPlans.count > 2 {
                 Text("＋\(dayPlans.count - 2)件")
                     .font(.caption2)
-                    .foregroundStyle(WanStyle.cocoa.opacity(0.75))
+                    .foregroundStyle(themeStore.dayTextColor.opacity(0.75))
                     .padding(.horizontal, 3)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -343,7 +348,7 @@ struct CalendarView: View {
         .padding(.vertical, 4)
         // 高さは MonthDecorationLayout の行高に固定する（中身は末尾の Spacer と alignment で上寄せを維持）
         .frame(maxWidth: .infinity, minHeight: height, maxHeight: height, alignment: .top)
-        .background(WanStyle.card)
+        .background(themeStore.cardColor)
         .clipShape(RoundedRectangle(cornerRadius: WanStyle.cardRadius))
         .onTapGesture { daySelection = DaySelection(day: day) }
         // UIテストが日セル自体を一意に掴むための識別子。
@@ -408,6 +413,7 @@ struct CalendarView: View {
             Text("\(month)月")
                 .font(.caption)
                 .bold()
+                .foregroundStyle(themeStore.dayTextColor)
             ForEach(weeks.indices, id: \.self) { weekIndex in
                 HStack(spacing: 1) {
                     ForEach(weeks[weekIndex].indices, id: \.self) { dayIndex in
@@ -418,7 +424,7 @@ struct CalendarView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(6)
-        .background(WanStyle.card)
+        .background(themeStore.cardColor)
         .clipShape(RoundedRectangle(cornerRadius: WanStyle.cardRadius))
         .onTapGesture {
             setMonth(first)
@@ -434,7 +440,7 @@ struct CalendarView: View {
                 }
                 Text("\(calendar.component(.day, from: day))")
                     .font(.system(size: 8))
-                    .foregroundStyle(calendar.isDateInToday(day) ? WanStyle.coral : color(for: day))
+                    .foregroundStyle(calendar.isDateInToday(day) ? themeStore.accentColor : color(for: day))
                     .bold(calendar.isDateInToday(day))
             }
         }
@@ -462,9 +468,9 @@ struct CalendarView: View {
 
     private func color(for day: Date) -> Color {
         switch calendar.component(.weekday, from: day) {
-        case 1: return WanStyle.coral.opacity(0.75)      // 日曜＝コーラル
-        case 7: return WanStyle.saturday.opacity(0.75)   // 土曜＝ソフトブルー
-        default: return WanStyle.cocoa                   // 本文＝ココア
+        case 1: return themeStore.accentColor.opacity(0.75)    // 日曜＝アクセント
+        case 7: return themeStore.saturdayColor.opacity(0.75)  // 土曜＝テーマの土曜色
+        default: return themeStore.dayTextColor                // 本文＝テーマの本文色
         }
     }
 }

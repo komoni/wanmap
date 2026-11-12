@@ -35,6 +35,7 @@ struct SettingsView: View {
 
     var body: some View {
         @Bindable var location = location
+        @Bindable var themeStore = themeStore
         @Bindable var appearanceStore = appearanceStore
         @Bindable var feedbackSettings = feedbackSettings
         @Bindable var markerSettings = markerSettings
@@ -148,7 +149,13 @@ struct SettingsView: View {
 
                 // 見た目の比較案（デザイン・気持ちよさ第一弾）。
                 // 本人がスクショで見比べて選ぶための切り替えで、選ばれた方を後に既定化する。
-                Section("見た目") {
+                Section {
+                    Picker("テーマ", selection: $themeStore.appTheme) {
+                        ForEach(ThemeStore.AppTheme.allCases, id: \.self) { theme in
+                            Text(theme.displayName).tag(theme)
+                        }
+                    }
+                    .accessibilityIdentifier("appThemePicker")
                     Picker("ボタンの色", selection: $appearanceStore.buttonVariant) {
                         ForEach(AppearanceStore.ButtonVariant.allCases, id: \.self) { variant in
                             Text(variant.displayName).tag(variant)
@@ -159,6 +166,10 @@ struct SettingsView: View {
                             Text(layout.displayName).tag(layout)
                         }
                     }
+                } header: {
+                    Text("見た目")
+                } footer: {
+                    Text("テーマはカレンダー画面の配色をまとめて切り替えます（地図など他の画面は今の配色のままです）。「ボタンの色」はテーマがパステルの時に効きます。")
                 }
 
                 Section {

@@ -12,7 +12,7 @@ struct RootView: View {
     @State private var friendStore = FriendStore()
     @State private var breedStore = BreedStore()
     @State private var markerSettings: MarkerSettings
-    @State private var themeStore = ThemeStore()
+    @State private var themeStore: ThemeStore
     @State private var appearanceStore: AppearanceStore
     @State private var feedbackSettings: FeedbackSettings
     @State private var feedbackService: FeedbackService
@@ -78,6 +78,13 @@ struct RootView: View {
             launchArguments: ProcessInfo.processInfo.arguments))
         #else
         _markerSettings = State(initialValue: MarkerSettings())
+        #endif
+        // テーマ（雰囲気プリセット）も画面撮影時だけ起動引数で強制できる（DEBUGのみ）
+        #if DEBUG
+        _themeStore = State(initialValue: ThemeStore(
+            launchArguments: ProcessInfo.processInfo.arguments))
+        #else
+        _themeStore = State(initialValue: ThemeStore())
         #endif
     }
 
