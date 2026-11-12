@@ -288,7 +288,7 @@ final class WanMapFlowTests: XCTestCase {
         let approveButton = app.buttons["承認"]
         XCTAssertTrue(approveButton.waitForExistence(timeout: 10),
                       "ムギからの申請が見つかりませんでした")
-        XCTAssertTrue(app.staticTexts["🐶 ムギ"].exists,
+        XCTAssertTrue(app.staticTexts["ムギ"].exists,
                       "申請者（ムギ）の行が見つかりませんでした")
 
         approveButton.tap()
