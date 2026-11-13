@@ -61,6 +61,10 @@ targets:
       # カレンダー下端の装飾フッター用：恐竜ハスキー（本人が選んだコミカル版を切り抜いた透過PNG）
       - path: Resources/husky-dino-peek.png
         buildPhase: resources
+      # プライバシーマニフェスト（申請時に必須。UserDefaults は Required Reason API のため
+      # 理由コード CA92.1 を宣言。フェーズ2で Firebase 等を入れたら収集データの申告も実態に合わせて更新する）
+      - path: Resources/PrivacyInfo.xcprivacy
+        buildPhase: resources
     settings:
       base:
         # バンドルIDは正式ドメインで明示（bundleIdPrefix の自動生成 jp.wanmap.WanMap にはしない）
