@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- TestFlight／App Store 書き出し用（フェーズ0で作成）。
+	     署名は手動：フェーズ0で発行した配布用証明書とプロファイルを使う。 -->
+	<key>method</key>
+	<string>app-store-connect</string>
+	<key>teamID</key>
+	<string>HZ4R7985Y6</string>
+	<key>signingStyle</key>
+	<string>manual</string>
+	<key>stripSwiftSymbols</key>
+	<true/>
+	<key>manageAppVersionAndBuildNumber</key>
+	<false/>
+	<key>provisioningProfiles</key>
+	<dict>
+		<key>jp.wanmap.app</key>
+		<string>WanMap App Store</string>
+		<key>jp.wanmap.app.share</key>
+		<string>WanMap Share App Store</string>
+	</dict>
+</dict>
+</plist>

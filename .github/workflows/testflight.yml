@@ -1,0 +1,85 @@
+# TestFlight へ手動でアップロードするワークフロー（フェーズ1）。
+# push では走らない。Actions 画面から手動実行（workflow_dispatch）した時だけ動く。
+# 署名素材（配布用証明書 .p12／プロファイル2件／App Store Connect APIキー）は
+# リポジトリの Secrets 経由で渡す。必要な Secrets：
+#   BUILD_CERTIFICATE_BASE64 / P12_PASSWORD
+#   PROVISIONING_PROFILE_BASE64 / PROVISIONING_PROFILE_SHARE_BASE64
+#   ASC_API_KEY_BASE64 / ASC_KEY_ID / ASC_ISSUER_ID
+# ビルド番号はこのワークフローの実行番号を使い、アップロードのたびに増えるようにする。
+name: testflight
+on:
+  workflow_dispatch:
+jobs:
+  upload:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select latest Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate project
+        working-directory: WanMap
+        run: xcodegen generate
+      - name: Import signing assets
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+          PROVISIONING_PROFILE_BASE64: ${{ secrets.PROVISIONING_PROFILE_BASE64 }}
+          PROVISIONING_PROFILE_SHARE_BASE64: ${{ secrets.PROVISIONING_PROFILE_SHARE_BASE64 }}
+          ASC_API_KEY_BASE64: ${{ secrets.ASC_API_KEY_BASE64 }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 24)"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          echo "$BUILD_CERTIFICATE_BASE64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          echo "$PROVISIONING_PROFILE_BASE64" | base64 --decode > "$HOME/Library/MobileDevice/Provisioning Profiles/WanMap_App_Store.mobileprovision"
+          echo "$PROVISIONING_PROFILE_SHARE_BASE64" | base64 --decode > "$HOME/Library/MobileDevice/Provisioning Profiles/WanMap_Share_App_Store.mobileprovision"
+          mkdir -p "$HOME/.appstoreconnect/private_keys"
+          echo "$ASC_API_KEY_BASE64" | base64 --decode > "$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8"
+      - name: Archive (Release, manual signing)
+        working-directory: WanMap
+        run: |
+          xcodebuild archive \
+            -project WanMap.xcodeproj \
+            -scheme WanMap \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/WanMap.xcarchive \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }}
+      - name: Export IPA
+        working-directory: WanMap
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath build/WanMap.xcarchive \
+            -exportPath build/ipa \
+            -exportOptionsPlist ExportOptions.plist
+      - name: Upload to TestFlight
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          xcrun altool --upload-app \
+            -f WanMap/build/ipa/WanMap.ipa \
+            --type ios \
+            --apiKey "$ASC_KEY_ID" \
+            --apiIssuer "$ASC_ISSUER_ID"
+      # 失敗時の切り分け用にアーカイブ本体を残す（保持は短め）
+      - name: Upload archive (diagnostics)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wanmap-xcarchive
+          path: WanMap/build/WanMap.xcarchive
+          if-no-files-found: warn
+          retention-days: 7
