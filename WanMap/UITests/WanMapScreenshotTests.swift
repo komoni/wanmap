@@ -191,21 +191,20 @@ final class WanMapScreenshotTests: XCTestCase {
         attachScreenshot("design-settings")
     }
 
-    // MARK: - 月表示の連続スクロール（2026-11-14）
+    // MARK: - 月表示の月ブロック（2026-11-14、純正カレンダー方式へ作り替え）
 
-    /// ⑩ カレンダー：既定の見た目（2段＋コーラル）で、月表示の週ストリームが
-    /// 今月から流れ始めることの撮影。旧・装飾フッター確認はスクロール化で
-    /// 目的を終えたため、ここでは月のタイトルと初期表示を確認する
-    func test10_designCalendarMonthStream() throws {
+    /// ⑩ カレンダー：既定の見た目（2段＋コーラル）で、月表示が今月の
+    /// 月ブロックから始まることの撮影。ここでは月のタイトルと初期表示を確認する
+    func test10_designCalendarMonthBlock() throws {
         launchAndSettleOnCalendar()
         XCTAssertTrue(app.staticTexts["2026年11月"].waitForExistence(timeout: 10),
                       "2026年11月のタイトルが見つかりませんでした")
-        attachScreenshot("design-calendar-stream")
+        attachScreenshot("design-calendar-monthblock")
     }
 
     /// ⑪ カレンダー：前月ボタン×3の連打で2026年8月へ正しく移動し、
-    /// 週ストリームで表示されることの撮影（連打は要求月の加減算で処理する設計の担保）
-    func test11_designCalendarAugustStream() throws {
+    /// 月ブロックで表示されることの撮影（連打は要求月の加減算で処理する設計の担保）
+    func test11_designCalendarAugustBlock() throws {
         launchAndSettleOnCalendar()
         let prevButton = app.buttons["calendarPrevMonthButton"]
         XCTAssertTrue(prevButton.waitForExistence(timeout: 15),

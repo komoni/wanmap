@@ -20,19 +20,23 @@ struct CalendarView: View {
     @State private var showSettings = false
     @State private var showStoryImport = false
 
-    // MARK: 月表示の連続スクロール（2026-11-14、本人の要望で月跨ぎスクロール化）
+    // MARK: 月表示（月ブロックの縦スクロール、iPhone純正カレンダー方式）
+    //
+    // 経緯：2026-11-14 に週の連続ストリーム（月跨ぎで日付が一続きに流れる形）を
+    // 入れたが、本人の実機所感で「全ての日付が並んだ状態は違う。月表示は
+    // 月表示のまま、上下スライドで前月・次月へ移動する純正カレンダーと同じ形に」
+    // と差し替え指示があり、月ブロック方式へ作り替えた（同日）。
 
-    /// スクロール位置（先頭に見えている週の日曜）。初期値は今月1日を含む週で、
+    /// スクロール位置（先頭に見えている月の1日）。初期値は今月の1日で、
     /// ScrollView の初回構築前に決まる（onAppear の scrollTo は使わない）
-    @State private var scrollWeekID: Date? = CalendarView.weekSunday(
-        containing: CalendarView.firstOfMonth(Date()))
+    @State private var scrollMonthID: Date? = CalendarView.firstOfMonth(Date())
     /// ボタン操作の要求月。シェブロン連打は観測中の月ではなくこの値を基準に加減算する
     @State private var requestedMonth: Date = CalendarView.firstOfMonth(Date())
-    /// 実行中のスクロール命令の到達目標週。命令の飛行中は観測で requestedMonth を
+    /// 実行中のスクロール命令の到達目標月。命令の飛行中は観測で requestedMonth を
     /// 上書きしない（連打の加減算が途中の月でずれるのを防ぐ）
-    @State private var commandedWeekID: Date?
-    /// 表示ウィンドウ分の週（日曜の日付の列）。今日の月を挟んで -12〜+24 か月分
-    @State private var streamWeeks: [Date] = CalendarView.makeStreamWeeks()
+    @State private var commandedMonthID: Date?
+    /// 表示ウィンドウ分の月（各月の1日の列）。今日の月を挟んで -12〜+24 か月分
+    @State private var streamMonths: [Date] = CalendarView.makeStreamMonths()
 
     /// 週行の高さ。文字サイズに連動させる（旧・装飾フッター計算の最小高さと同値）
     @ScaledMetric(relativeTo: .subheadline) private var minRowHeight: CGFloat = 76
@@ -66,11 +70,12 @@ struct CalendarView: View {
             if showYear {
                 yearGrid
             } else {
-                // 月表示は週の連続ストリーム（月跨ぎで上下スクロール）。
-                // 曜日見出しだけ固定し、週行がその下を流れる
+                // 月表示は月ごとのブロック（月表示の形は維持し、上下スライドで
+                // 前月・次月へ移動する。iPhone純正カレンダーと同じ考え方）。
+                // 曜日見出しだけ固定し、月ブロックがその下を流れる
                 VStack(spacing: 6) {
                     weekdayHeader
-                    monthStream
+                    monthBlocks
                 }
             }
         }
@@ -251,28 +256,25 @@ struct CalendarView: View {
 
     /// 「今日」ボタン・年表示の月タップからの移動はここを通す。
     /// タイトルは即座に新しい月を示し、月表示のスクロールは対象月の
-    /// 1日を含む週へ即時ジャンプする（初版はアニメーションなしの
-    /// 即時移動が堅実、という設計相談の結論。2026-11-14）
+    /// ブロックへ即時ジャンプする
     private func setMonth(_ date: Date) {
         displayedMonth = date
         requestedMonth = clampedToWindow(Self.firstOfMonth(date))
         commandScroll(toMonth: requestedMonth)
     }
 
-    /// 対象月の1日を含む週へスクロールを命令する
+    /// 対象月のブロックへスクロールを命令する
     private func commandScroll(toMonth month: Date) {
-        let target = Self.weekSunday(containing: Self.firstOfMonth(month))
-        commandedWeekID = target
-        scrollWeekID = target
+        let target = Self.firstOfMonth(month)
+        commandedMonthID = target
+        scrollMonthID = target
     }
 
-    /// ウィンドウ（streamWeeks の範囲）の外の月は端の月へ寄せる
+    /// ウィンドウ（streamMonths の範囲）の外の月は端の月へ寄せる
     private func clampedToWindow(_ month: Date) -> Date {
-        guard let first = streamWeeks.first, let last = streamWeeks.last else { return month }
-        let startMonth = Self.firstOfMonth(first)
-        let endMonth = Self.firstOfMonth(last)
-        if month < startMonth { return startMonth }
-        if month > endMonth { return endMonth }
+        guard let first = streamMonths.first, let last = streamMonths.last else { return month }
+        if month < first { return first }
+        if month > last { return last }
         return month
     }
 
@@ -288,78 +290,78 @@ struct CalendarView: View {
         }
     }
 
-    /// 月表示の本体：週行の連続ストリーム。月の境目でも日付が途切れず流れ、
-    /// 先頭に見えている週からヘッダーの月を決める（判定は month(forWeekSunday:)）。
-    /// 旧・月単位グリッド＋装飾フッターは、スクロール化で余白埋めの役目が
-    /// 終わったため月表示からは外した（DecorationFooter.swift 自体は残置）
-    private var monthStream: some View {
+    /// 月表示の本体：月ブロックの縦スクロール。上下スライドで月ブロック単位に
+    /// 吸着して前月・次月へ移動する（viewAligned）。先頭に見えているブロックの
+    /// 月がヘッダーの月になる
+    private var monthBlocks: some View {
         let grouped = plansByDay
         return ScrollView(.vertical, showsIndicators: false) {
-            LazyVStack(spacing: 6) {
-                ForEach(streamWeeks, id: \.self) { sunday in
-                    weekRow(sunday: sunday, grouped: grouped)
+            LazyVStack(spacing: 20) {
+                ForEach(streamMonths, id: \.self) { month in
+                    monthSection(month, grouped: grouped)
                 }
             }
             .scrollTargetLayout()
         }
-        .scrollPosition(id: $scrollWeekID, anchor: .top)
-        .onChange(of: scrollWeekID) { _, newValue in
+        .scrollTargetBehavior(.viewAligned)
+        .scrollPosition(id: $scrollMonthID, anchor: .top)
+        .onChange(of: scrollMonthID) { _, newValue in
             guard let newValue else { return }
-            // ヘッダーの月は「その週の土曜が属する月」（＝月初を含む週から
-            // 新しい月）。日曜の月で判定すると「8月へ移動したのに7月表示」になる
-            let observed = Self.month(forWeekSunday: newValue)
+            let observed = Self.firstOfMonth(newValue)
             if !calendar.isDate(observed, equalTo: displayedMonth, toGranularity: .month) {
                 displayedMonth = observed
             }
-            if commandedWeekID == newValue {
+            if commandedMonthID == observed {
                 // 命令が到達した。要求月を観測月に合わせて確定させる
-                commandedWeekID = nil
+                commandedMonthID = nil
                 requestedMonth = observed
-            } else if commandedWeekID == nil {
+            } else if commandedMonthID == nil {
                 // 手動スクロール。次のシェブロンの基準を観測月へ寄せておく
                 requestedMonth = observed
             }
         }
     }
 
-    /// 週行（日曜〜土曜の7日）。月跨ぎでも空白マスは作らない
-    private func weekRow(sunday: Date, grouped: [Date: [Plan]]) -> some View {
-        HStack(spacing: 6) {
-            ForEach(0..<7, id: \.self) { offset in
-                let day = calendar.date(byAdding: .day, value: offset, to: sunday) ?? sunday
-                dayCell(day, height: minRowHeight,
-                        plans: grouped[calendar.startOfDay(for: day)] ?? [])
+    /// 月ブロック：月名の見出し＋その月だけの週グリッド。月外の日は空白マスに
+    /// して週を月と月で共有しない（純正カレンダーと同じ。週ストリーム版への
+    /// 本人の差し替え指示、2026-11-14）
+    private func monthSection(_ month: Date, grouped: [Date: [Plan]]) -> some View {
+        let weeks = weeksIn(month)
+        return VStack(alignment: .leading, spacing: 6) {
+            Text("\(calendar.component(.month, from: month))月")
+                .font(.headline)
+                .foregroundStyle(themeStore.accentColor)
+                .accessibilityHidden(true)
+            VStack(spacing: 6) {
+                ForEach(weeks.indices, id: \.self) { weekIndex in
+                    HStack(spacing: 6) {
+                        ForEach(0..<7, id: \.self) { dayIndex in
+                            if let day = weeks[weekIndex][dayIndex] {
+                                dayCell(day, height: minRowHeight,
+                                        plans: grouped[calendar.startOfDay(for: day)] ?? [])
+                            } else {
+                                Color.clear
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: minRowHeight)
+                            }
+                        }
+                    }
+                    .frame(height: minRowHeight)
+                }
             }
         }
-        .frame(height: minRowHeight)
     }
 
     private func dayCell(_ day: Date, height: CGFloat, plans dayPlans: [Plan]) -> some View {
         let isToday = calendar.isDateInToday(day)
-        let isFirstOfMonth = calendar.component(.day, from: day) == 1
         return VStack(spacing: 2) {
-            // 1日のセルは月名バッジを数字の横に並べる。右上に重ねる形だと
-            // 狭いセルで数字とくっついて「18月」のように読めてしまうため
-            // （CIスクリーンショットで実発生、2026-11-14）。バッジはピル型の
-            // 地色付きにして、数字とは別の要素として読めるようにする
-            HStack(spacing: 2) {
-                ZStack {
-                    if isToday {
-                        Circle().fill(themeStore.accentColor).frame(width: 24, height: 24)
-                    }
-                    Text("\(calendar.component(.day, from: day))")
-                        .font(.subheadline)
-                        .foregroundStyle(isToday ? Color.white : color(for: day))
+            ZStack {
+                if isToday {
+                    Circle().fill(themeStore.accentColor).frame(width: 24, height: 24)
                 }
-                if isFirstOfMonth {
-                    Text("\(calendar.component(.month, from: day))月")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(themeStore.accentColor)
-                        .padding(.horizontal, 3)
-                        .padding(.vertical, 1)
-                        .background(themeStore.chipColor, in: Capsule())
-                        .accessibilityHidden(true)
-                }
+                Text("\(calendar.component(.day, from: day))")
+                    .font(.subheadline)
+                    .foregroundStyle(isToday ? Color.white : color(for: day))
             }
             if isToday {
                 Text("🐾").font(.system(size: 8))
@@ -531,7 +533,7 @@ struct CalendarView: View {
         }
     }
 
-    // MARK: - 週ストリームの日付ユーティリティ（静的。@State の初期値からも使う）
+    // MARK: - 月ブロックの日付ユーティリティ（静的。@State の初期値からも使う）
 
     private static let gregorian: Calendar = {
         var c = Calendar(identifier: .gregorian)
@@ -545,36 +547,16 @@ struct CalendarView: View {
         gregorian.date(from: gregorian.dateComponents([.year, .month], from: date)) ?? date
     }
 
-    /// その日を含む週の日曜（startOfDay）
-    private static func weekSunday(containing date: Date) -> Date {
-        let start = gregorian.startOfDay(for: date)
-        let weekday = gregorian.component(.weekday, from: start)
-        return gregorian.date(byAdding: .day, value: -(weekday - 1), to: start) ?? start
-    }
-
-    /// 週（日曜）の属する月＝その週の土曜の月（月初を含む週から新しい月として扱う）
-    private static func month(forWeekSunday sunday: Date) -> Date {
-        let saturday = gregorian.date(byAdding: .day, value: 6, to: sunday) ?? sunday
-        return firstOfMonth(saturday)
-    }
-
-    /// 今日の月を挟んで -12〜+24 か月分の週（日曜の列）
-    private static func makeStreamWeeks() -> [Date] {
+    /// 今日の月を挟んで -12〜+24 か月分の月（各月の1日の列）
+    private static func makeStreamMonths() -> [Date] {
         let anchor = firstOfMonth(Date())
-        guard let startMonth = gregorian.date(byAdding: .month, value: -12, to: anchor),
-              let endMonth = gregorian.date(byAdding: .month, value: 24, to: anchor),
-              let nextAfterEnd = gregorian.date(byAdding: .month, value: 1, to: endMonth),
-              let endLastDay = gregorian.date(byAdding: .day, value: -1, to: nextAfterEnd)
-        else { return [weekSunday(containing: anchor)] }
-        var weeks: [Date] = []
-        var cursor = weekSunday(containing: startMonth)
-        let last = weekSunday(containing: endLastDay)
-        while cursor <= last {
-            weeks.append(cursor)
-            guard let next = gregorian.date(byAdding: .day, value: 7, to: cursor) else { break }
-            cursor = next
+        var months: [Date] = []
+        for offset in -12...24 {
+            if let month = gregorian.date(byAdding: .month, value: offset, to: anchor) {
+                months.append(month)
+            }
         }
-        return weeks
+        return months.isEmpty ? [anchor] : months
     }
 }
 
