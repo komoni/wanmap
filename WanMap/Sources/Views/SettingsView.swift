@@ -26,6 +26,8 @@ struct SettingsView: View {
 
     /// 自分の犬の名前の入力欄（確定タイミングでのみ FriendStore へ反映する）
     @State private var dogNameText = ""
+    /// 名前入力欄のフォーカス（キーボードの「完了」で閉じるために使う）
+    @FocusState private var dogNameFocused: Bool
     @State private var showResetConfirm = false
     /// 仮項目（将来機能）をタップした時の「準備中」表示
     @State private var showComingSoon = false
@@ -78,6 +80,7 @@ struct SettingsView: View {
                         Text("名前")
                         TextField("犬の名前", text: $dogNameText)
                             .multilineTextAlignment(.trailing)
+                            .focused($dogNameFocused)
                             .onSubmit { commitDogName() }
                             .accessibilityIdentifier("myDogNameField")
                     }
@@ -286,6 +289,18 @@ struct SettingsView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("閉じる") { dismiss() }
+                }
+            }
+            .toolbar {
+                // キーボードの「完了」（キーボード表示中だけ出る）。
+                // 名前入力欄はキーボードに隠れて閉じにくい、という実機フィードバック対応。
+                // 押したら名前を確定してからキーボードを閉じる
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("完了") {
+                        commitDogName()
+                        dogNameFocused = false
+                    }
                 }
             }
             .confirmationDialog("データをリセット", isPresented: $showResetConfirm) {

@@ -17,6 +17,8 @@ struct BreedPickerView: View {
     let onSelect: (String?) -> Void
 
     @State private var query = ""
+    /// 検索欄のフォーカス（キーボードの「完了」で閉じるため）
+    @FocusState private var searchFocused: Bool
 
     private var isSearching: Bool {
         !query.trimmingCharacters(in: .whitespaces).isEmpty
@@ -35,6 +37,7 @@ struct BreedPickerView: View {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(.secondary)
                     TextField("犬種を検索（例：しば、トイプー）", text: $query)
+                        .focused($searchFocused)
                         .accessibilityIdentifier("breedSearchField")
                     if isSearching {
                         Button {
@@ -118,6 +121,14 @@ struct BreedPickerView: View {
         }
         .navigationTitle("犬種を選ぶ")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            // キーボードの「完了」（キーボード表示中だけ出る）。
+            // 検索欄はキーボードに隠れて閉じにくい、という実機フィードバック対応
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("完了") { searchFocused = false }
+            }
+        }
     }
 
     // MARK: - 行
