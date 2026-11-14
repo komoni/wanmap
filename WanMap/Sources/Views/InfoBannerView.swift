@@ -8,9 +8,10 @@ struct BannerItem: Identifiable {
     let systemImage: String
 }
 
-/// 広告／イベント告知バナー（地図・カレンダー画面の上部に置く細い枠）
+/// 広告／イベント告知バナー（地図・カレンダー画面の上部に置く枠）
 /// 仕様：
-/// - レイアウトフロー内・固定高（30pt）・小さめで、操作の邪魔にならない。地図のカメラには一切触らない。
+/// - レイアウトフロー内・固定高（50pt＝バナー広告の標準サイズ 320×50 に合わせた高さ。
+///   2026-11-15、本人の決定で 30pt から拡大）。地図のカメラには一切触らない。
 /// - 中身は直近のイベント告知＋広告プレースホルダを、数秒ごとに切り替える回転表示。
 ///   同じ枠で広告とイベント告知の両方を流す前提の作りにしてある。
 /// - 切り替えはタイマーを張らず、表示中だけ生きる .task で回す（消えれば自動で止まる）。
@@ -30,13 +31,13 @@ struct InfoBannerView: View {
                     Text(current.text)
                         .lineLimit(1)
                 }
-                .font(.caption)
+                .font(.subheadline)
                 .id(index)
                 .transition(.opacity)
             }
         }
         .frame(maxWidth: .infinity)
-        .frame(height: 30)
+        .frame(height: 50)
         .background(
             LinearGradient(colors: [WanStyle.apricot.opacity(0.6), WanStyle.apricot.opacity(0.25)],
                            startPoint: .leading, endPoint: .trailing)
