@@ -2,7 +2,8 @@ import Foundation
 import Observation
 
 /// 地図チップの種類の設定（設定タブ「地図の表示」）
-/// 既定は頭文字（今までの表示）。犬種アイコンは本人が選んだ時だけ使う。
+/// 既定は犬種アイコン（2026-11-14、本人の指示で頭文字から変更）。
+/// 頭文字は設定で選んだ時だけ使う。
 /// FeedbackSettings と同じく、変更したら即 UserDefaults に保存する。
 @Observable
 final class MarkerSettings {
@@ -29,7 +30,7 @@ final class MarkerSettings {
     init(defaults: UserDefaults = .standard, launchArguments: [String] = []) {
         self.defaults = defaults
         var style = defaults.string(forKey: Self.chipStyleKey)
-            .flatMap(MarkerChipStyle.init(rawValue:)) ?? .initial
+            .flatMap(MarkerChipStyle.init(rawValue:)) ?? .breedIcon
         // 画面撮影用（DEBUGの起動引数 -wmChipStyle breedIcon / initial）。
         // AppearanceStore と同じ流儀で、引数があれば保存値より優先する。
         // init 内の代入では didSet が動かないため、保存はされない（撮影専用の一時上書き）。

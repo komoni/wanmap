@@ -21,9 +21,9 @@ final class MarkerSettingsTests: XCTestCase {
         super.tearDown()
     }
 
-    func testDefault_チップは頭文字で並びは人気順() {
+    func testDefault_チップは犬種アイコンで並びは人気順() {
         let settings = MarkerSettings(defaults: defaults)
-        XCTAssertEqual(settings.chipStyle, .initial, "既定は現状の頭文字チップ")
+        XCTAssertEqual(settings.chipStyle, .breedIcon, "既定は犬種アイコンチップ（2026-11-14に変更）")
         XCTAssertEqual(settings.breedSort, .popularity)
     }
 
@@ -50,11 +50,13 @@ final class MarkerSettingsTests: XCTestCase {
     }
 
     func testLaunchArgument_撮影用の強制は保存値より優先し保存されない() {
+        // 強制値と既定（犬種アイコン）が重なると「保存されていない」ことを
+        // 区別できないため、強制には既定と違う頭文字を使う
         let settings = MarkerSettings(defaults: defaults,
-                                      launchArguments: ["-wmChipStyle", "breedIcon"])
-        XCTAssertEqual(settings.chipStyle, .breedIcon)
+                                      launchArguments: ["-wmChipStyle", "initial"])
+        XCTAssertEqual(settings.chipStyle, .initial)
         let reloaded = MarkerSettings(defaults: defaults)
-        XCTAssertEqual(reloaded.chipStyle, .initial, "起動引数の上書きは保存されないこと")
+        XCTAssertEqual(reloaded.chipStyle, .breedIcon, "起動引数の上書きは保存されないこと")
     }
 }
 
