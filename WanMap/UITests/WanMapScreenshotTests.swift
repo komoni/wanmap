@@ -187,21 +187,21 @@ final class WanMapScreenshotTests: XCTestCase {
         attachScreenshot("design-settings")
     }
 
-    // MARK: - デザイン第二弾（下部の装飾フッター）
+    // MARK: - 月表示の連続スクロール（2026-11-14）
 
-    /// ⑩ カレンダー：既定の見た目（2段＋コーラル）で、下部に恐竜ハスキー＋波帯の
-    /// 融合シーンが出る月（5週の月）。装飾は読み上げ対象外のため、表示そのものは
-    /// 目視スクショで担保し、ここでは月のタイトルだけを確認する
-    func test10_designCalendarDinoFooter() throws {
+    /// ⑩ カレンダー：既定の見た目（2段＋コーラル）で、月表示の週ストリームが
+    /// 今月から流れ始めることの撮影。旧・装飾フッター確認はスクロール化で
+    /// 目的を終えたため、ここでは月のタイトルと初期表示を確認する
+    func test10_designCalendarMonthStream() throws {
         launchAndSettleOnCalendar()
         XCTAssertTrue(app.staticTexts["2026年11月"].waitForExistence(timeout: 10),
                       "2026年11月のタイトルが見つかりませんでした")
-        attachScreenshot("design-calendar-dino")
+        attachScreenshot("design-calendar-stream")
     }
 
-    /// ⑪ カレンダー：6週の月（2026年8月）でもグリッドが崩れず、
-    /// 余裕に応じた装飾になることの撮影（前月ボタン×3で移動）
-    func test11_designCalendarSixWeeks() throws {
+    /// ⑪ カレンダー：前月ボタン×3の連打で2026年8月へ正しく移動し、
+    /// 週ストリームで表示されることの撮影（連打は要求月の加減算で処理する設計の担保）
+    func test11_designCalendarAugustStream() throws {
         launchAndSettleOnCalendar()
         let prevButton = app.buttons["calendarPrevMonthButton"]
         XCTAssertTrue(prevButton.waitForExistence(timeout: 15),
@@ -211,7 +211,7 @@ final class WanMapScreenshotTests: XCTestCase {
         }
         XCTAssertTrue(app.staticTexts["2026年8月"].waitForExistence(timeout: 10),
                       "2026年8月のタイトルが見つかりませんでした")
-        attachScreenshot("design-calendar-sixweeks")
+        attachScreenshot("design-calendar-august")
     }
 
     // MARK: - 犬種アイコン（自分の犬の設定とチップの種類）
