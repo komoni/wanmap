@@ -303,22 +303,22 @@
     {
      "id": "salt-pepper",
      "name": "ソルト＆ペッパー",
-     "icon": null
+     "icon": "breed_miniature-schnauzer_salt-pepper"
     },
     {
      "id": "black-silver",
      "name": "ブラック＆シルバー",
-     "icon": null
+     "icon": "breed_miniature-schnauzer_black-silver"
     },
     {
      "id": "black",
      "name": "ブラック",
-     "icon": null
+     "icon": "breed_miniature-schnauzer_black"
     },
     {
      "id": "white",
      "name": "ホワイト",
-     "icon": null
+     "icon": "breed_miniature-schnauzer_white"
     }
    ]
   },
@@ -337,22 +337,22 @@
     {
      "id": "brindle",
      "name": "ブリンドル",
-     "icon": null
+     "icon": "breed_french-bulldog_brindle"
     },
     {
      "id": "fawn",
      "name": "フォーン",
-     "icon": null
+     "icon": "breed_french-bulldog_fawn"
     },
     {
      "id": "pied",
      "name": "パイド",
-     "icon": null
+     "icon": "breed_french-bulldog_pied"
     },
     {
      "id": "cream",
      "name": "クリーム",
-     "icon": null
+     "icon": "breed_french-bulldog_cream"
     }
    ]
   },
