@@ -206,11 +206,19 @@ struct DogMapView: View {
                 }
                 if !isPlacingUserPlace && searchResults.isEmpty {
                     // 「今ここ」は地図内の最下部（日付の上の余白の上）に置く
-                    // （実機フィードバック第2ラウンド、2026-11-14）
+                    // （実機フィードバック第2ラウンド、2026-11-14）。
+                    // 左下の地図の出典表示（Maps／Legal）と右下の現在位置
+                    // ボタンに被らないよう、左右の逃げを確保する
                     VStack {
                         Spacer()
-                        presenceButton
+                        HStack(spacing: 0) {
+                            Spacer()
+                            presenceButton
+                            Spacer()
+                        }
                     }
+                    .padding(.leading, 100)
+                    .padding(.trailing, 64)
                     .padding(.bottom, 8)
                 }
                 if isPlacingUserPlace {

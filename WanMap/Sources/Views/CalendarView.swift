@@ -79,14 +79,18 @@ struct CalendarView: View {
                 VStack(spacing: 6) {
                     weekdayHeader
                     GeometryReader { geo in
+                        // フッターはスクロールの下端に重ねて出す。レイアウト内の
+                        // 配置だと、ヘッダー拡大後の画面高では余白が足りず犬まで
+                        // 出せない（CIスクショで波だけになるのを確認、2026-11-14）。
+                        // 重ね分（56pt）を余白に足して判定し、最後の月ブロックが
+                        // フッターに隠れずスクロールし切れるよう、スクロール側に
+                        // 下マージンも持たせる
                         let layout = MonthDecorationLayout.compute(
-                            availableHeight: geo.size.height - 26,
+                            availableHeight: geo.size.height - 26 + 56,
                             weeks: 6, rowSpacing: 6, footerSpacing: 6,
                             minRowHeight: minRowHeight)
-                        VStack(spacing: layout.footerHeight > 0 ? 6 : 0) {
+                        ZStack(alignment: .bottom) {
                             monthBlocks
-                                .frame(height: max(0, geo.size.height - layout.footerHeight
-                                                   - (layout.footerHeight > 0 ? 6 : 0)))
                             if layout.footerHeight > 0 {
                                 DecorationFooterView(stage: layout.stage,
                                                      height: layout.footerHeight)
@@ -335,6 +339,9 @@ struct CalendarView: View {
         }
         .scrollTargetBehavior(.viewAligned)
         .scrollPosition(id: $scrollMonthID, anchor: .top)
+        // 下端に重なる装飾フッターの分だけ余白を持ち、最後のブロックも
+        // フッターの上までスクロールし切れるようにする
+        .contentMargins(.bottom, 110, for: .scrollContent)
         .onChange(of: scrollMonthID) { _, newValue in
             guard let newValue else { return }
             let observed = Self.firstOfMonth(newValue)
