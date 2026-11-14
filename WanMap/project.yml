@@ -108,6 +108,13 @@ targets:
         # 輸出コンプライアンス：非免除の暗号化は使っていない（標準HTTPSのみ）。
         # これが無いと TestFlight のビルドが「輸出コンプライアンス未回答」で止まる（2026-11-14 初回配信で実発生）。
         ITSAppUsesNonExemptEncryption: false
+        # バージョンはビルド設定への参照で書く。実ファイル方式では、ここに
+        # リテラル値を書くと（または省略すると XcodeGen が settings の値を
+        # リテラルで刻むと）CI の CURRENT_PROJECT_VERSION 上書きが効かず、
+        # TestFlight へ版数1のまま上がって「版数が既存以下」で弾かれる
+        # （2026-11-14 ビルド2試行で実発生。アーカイブ実物の plist で確認）。
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         # バックグラウンド位置更新の宣言（フェーズI）。
         # 有意な位置変化でアプリが起こされ、「今ここ」を置き換えるために使う。
         # 実際に効くのは「常に許可（Always）」が取れている時だけ。
@@ -153,6 +160,10 @@ targets:
       properties:
         # 共有シートに出る名前。無いとシミュレータへのインストール自体が失敗する（CI #15で判明）
         CFBundleDisplayName: WanMapに取り込む
+        # バージョンは本体と揃える必要があり、書式の理由は本体側の注記と同じ
+        # （ビルド設定への参照で書き、CI の版数上書きを効かせる）
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.share-services
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController

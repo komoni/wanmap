@@ -68,12 +68,17 @@ jobs:
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        # altool はアップロード失敗（版数重複など）でも終了コード0で終わることが
+        # あり、ジョブが緑のまま未配信になる（2026-11-14 ビルド2試行で実発生）。
+        # 成功文字列をログで確認できなければステップを失敗させる。
         run: |
+          set -o pipefail
           xcrun altool --upload-app \
             -f WanMap/build/ipa/WanMap.ipa \
             --type ios \
             --apiKey "$ASC_KEY_ID" \
-            --apiIssuer "$ASC_ISSUER_ID"
+            --apiIssuer "$ASC_ISSUER_ID" 2>&1 | tee "$RUNNER_TEMP/altool-upload.log"
+          grep -q "UPLOAD SUCCEEDED" "$RUNNER_TEMP/altool-upload.log"
       # 失敗時の切り分け用にアーカイブ本体を残す（保持は短め）
       - name: Upload archive (diagnostics)
         if: always()
