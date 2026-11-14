@@ -89,6 +89,8 @@ struct RootView: View {
     }
 
     @Environment(\.scenePhase) private var scenePhase
+    /// 選択中のタブ（横スワイプでの切り替えにも使う。実機フィードバック④）
+    @State private var selectedTab: AppTab = .calendar
     /// 共有シートから保留された取り込み（フェーズJ）。開いたら中身は破棄済み
     @State private var sharedImport: SharedImportRequest?
 
@@ -98,15 +100,20 @@ struct RootView: View {
     }
 
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             CalendarView()
+                .modifier(TabSwipeModifier(edgeOnly: false,
+                                           onNext: { moveTab(by: 1) },
+                                           onPrevious: { moveTab(by: -1) }))
                 .tabItem { Label("カレンダー", systemImage: "calendar") }
+                .tag(AppTab.calendar)
 
             DogMapView()
+                .modifier(TabSwipeModifier(edgeOnly: true,
+                                           onNext: { moveTab(by: 1) },
+                                           onPrevious: { moveTab(by: -1) }))
                 .tabItem { Label("地図", systemImage: "map") }
-
-            EventsView()
-                .tabItem { Label("イベント", systemImage: "ticket") }
+                .tag(AppTab.map)
         }
         .tint(WanStyle.coral)
         .environment(facilityStore)
@@ -159,6 +166,61 @@ struct RootView: View {
         guard sharedImport == nil, let text = SharedImportInbox.pendingText() else { return }
         SharedImportInbox.clear()
         sharedImport = SharedImportRequest(text: text)
+    }
+
+    /// 横スワイプでのタブ移動（端のタブでは止まる。タブの並び順と対）
+    private func moveTab(by delta: Int) {
+        let order: [AppTab] = [.calendar, .map]
+        guard let index = order.firstIndex(of: selectedTab) else { return }
+        let next = index + delta
+        guard order.indices.contains(next) else { return }
+        selectedTab = order[next]
+    }
+}
+
+/// タブの識別（並び順は TabView の宣言順と一致させる）。
+/// イベントは旧タブを廃止し、カレンダーのボタンから開く形に統合した
+/// （実機フィードバック⑩、2026-11-14）
+enum AppTab: Hashable {
+    case calendar, map
+}
+
+/// 横スワイプでタブを切り替えるジェスチャ（実機フィードバック④、2026-11-14）。
+/// - 通常画面：横方向がはっきり勝ったドラッグの終了時だけ切り替える
+///   （縦スクロールやタップと取り違えないための閾値）。
+/// - 地図（edgeOnly）：横ドラッグは地図パンそのものなので、画面の左右端
+///   28pt以内から始まったドラッグだけをタブ切り替えに使う（代案方式）。
+/// 切り替え自体は selection の変更のみで、タブバー操作・状態保持は通常の TabView と同じ。
+private struct TabSwipeModifier: ViewModifier {
+    let edgeOnly: Bool
+    let onNext: () -> Void
+    let onPrevious: () -> Void
+
+    func body(content: Content) -> some View {
+        if edgeOnly {
+            GeometryReader { proxy in
+                content.simultaneousGesture(swipeGesture(width: proxy.size.width))
+            }
+        } else {
+            content.simultaneousGesture(swipeGesture(width: nil))
+        }
+    }
+
+    private func swipeGesture(width: CGFloat?) -> some Gesture {
+        DragGesture(minimumDistance: 24, coordinateSpace: .local)
+            .onEnded { value in
+                let dx = value.translation.width
+                let dy = value.translation.height
+                // 横が縦の2.2倍を超え、64pt以上動いた時だけ「横スワイプ」とみなす
+                guard abs(dx) > 64, abs(dx) > abs(dy) * 2.2 else { return }
+                if let width {
+                    // 地図：端から始まったドラッグだけ（左端→前へ／右端→次へ）
+                    let startX = value.startLocation.x
+                    if dx > 0, startX > 28 { return }
+                    if dx < 0, startX < width - 28 { return }
+                }
+                if dx < 0 { onNext() } else { onPrevious() }
+            }
     }
 }
 
