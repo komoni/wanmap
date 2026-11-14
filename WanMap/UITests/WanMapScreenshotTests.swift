@@ -68,10 +68,14 @@ final class WanMapScreenshotTests: XCTestCase {
         attachScreenshot("02-map")
     }
 
-    /// ③ イベントタブ
+    /// ③ イベント一覧（カレンダーのイベントボタンから開くシート。
+    /// 旧イベントタブは実機フィードバック⑩で廃止し、ここへ統合した）
     func test03_events() throws {
         launchAndSettleOnCalendar()
-        app.tabBars.buttons["イベント"].tap()
+        let eventsButton = app.buttons["calendarEventsButton"]
+        XCTAssertTrue(eventsButton.waitForExistence(timeout: 15),
+                      "イベントボタンが見つかりませんでした")
+        eventsButton.tap()
         // イベント一覧にはシードの募集（ドッグウィズ）が並ぶ
         XCTAssertTrue(app.staticTexts["ドッグウィズ"].waitForExistence(timeout: 15),
                       "イベント一覧にシードの募集が表示されませんでした")

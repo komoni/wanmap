@@ -7,6 +7,8 @@ import CoreLocation
 /// - 地点は地図の中心ピンで先に決めてから開く。緯度経度の数値入力欄は作らない。
 /// - 編集では地点は変えず、名前・種別・住所・公開範囲・メモだけを触る。
 /// - 公開範囲の初期値は「招待した人だけ」。共有されるのは場所名だけで、座標は公開されない。
+/// - 名前が未入力でも仮名で登録できる（とりあえずピン立てして後で編集する
+///   使い方のため。実機フィードバック⑫、2026-11-14）
 struct UserPlaceFormView: View {
     @Environment(UserPlaceStore.self) private var userPlaceStore
     @Environment(\.dismiss) private var dismiss
@@ -47,6 +49,8 @@ struct UserPlaceFormView: View {
                     .labelsHidden()
                 } header: {
                     Label("名前と種別", systemImage: "mappin.and.ellipse")
+                } footer: {
+                    Text("名前は空欄でも登録できます（仮の名前が付きます。後から編集で直せます）")
                 }
 
                 Section {
@@ -81,9 +85,9 @@ struct UserPlaceFormView: View {
                     Button("キャンセル") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
+                    // 名前が空でも保存できる（save 側で仮名を付ける）
                     Button("保存") { save() }
                         .bold()
-                        .disabled(trimmedName.isEmpty)
                 }
             }
         }
@@ -100,12 +104,22 @@ struct UserPlaceFormView: View {
         }
     }
 
+    /// 保存に使う名前。未入力なら仮名（「仮の場所」、重なれば番号付き）を付ける
+    private var resolvedName: String {
+        if !trimmedName.isEmpty { return trimmedName }
+        let base = "仮の場所"
+        let existing = Set(userPlaceStore.places.map(\.name))
+        if !existing.contains(base) { return base }
+        var number = 2
+        while existing.contains("\(base)\(number)") { number += 1 }
+        return "\(base)\(number)"
+    }
+
     private func save() {
-        guard !trimmedName.isEmpty else { return }
         let trimmedAddress = address.trimmingCharacters(in: .whitespaces)
         let trimmedMemo = memo.trimmingCharacters(in: .whitespaces)
         if var place = editing {
-            place.name = trimmedName
+            place.name = resolvedName
             place.kind = kind
             place.address = trimmedAddress.isEmpty ? nil : trimmedAddress
             place.visibility = visibility
@@ -113,7 +127,7 @@ struct UserPlaceFormView: View {
             userPlaceStore.update(place)
         } else if let coordinate {
             let place = UserPlace(
-                id: UUID(), name: trimmedName, kind: kind,
+                id: UUID(), name: resolvedName, kind: kind,
                 address: trimmedAddress.isEmpty ? nil : trimmedAddress,
                 latitude: coordinate.latitude, longitude: coordinate.longitude,
                 visibility: visibility,

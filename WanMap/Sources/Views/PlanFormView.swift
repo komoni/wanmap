@@ -7,9 +7,11 @@ import SwiftUI
 /// - 自分で追加した場所（UserPlace）も候補に出し、公式施設より優先して先に並べる。選ぶと座標付きの予定になる
 /// - 場所のエリア（地域）入力欄は作らない
 /// - 「自分の位置を見せない」トグルはこのフォーム内にだけ置く（カレンダー／地図のバーには置かない）
-/// - 犬の名前は前回使った名前を初期値にする（PlanStore.lastDogName）
+/// - 犬の名前の初期値：プロフィール（自分の犬）の名前があればそれを優先し、
+///   無ければ前回使った名前（PlanStore.lastDogName）にする
 struct PlanFormView: View {
     @Environment(PlanStore.self) private var planStore
+    @Environment(FriendStore.self) private var friendStore
     @Environment(FacilityStore.self) private var facilityStore
     @Environment(UserPlaceStore.self) private var userPlaceStore
     @Environment(AppearanceStore.self) private var appearanceStore
@@ -136,6 +138,15 @@ struct PlanFormView: View {
                 Text(saveErrorMessage ?? "")
             }
             .onAppear(perform: resolvePlaceFromEditingPlan)
+            .onAppear {
+                // 新規作成の初期値：プロフィール（自分の犬）の名前が登録済みなら
+                // それを犬の名前欄へ反映する（実機フィードバック⑪、2026-11-14）。
+                // 編集時は予定自身の名前が初期値なので触らない
+                if editing == nil, let profileDogName = friendStore.me.dogName,
+                   !profileDogName.isEmpty {
+                    dogName = profileDogName
+                }
+            }
             .onChange(of: placeQuery) { _, newValue in
                 // 手で書き換えたら選択は解除する（そのまま住所テキストとして扱う）
                 if let facility = selectedFacility, newValue != facility.displayName {
