@@ -189,7 +189,9 @@ enum AppTab: Hashable {
 /// - 通常画面：横方向がはっきり勝ったドラッグの終了時だけ切り替える
 ///   （縦スクロールやタップと取り違えないための閾値）。
 /// - 地図（edgeOnly）：横ドラッグは地図パンそのものなので、画面の左右端
-///   28pt以内から始まったドラッグだけをタブ切り替えに使う（代案方式）。
+///   44pt以内から始まったドラッグだけをタブ切り替えに使う（代案方式。
+///   第2ラウンドで「端が掴みにくい」との所感を受け、28→44ptへ拡大し、
+///   地図自体にも左右10ptの余白を持たせた）。
 /// 切り替え自体は selection の変更のみで、タブバー操作・状態保持は通常の TabView と同じ。
 private struct TabSwipeModifier: ViewModifier {
     let edgeOnly: Bool
@@ -216,8 +218,8 @@ private struct TabSwipeModifier: ViewModifier {
                 if let width {
                     // 地図：端から始まったドラッグだけ（左端→前へ／右端→次へ）
                     let startX = value.startLocation.x
-                    if dx > 0, startX > 28 { return }
-                    if dx < 0, startX < width - 28 { return }
+                    if dx > 0, startX > 44 { return }
+                    if dx < 0, startX < width - 44 { return }
                 }
                 if dx < 0 { onNext() } else { onPrevious() }
             }

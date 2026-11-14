@@ -72,10 +72,27 @@ struct CalendarView: View {
             } else {
                 // 月表示は月ごとのブロック（月表示の形は維持し、上下スライドで
                 // 前月・次月へ移動する。iPhone純正カレンダーと同じ考え方）。
-                // 曜日見出しだけ固定し、月ブロックがその下を流れる
+                // 曜日見出しだけ固定し、月ブロックがその下を流れる。
+                // 1ブロック分の高さを超えた余白には装飾フッター（恐竜ハスキー＋
+                // 波帯）を出す。旧・月グリッド時代の設計の月ブロックへの移植で、
+                // 週ストリーム時代に外れていたフッターの復活（2026-11-14）
                 VStack(spacing: 6) {
                     weekdayHeader
-                    monthBlocks
+                    GeometryReader { geo in
+                        let layout = MonthDecorationLayout.compute(
+                            availableHeight: geo.size.height - 26,
+                            weeks: 6, rowSpacing: 6, footerSpacing: 6,
+                            minRowHeight: minRowHeight)
+                        VStack(spacing: layout.footerHeight > 0 ? 6 : 0) {
+                            monthBlocks
+                                .frame(height: max(0, geo.size.height - layout.footerHeight
+                                                   - (layout.footerHeight > 0 ? 6 : 0)))
+                            if layout.footerHeight > 0 {
+                                DecorationFooterView(stage: layout.stage,
+                                                     height: layout.footerHeight)
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -162,22 +179,27 @@ struct CalendarView: View {
     /// タイトルは fixedSize＋layoutPriority で圧縮から守る
     /// （潰れるくらいなら周りの余白が先に詰まるようにする）。
     private func monthNavCluster(compact: Bool) -> some View {
+        // 年月表示と前後マークは本人の指示で従来の1.5倍サイズ（2026-11-14）
         HStack(spacing: 2) {
             Button { shift(by: -1) } label: {
-                Image(systemName: "chevron.left").foregroundStyle(themeStore.headerIconColor)
+                Image(systemName: "chevron.left")
+                    .font(.system(size: compact ? 23 : 26))
+                    .foregroundStyle(themeStore.headerIconColor)
             }
             .buttonStyle(WanPressButtonStyle())
             .modifier(HeaderTapTarget(compact: compact))
             // アイコンのみのボタンはUIテストから確実に押せるよう識別子を付ける（見た目・挙動は不変）
             .accessibilityIdentifier("calendarPrevMonthButton")
             Text(headerTitle)
-                .font(compact ? .subheadline.weight(.semibold) : .headline)
+                .font(.system(size: compact ? 23 : 26, weight: .semibold))
                 .foregroundStyle(themeStore.dayTextColor)
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
                 .layoutPriority(2)
             Button { shift(by: 1) } label: {
-                Image(systemName: "chevron.right").foregroundStyle(themeStore.headerIconColor)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: compact ? 23 : 26))
+                    .foregroundStyle(themeStore.headerIconColor)
             }
             .buttonStyle(WanPressButtonStyle())
             .modifier(HeaderTapTarget(compact: compact))
@@ -201,26 +223,34 @@ struct CalendarView: View {
     private func auxButtons(compact: Bool) -> some View {
         HStack(spacing: compact ? 2 : 8) {
             Button { showEvents = true } label: {
-                Image(systemName: "ticket").foregroundStyle(themeStore.headerIconColor)
+                Image(systemName: "ticket")
+                    .font(.system(size: 25))
+                    .foregroundStyle(themeStore.headerIconColor)
             }
             .buttonStyle(WanPressButtonStyle())
             .modifier(HeaderTapTarget(compact: compact))
             .accessibilityIdentifier("calendarEventsButton")
             Button { showStoryImport = true } label: {
-                Image(systemName: "doc.on.clipboard").foregroundStyle(themeStore.headerIconColor)
+                Image(systemName: "doc.on.clipboard")
+                    .font(.system(size: 25))
+                    .foregroundStyle(themeStore.headerIconColor)
             }
             .buttonStyle(WanPressButtonStyle())
             .modifier(HeaderTapTarget(compact: compact))
             // アイコンのみのボタンはUIテストから確実に押せるよう識別子を付ける（見た目・挙動は不変）
             .accessibilityIdentifier("calendarStoryImportButton")
             Button { showFriends = true } label: {
-                Image(systemName: "person.2").foregroundStyle(themeStore.headerIconColor)
+                Image(systemName: "person.2")
+                    .font(.system(size: 25))
+                    .foregroundStyle(themeStore.headerIconColor)
             }
             .buttonStyle(WanPressButtonStyle())
             .modifier(HeaderTapTarget(compact: compact))
             .accessibilityIdentifier("calendarFriendsButton")
             Button { showSettings = true } label: {
-                Image(systemName: "gearshape").foregroundStyle(themeStore.headerIconColor)
+                Image(systemName: "gearshape")
+                    .font(.system(size: 25))
+                    .foregroundStyle(themeStore.headerIconColor)
             }
             .buttonStyle(WanPressButtonStyle())
             .modifier(HeaderTapTarget(compact: compact))
@@ -433,6 +463,7 @@ struct CalendarView: View {
         f.dateFormat = "M月d日（E）"
         var label = f.string(from: day)
         if calendar.isDateInToday(day) { label += "、今日" }
+        if let holiday = HolidayCalendar.name(for: day) { label += "、祝日：\(holiday)" }
         if plans.isEmpty {
             label += "、予定なし"
         } else {
@@ -531,6 +562,10 @@ struct CalendarView: View {
     }
 
     private func color(for day: Date) -> Color {
+        // 祝日は曜日に関わらず日曜と同じアクセント色にする（2026-11-14、祝日表示の追加）
+        if HolidayCalendar.isHoliday(day) {
+            return themeStore.accentColor.opacity(0.75)
+        }
         switch calendar.component(.weekday, from: day) {
         case 1: return themeStore.accentColor.opacity(0.75)    // 日曜＝アクセント
         case 7: return themeStore.saturdayColor.opacity(0.75)  // 土曜＝テーマの土曜色

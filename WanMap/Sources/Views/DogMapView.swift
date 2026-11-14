@@ -204,6 +204,15 @@ struct DogMapView: View {
                 if !isPlacingUserPlace && searchResults.isEmpty {
                     mapControlCluster
                 }
+                if !isPlacingUserPlace && searchResults.isEmpty {
+                    // 「今ここ」は地図内の最下部（日付の上の余白の上）に置く
+                    // （実機フィードバック第2ラウンド、2026-11-14）
+                    VStack {
+                        Spacer()
+                        presenceButton
+                    }
+                    .padding(.bottom, 8)
+                }
                 if isPlacingUserPlace {
                     placingOverlay
                 }
@@ -219,10 +228,14 @@ struct DogMapView: View {
                             .padding(.vertical, 5)
                             .background(.thinMaterial)
                             .clipShape(Capsule())
-                            .padding(.bottom, 10)
+                            .padding(.bottom, 84)
                     }
                 }
             }
+            // 地図の左右に余白を持たせ（端スワイプの起点を掴みやすくする）、
+            // 地図と日付の間も広げる（実機フィードバック第2ラウンド、2026-11-14）
+            .padding(.horizontal, 10)
+            .padding(.bottom, 12)
             dateStrip
             bandRow
         }
@@ -497,7 +510,9 @@ struct DogMapView: View {
     }
 
     private var topBar: some View {
-        // 現在地／取得時刻／今ここ（取消に切替）／地点登録 を1段に（プロトタイプの最終形）
+        // 現在地／取得時刻／地点登録／友達／設定 を1段に。
+        // 「今ここ」は実機フィードバック第2ラウンド（2026-11-14）で地図内の
+        // 最下部へ移設した。アイコンは本人の指示で従来の1.5倍サイズ
         HStack(spacing: 8) {
             Button {
                 if let fix = location.currentFix {
@@ -505,68 +520,84 @@ struct DogMapView: View {
                     didCenterInitially = true
                 }
             } label: {
-                Image(systemName: "location.fill").foregroundStyle(WanStyle.coral)
+                Image(systemName: "location.fill")
+                    .font(.system(size: 26))
+                    .foregroundStyle(WanStyle.coral)
             }
             .buttonStyle(WanPressButtonStyle())
             .wanTapTarget()
             if let date = location.fixDate {
                 Text(date, style: .time).font(.caption).foregroundStyle(.secondary)
             }
-            Button {
-                togglePresence()
-            } label: {
-                if planStore.ownPresence == nil {
-                    // 置く操作だと一目で分かるようピンのアイコンを添える（取消側は文言のみ）。
-                    // 足跡の装飾はラベルの流れの中に置く：文字の右に、中心側が大きく
-                    // 外へ向けて小さくなる並び＝右から歩いて近づいてくる遠近感。
-                    // 背景への重ね置きだとボタン幅によっては文字に触れてしまうため、
-                    // レイアウトとして隣に置き、幅によらず文字へ被らない形にした
-                    // （2026-11-10、右側配置の実画面で大の足跡が文字端に触れたための構造変更）
-                    HStack(spacing: 10) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "mappin")
-                            Text("今ここ")
-                        }
-                        HStack(spacing: 5) {
-                            pawprint(size: 12, opacity: 0.38, rotation: 10, y: 2)
-                            pawprint(size: 10, opacity: 0.26, rotation: -14, y: -3)
-                            pawprint(size: 8, opacity: 0.16, rotation: 16, y: 3)
-                        }
-                        .accessibilityHidden(true)
-                    }
-                    .frame(maxWidth: .infinity)
-                } else {
-                    Text("取消")
-                        .frame(maxWidth: .infinity)
-                }
-            }
-            // 主ボタン表現（配色案の地色＋白文字＋押し心地）。バーの高さ44に収める
-            .buttonStyle(WanPrimaryButtonStyle(fill: appearanceStore.primaryColor,
-                                               horizontalPadding: 14, verticalPadding: 7))
-
+            Spacer()
             Button {
                 // 地点登録モードに入る（中心ピンで地点を決める。カメラは動かさない）
                 isPlacingUserPlace = true
             } label: {
-                Image(systemName: "plus").foregroundStyle(WanStyle.coral)
+                Image(systemName: "plus")
+                    .font(.system(size: 26))
+                    .foregroundStyle(WanStyle.coral)
             }
             .buttonStyle(WanPressButtonStyle())
             .wanTapTarget()
 
             Button { showFriends = true } label: {
-                Image(systemName: "person.2").foregroundStyle(WanStyle.coral)
+                Image(systemName: "person.2")
+                    .font(.system(size: 26))
+                    .foregroundStyle(WanStyle.coral)
             }
             .buttonStyle(WanPressButtonStyle())
             .wanTapTarget()
 
             Button { showSettings = true } label: {
-                Image(systemName: "gearshape").foregroundStyle(WanStyle.coral)
+                Image(systemName: "gearshape")
+                    .font(.system(size: 26))
+                    .foregroundStyle(WanStyle.coral)
             }
             .buttonStyle(WanPressButtonStyle())
             .wanTapTarget()
         }
         .frame(height: 44)
         .padding(.horizontal, 8)
+    }
+
+    /// 「今ここ」（取消に切替）ボタン。実機フィードバック第2ラウンド
+    /// （2026-11-14）で上部バーから地図内の最下部へ移設した
+    /// （日付の上の余白の上に置く、という本人の指定）
+    private var presenceButton: some View {
+        Button {
+            togglePresence()
+        } label: {
+            if planStore.ownPresence == nil {
+                // 置く操作だと一目で分かるようピンのアイコンを添える（取消側は文言のみ）。
+                // 足跡の装飾はラベルの流れの中に置く：文字の右に、中心側が大きく
+                // 外へ向けて小さくなる並び＝右から歩いて近づいてくる遠近感。
+                // 背景への重ね置きだとボタン幅によっては文字に触れてしまうため、
+                // レイアウトとして隣に置き、幅によらず文字へ被らない形にした
+                // （2026-11-10、右側配置の実画面で大の足跡が文字端に触れたための構造変更）
+                HStack(spacing: 10) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "mappin")
+                        Text("今ここ")
+                    }
+                    HStack(spacing: 5) {
+                        pawprint(size: 12, opacity: 0.38, rotation: 10, y: 2)
+                        pawprint(size: 10, opacity: 0.26, rotation: -14, y: -3)
+                        pawprint(size: 8, opacity: 0.16, rotation: 16, y: 3)
+                    }
+                    .accessibilityHidden(true)
+                }
+                .frame(maxWidth: .infinity)
+            } else {
+                Text("取消")
+                    .frame(maxWidth: .infinity)
+            }
+        }
+        // 主ボタン表現（配色案の地色＋白文字＋押し心地）
+        .buttonStyle(WanPrimaryButtonStyle(fill: appearanceStore.primaryColor,
+                                           horizontalPadding: 14, verticalPadding: 7))
+        .frame(maxWidth: 240)
+        .shadow(color: WanStyle.cocoa.opacity(0.3), radius: 3, x: 0, y: 1)
     }
 
     // MARK: - 地点登録（中心ピン）
@@ -634,8 +665,13 @@ struct DogMapView: View {
     }
 
     private func center(on coordinate: CLLocationCoordinate2D) {
-        let region = MKCoordinateRegion(center: coordinate,
-                                        span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02))
+        // 現在地へ飛ぶ時は今の拡大率を保つ（実機フィードバック第2ラウンド：
+        // 拡大したまま現在地へ移りたいのに初期の広さへ戻ってしまう、への対応）。
+        // 日本全体表示のような極端に広い時だけ、従来の寄せ幅にする
+        let span = currentRegion.span.longitudeDelta <= 1.0
+            ? currentRegion.span
+            : MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+        let region = MKCoordinateRegion(center: coordinate, span: span)
         currentRegion = region
         position = .region(region)
     }
@@ -738,9 +774,10 @@ struct DogMapView: View {
                 }
             }
         }
-        .font(.subheadline)
-        .padding(.horizontal, 10)
-        .frame(height: 36)
+        // 施設名検索は本人の指示で従来の1.5倍サイズ（2026-11-14）
+        .font(.system(size: 22))
+        .padding(.horizontal, 14)
+        .frame(height: 52)
         .background(WanStyle.lavender.opacity(0.4))
     }
 

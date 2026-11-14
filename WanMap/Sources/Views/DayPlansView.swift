@@ -23,7 +23,12 @@ struct DayPlansView: View {
         let f = DateFormatter()
         f.locale = Locale(identifier: "ja_JP")
         f.dateFormat = "M月d日（E）"
-        return f.string(from: day)
+        var text = f.string(from: day)
+        // 祝日は日付の横に名前も出す（2026-11-14、祝日表示の追加）
+        if let holiday = HolidayCalendar.name(for: day) {
+            text += "・\(holiday)"
+        }
+        return text
     }
 
     var body: some View {

@@ -81,6 +81,9 @@ struct DecorationFooterView: View {
     let stage: MonthDecorationLayout.Stage
     let height: CGFloat
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// まばたき中か（タップで一瞬だけ true になる）
+    @State private var blinking = false
 
     /// 波帯の高さ（フッター下端に敷く）
     private static let waveBandHeight: CGFloat = 26
@@ -105,6 +108,18 @@ struct DecorationFooterView: View {
                             .resizable()
                             .scaledToFit()
                             .frame(height: height + 12)
+                            // タップでまばたき（実機フィードバック第2ラウンド、2026-11-14）。
+                            // まぶたは原画の目の位置に合わせた楕円を一瞬だけ被せる
+                            .overlay {
+                                GeometryReader { geo in
+                                    ZStack {
+                                        eyelid(in: geo.size, cx: 0.297, cy: 0.418)
+                                        eyelid(in: geo.size, cx: 0.442, cy: 0.395)
+                                    }
+                                    .opacity(blinking ? 1 : 0)
+                                }
+                            }
+                            .onTapGesture { blink() }
                         // モックにあった小さなハートとキラキラ（犬の頭の近くにだけ）
                         Image(systemName: "heart.fill")
                             .font(.system(size: 13))
@@ -119,11 +134,30 @@ struct DecorationFooterView: View {
                 }
             }
             waveBand
+                .allowsHitTesting(false)
         }
         .frame(height: height)
         .clipped()
-        .allowsHitTesting(false)
         .accessibilityHidden(true)
+    }
+
+    /// まばたき用のまぶた：顔の毛色に近いクリームの楕円。
+    /// 目の位置は原画（640×562）実測の相対座標（左目／右目）
+    private func eyelid(in size: CGSize, cx: CGFloat, cy: CGFloat) -> some View {
+        Ellipse()
+            .fill(Color(red: 0.96, green: 0.92, blue: 0.83))
+            .frame(width: size.width * 0.105, height: size.height * 0.11)
+            .position(x: size.width * cx, y: size.height * cy)
+    }
+
+    /// タップでまばたきする（閉じて少し置いて開く）。モーション軽減時はしない
+    private func blink() {
+        guard !blinking, !reduceMotion else { return }
+        withAnimation(.easeInOut(duration: 0.06)) { blinking = true }
+        Task {
+            try? await Task.sleep(for: .milliseconds(150))
+            withAnimation(.easeInOut(duration: 0.09)) { blinking = false }
+        }
     }
 
     /// 下端の波帯：波型に切り抜いたギンガム＋白い肉球1〜2個。

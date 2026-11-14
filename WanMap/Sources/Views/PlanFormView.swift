@@ -31,6 +31,9 @@ struct PlanFormView: View {
     @State private var placeQuery: String
     @State private var selectedFacility: Facility?
     @State private var selectedUserPlace: UserPlace?
+    /// 地図で選んだ場所（実機フィードバック第2ラウンド、2026-11-14）
+    @State private var selectedMapPlace: MapPickedPlace?
+    @State private var showMapPicker = false
     /// 繰り返しの種類（新規作成時のみ。nil＝繰り返しなし）
     @State private var recurrenceKind: RecurrenceKind?
     /// 繰り返しの回数（初回を含む。3／6／12）
@@ -76,7 +79,9 @@ struct PlanFormView: View {
     }
 
     /// 何か選択済みの間は候補を出さない
-    private var hasSelection: Bool { selectedFacility != nil || selectedUserPlace != nil }
+    private var hasSelection: Bool {
+        selectedFacility != nil || selectedUserPlace != nil || selectedMapPlace != nil
+    }
 
     /// 自分で追加した場所の候補（公式施設より優先して先に出す）
     private var userPlaceCandidates: [UserPlace] {
@@ -155,6 +160,9 @@ struct PlanFormView: View {
                 if let place = selectedUserPlace, newValue != place.name {
                     selectedUserPlace = nil
                 }
+                if let picked = selectedMapPlace, newValue != picked.name {
+                    selectedMapPlace = nil
+                }
             }
         }
         // 削除範囲ダイアログは Form の内側ではなく、NavigationStack
@@ -195,6 +203,19 @@ struct PlanFormView: View {
                     }
                     .buttonStyle(.plain)
                 }
+            } else if let picked = selectedMapPlace {
+                HStack {
+                    Label(picked.name, systemImage: "mappin.circle.fill")
+                        .foregroundStyle(WanStyle.coral)
+                    Spacer()
+                    Button {
+                        selectedMapPlace = nil
+                        placeQuery = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
             } else {
                 ForEach(userPlaceCandidates) { place in
                     Button {
@@ -229,11 +250,26 @@ struct PlanFormView: View {
                     }
                     .buttonStyle(.plain)
                 }
+                Button {
+                    showMapPicker = true
+                } label: {
+                    Label("地図で選ぶ（検索もできます）", systemImage: "map")
+                        .foregroundStyle(WanStyle.coral)
+                }
+                .buttonStyle(.plain)
             }
         } header: {
             Label("場所", systemImage: "mappin.and.ellipse")
         } footer: {
             Text("施設が見つからなければ、住所をそのまま入力しても大丈夫です")
+        }
+        .sheet(isPresented: $showMapPicker) {
+            PlaceMapPickerView(initialCoordinate: selectedMapPlace?.coordinate) { picked in
+                selectedMapPlace = picked
+                selectedFacility = nil
+                selectedUserPlace = nil
+                placeQuery = picked.name
+            }
         }
     }
 
@@ -501,6 +537,7 @@ struct PlanFormView: View {
         placeQuery = plan.placeName
         selectedFacility = nil
         selectedUserPlace = nil
+        selectedMapPlace = nil
         resolvePlace(named: plan.placeName,
                      savedLatitude: plan.latitude, savedLongitude: plan.longitude)
     }
@@ -521,6 +558,7 @@ struct PlanFormView: View {
         placeQuery = template.placeName
         selectedFacility = nil
         selectedUserPlace = nil
+        selectedMapPlace = nil
         resolvePlace(named: template.placeName,
                      savedLatitude: template.latitude, savedLongitude: template.longitude)
     }
@@ -602,6 +640,10 @@ struct PlanFormView: View {
             placeName = facility.displayName
             latitude = facility.lat
             longitude = facility.lng
+        } else if let picked = selectedMapPlace {
+            placeName = picked.name
+            latitude = picked.latitude
+            longitude = picked.longitude
         } else {
             // 候補から選んでいない場合は、名前が控えと同一の時だけ座標を引き継ぐ。
             // 名前の照合で、別の登録場所の座標を暗黙に持ってくることはしない（R5）。
