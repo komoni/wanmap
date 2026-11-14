@@ -15,6 +15,7 @@ struct CalendarView: View {
     @State private var displayedMonth: Date = Date()
     @State private var showYear = false
     @State private var daySelection: DaySelection?
+    @State private var showEvents = false
     @State private var showFriends = false
     @State private var showSettings = false
     @State private var showStoryImport = false
@@ -81,6 +82,7 @@ struct CalendarView: View {
         .sheet(item: $daySelection) { selection in
             DayPlansView(day: selection.day)
         }
+        .sheet(isPresented: $showEvents) { EventsView() }
         .sheet(isPresented: $showFriends) { FriendsView() }
         .sheet(isPresented: $showSettings) { SettingsView() }
         .sheet(isPresented: $showStoryImport) { StoryImportView() }
@@ -188,10 +190,17 @@ struct CalendarView: View {
         .fixedSize(horizontal: true, vertical: false)
     }
 
-    /// 補助操作（取り込み・友達・設定）。タップ領域の高さは44ptを維持し、
-    /// 1段（compact）では幅だけ30ptに詰める
+    /// 補助操作（イベント・取り込み・友達・設定）。タップ領域の高さは44ptを維持し、
+    /// 1段（compact）では幅だけ30ptに詰める。
+    /// イベントは旧タブの統合先（実機フィードバック⑩、2026-11-14）
     private func auxButtons(compact: Bool) -> some View {
         HStack(spacing: compact ? 2 : 8) {
+            Button { showEvents = true } label: {
+                Image(systemName: "ticket").foregroundStyle(themeStore.headerIconColor)
+            }
+            .buttonStyle(WanPressButtonStyle())
+            .modifier(HeaderTapTarget(compact: compact))
+            .accessibilityIdentifier("calendarEventsButton")
             Button { showStoryImport = true } label: {
                 Image(systemName: "doc.on.clipboard").foregroundStyle(themeStore.headerIconColor)
             }
@@ -327,14 +336,30 @@ struct CalendarView: View {
 
     private func dayCell(_ day: Date, height: CGFloat, plans dayPlans: [Plan]) -> some View {
         let isToday = calendar.isDateInToday(day)
+        let isFirstOfMonth = calendar.component(.day, from: day) == 1
         return VStack(spacing: 2) {
-            ZStack {
-                if isToday {
-                    Circle().fill(themeStore.accentColor).frame(width: 24, height: 24)
+            // 1日のセルは月名バッジを数字の横に並べる。右上に重ねる形だと
+            // 狭いセルで数字とくっついて「18月」のように読めてしまうため
+            // （CIスクリーンショットで実発生、2026-11-14）。バッジはピル型の
+            // 地色付きにして、数字とは別の要素として読めるようにする
+            HStack(spacing: 2) {
+                ZStack {
+                    if isToday {
+                        Circle().fill(themeStore.accentColor).frame(width: 24, height: 24)
+                    }
+                    Text("\(calendar.component(.day, from: day))")
+                        .font(.subheadline)
+                        .foregroundStyle(isToday ? Color.white : color(for: day))
                 }
-                Text("\(calendar.component(.day, from: day))")
-                    .font(.subheadline)
-                    .foregroundStyle(isToday ? Color.white : color(for: day))
+                if isFirstOfMonth {
+                    Text("\(calendar.component(.month, from: day))月")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(themeStore.accentColor)
+                        .padding(.horizontal, 3)
+                        .padding(.vertical, 1)
+                        .background(themeStore.chipColor, in: Capsule())
+                        .accessibilityHidden(true)
+                }
             }
             if isToday {
                 Text("🐾").font(.system(size: 8))
@@ -382,17 +407,6 @@ struct CalendarView: View {
         .frame(maxWidth: .infinity, minHeight: height, maxHeight: height, alignment: .top)
         .background(themeStore.cardColor)
         .clipShape(RoundedRectangle(cornerRadius: WanStyle.cardRadius))
-        .overlay(alignment: .topTrailing) {
-            // 連続スクロールで月の境目を見失わないための目印（1日のセルだけ月名を出す）
-            if calendar.component(.day, from: day) == 1 {
-                Text("\(calendar.component(.month, from: day))月")
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(themeStore.accentColor)
-                    .padding(.top, 4)
-                    .padding(.trailing, 5)
-                    .accessibilityHidden(true)
-            }
-        }
         .onTapGesture { daySelection = DaySelection(day: day) }
         // UIテストが日セル自体を一意に掴むための識別子。
         // セル内の数字テキストは中身やOSの表現に左右され、ラベル検索が安定しないため
