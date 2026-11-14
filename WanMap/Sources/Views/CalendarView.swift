@@ -324,7 +324,12 @@ struct CalendarView: View {
 
     /// 月ブロック：月名の見出し＋その月だけの週グリッド。月外の日は空白マスに
     /// して週を月と月で共有しない（純正カレンダーと同じ。週ストリーム版への
-    /// 本人の差し替え指示、2026-11-14）
+    /// 本人の差し替え指示、2026-11-14）。
+    /// 全ブロックを必ず6週分の高さに揃える（5週の月は空白週を足す）。
+    /// LazyVStack は未表示セクションの高さを推定してジャンプ先を計算するため、
+    /// 高さが月ごとに違うと推定誤差で初期表示・長距離ジャンプが手前の月に
+    /// ズレて着地する（CI run 43563554435 で初期表示が2か月ズレ＋UIテスト
+    /// 5件失敗として実発生）。高さ均一化がその対策
     private func monthSection(_ month: Date, grouped: [Date: [Plan]]) -> some View {
         let weeks = weeksIn(month)
         return VStack(alignment: .leading, spacing: 6) {
@@ -333,10 +338,10 @@ struct CalendarView: View {
                 .foregroundStyle(themeStore.accentColor)
                 .accessibilityHidden(true)
             VStack(spacing: 6) {
-                ForEach(weeks.indices, id: \.self) { weekIndex in
+                ForEach(0..<6, id: \.self) { weekIndex in
                     HStack(spacing: 6) {
                         ForEach(0..<7, id: \.self) { dayIndex in
-                            if let day = weeks[weekIndex][dayIndex] {
+                            if weekIndex < weeks.count, let day = weeks[weekIndex][dayIndex] {
                                 dayCell(day, height: minRowHeight,
                                         plans: grouped[calendar.startOfDay(for: day)] ?? [])
                             } else {
