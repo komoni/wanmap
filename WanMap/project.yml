@@ -19,8 +19,12 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.9"
-    INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "犬友と合流するために、あなたが置いた「今ここ」の位置を表示します。位置が自動で共有されることはありません。"
-    INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription: "アプリを閉じている間も「今ここ」を反映するために使います。許可した場合のみ有効です。"
+    # ※位置情報の許可文言はここ（INFOPLIST_KEY_*）には書かない。
+    # Info.plist は info.path の実ファイル方式（GENERATE_INFOPLIST_FILE=NO）の
+    # ため、この形式のビルド設定は実バンドルの Info.plist に反映されない。
+    # 実際に TestFlight 実機で「許可ダイアログ自体が出ず、設定アプリにも
+    # 位置情報の項目が現れない」不具合になった（2026-11-14）。
+    # 文言の正は WanMap ターゲットの info.properties 側。
 targets:
   WanMap:
     type: application
@@ -109,6 +113,12 @@ targets:
         # 実際に効くのは「常に許可（Always）」が取れている時だけ。
         UIBackgroundModes:
           - location
+        # 位置情報の許可文言（フェーズI）。許可ダイアログと設定アプリの
+        # 「位置情報」項目は、このキーが実バンドルの Info.plist にある時だけ
+        # 現れる。settings 側の INFOPLIST_KEY_* では入らない（上記の注記参照）。
+        # 回帰ガードは LocationUsageDescriptionTests。
+        NSLocationWhenInUseUsageDescription: "犬友と合流するために、あなたが置いた「今ここ」の位置を表示します。位置が自動で共有されることはありません。"
+        NSLocationAlwaysAndWhenInUseUsageDescription: "アプリを閉じている間も「今ここ」を反映するために使います。許可した場合のみ有効です。"
 
   # 共有シート取り込み（フェーズJ）
   # iOSの共有シート経由でテキスト（およびURL付きテキスト）だけを受ける拡張。
