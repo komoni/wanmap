@@ -101,6 +101,9 @@ targets:
           - UIInterfaceOrientationPortrait
         # 縦向きのみにする代わりにフルスクリーン必須を宣言する（これが無いと向きの警告が残る。CI #19で判明）
         UIRequiresFullScreen: true
+        # 輸出コンプライアンス：非免除の暗号化は使っていない（標準HTTPSのみ）。
+        # これが無いと TestFlight のビルドが「輸出コンプライアンス未回答」で止まる（2026-11-14 初回配信で実発生）。
+        ITSAppUsesNonExemptEncryption: false
         # バックグラウンド位置更新の宣言（フェーズI）。
         # 有意な位置変化でアプリが起こされ、「今ここ」を置き換えるために使う。
         # 実際に効くのは「常に許可（Always）」が取れている時だけ。
