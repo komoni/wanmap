@@ -528,7 +528,9 @@ struct DogMapView: View {
                     didCenterInitially = true
                 }
             } label: {
-                Image(systemName: "location.fill")
+                // 現在地マークは天気予報スペースの現在地ボタン（照準形）に統一
+                // （2026-11-15、本人の指定。SF Symbols では dot.scope が相当）
+                Image(systemName: "dot.scope")
                     .font(.system(size: 26))
                     .foregroundStyle(WanStyle.coral)
             }
@@ -1125,7 +1127,7 @@ struct DogMapView: View {
                 Circle()
                     .fill(.thinMaterial)
                     .shadow(color: WanStyle.cocoa.opacity(0.25), radius: 2, x: 0, y: 1)
-                Image(systemName: "target")
+                Image(systemName: "dot.scope")
                     .font(.system(size: 20))
                     .foregroundStyle(WanStyle.coral)
             }
