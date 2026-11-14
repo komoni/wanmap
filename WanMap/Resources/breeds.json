@@ -369,12 +369,12 @@
     {
      "id": "apricot",
      "name": "アプリコット",
-     "icon": null
+     "icon": "breed_chipu_apricot"
     },
     {
      "id": "black-tan",
      "name": "ブラック＆タン",
-     "icon": null
+     "icon": "breed_chipu_black-tan"
     }
    ]
   },
