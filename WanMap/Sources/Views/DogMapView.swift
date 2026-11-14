@@ -52,6 +52,10 @@ struct DogMapView: View {
     @State private var showSettings = false
     @State private var isZoomedIn = false
     @State private var didCenterInitially = false
+    /// 地図の方位（コンパス表示用）。カメラ確定時に取り込む
+    @State private var mapHeading: Double = 0
+    /// 位置情報が拒否されている時の案内を出したか（地図を開くたびには出さない）
+    @State private var didShowDeniedHint = false
     @State private var statusMessage: String?
     @State private var statusTask: Task<Void, Never>?
     /// 今ここを置いた直後の出現アニメーション用（設計原則メモ 2026-11-10）。
@@ -159,6 +163,7 @@ struct DogMapView: View {
                 ?? plans.max(by: { $0.date < $1.date })
             guard let targetPlan, let coord = targetPlan.coordinate else { return nil }
             return MapPerson(personName: name,
+                             displayName: targetPlan.dogName ?? name,
                              label: String((targetPlan.dogName ?? name).prefix(1)),
                              iconAsset: markerIconAsset(personName: name),
                              hasPresence: presence != nil,
@@ -196,6 +201,9 @@ struct DogMapView: View {
                     mapView(proxy: proxy)
                 }
                 friendRail
+                if !isPlacingUserPlace && searchResults.isEmpty {
+                    mapControlCluster
+                }
                 if isPlacingUserPlace {
                     placingOverlay
                 }
@@ -300,6 +308,7 @@ struct DogMapView: View {
         }
         .onMapCameraChange(frequency: .onEnd) { context in
             currentRegion = context.region
+            mapHeading = context.camera.heading
             // ズーム13以上で施設名も表示する（プロトタイプの閾値13を踏襲）。
             // region の経度幅からズームレベルを換算する。
             let delta = context.region.span.longitudeDelta
@@ -307,10 +316,22 @@ struct DogMapView: View {
             requestClusterReload()
         }
         .onAppear {
-            // 初回表示だけ現在地へ寄せる（取れていなければ日本全体のまま）
+            // 初回表示だけ現在地へ寄せる（取れていなければ日本全体のまま。
+            // 遅れて取れた場合は下の fixDate の onChange が初回だけ寄せる）
             if !didCenterInitially, let fix = location.currentFix {
                 center(on: fix.coordinate)
                 didCenterInitially = true
+            }
+            // 許可まわりの保険（実機フィードバック「GPSが取れていない」への対応）：
+            // 未決定なら地図を開いた時点でも依頼し直し、拒否されている場合は
+            // 設定への案内を一度だけ出す
+            if location.authorizationStatus == .notDetermined {
+                location.requestPermissionAndStart()
+            } else if (location.authorizationStatus == .denied
+                        || location.authorizationStatus == .restricted),
+                      location.currentFix == nil, !didShowDeniedHint {
+                didShowDeniedHint = true
+                showStatus("位置情報が許可されていません（iPhoneの設定 → WanMap → 位置情報）")
             }
         }
         .onChange(of: location.fixDate) { _, _ in
@@ -550,15 +571,41 @@ struct DogMapView: View {
 
     // MARK: - 地点登録（中心ピン）
 
+    /// ピン立て時の中心ピン：ゴルフティー＋ボールの形（実機フィードバック⑬、
+    /// 2026-11-14）。ティーの先端が地点に合うよう、呼び出し側で上にずらして使う
+    private var golfTeePin: some View {
+        VStack(spacing: -3) {
+            // ボール（白。細い輪郭で地から浮かせる）
+            Circle()
+                .fill(Color.white)
+                .frame(width: 14, height: 14)
+                .overlay(Circle().stroke(WanStyle.cocoa.opacity(0.25), lineWidth: 0.5))
+                .zIndex(1)
+            // ティー本体（広い受け口＋細い脚＋尖った先端）をパスで描く
+            Path { path in
+                path.move(to: CGPoint(x: 1, y: 0))
+                path.addLine(to: CGPoint(x: 19, y: 0))
+                path.addLine(to: CGPoint(x: 13, y: 7))
+                path.addLine(to: CGPoint(x: 11.5, y: 7))
+                path.addLine(to: CGPoint(x: 11.5, y: 19))
+                path.addLine(to: CGPoint(x: 10, y: 25))
+                path.addLine(to: CGPoint(x: 8.5, y: 19))
+                path.addLine(to: CGPoint(x: 8.5, y: 7))
+                path.addLine(to: CGPoint(x: 7, y: 7))
+                path.closeSubpath()
+            }
+            .fill(WanStyle.coral)
+            .frame(width: 20, height: 25)
+        }
+        .shadow(color: WanStyle.cocoa.opacity(0.3), radius: 2, x: 0, y: 1)
+    }
+
     /// 登録モード中の重ね表示：中心ピン（当たり判定なし）＋下部の確定バー。
     /// ピン先端が画面中心に来るよう少し上にずらす。地図のドラッグはそのまま効く。
     private var placingOverlay: some View {
         ZStack {
-            Image(systemName: "mappin")
-                .font(.system(size: 38))
-                .foregroundStyle(WanStyle.coral)
-                .shadow(radius: 2)
-                .offset(y: -19)
+            golfTeePin
+                .offset(y: -18)
                 .allowsHitTesting(false)
             VStack {
                 Spacer()
@@ -871,7 +918,9 @@ struct DogMapView: View {
             Spacer()
         }
         .padding(.horizontal, 8)
-        .padding(.bottom, 4)
+        // 下端はタブバーとの誤タッチ防止に余白を広めに取る
+        // （実機フィードバック⑦、2026-11-14。日付ボタン帯全体とタブの分離）
+        .padding(.bottom, 14)
     }
 
     /// 年ジャンプ（最小実装）：範囲内（今日から84日）に含まれる年を選び、その年の先頭の日へ移動する
@@ -943,12 +992,103 @@ struct DogMapView: View {
                         }
                     }
                     .buttonStyle(.plain)
+                    // 犬種アイコン表示では見た目に名前が出ないため、読み上げ名を付ける
+                    // （VoiceOver 対応を兼ね、UIテストもこの名前で探す）
+                    .accessibilityLabel(person.displayName)
                 }
             }
             Spacer()
         }
         .frame(maxWidth: .infinity, alignment: .trailing)
         .padding(.trailing, 6)
+    }
+
+    // MARK: - 地図コントロール（右下：コンパス＋現在位置）
+
+    /// 右下の操作クラスタ（実機フィードバック⑧、2026-11-14）。
+    /// 上段＝東西南北のコンパス（タップで北を上に戻す）、下段＝現在位置に
+    /// 戻るボタン（シンプルなターゲットマーク）。上部バーの現在地ボタンが
+    /// 小さく押しにくい、という声への追加配置（上部のボタンは従来どおり残す）
+    private var mapControlCluster: some View {
+        VStack {
+            Spacer()
+            HStack {
+                Spacer()
+                VStack(spacing: 10) {
+                    compassButton
+                    recenterButton
+                }
+            }
+            .padding(.trailing, 12)
+            .padding(.bottom, 12)
+        }
+    }
+
+    /// コンパス：北（コーラル）・東・南・西の文字盤が地図の方位に合わせて回る。
+    /// 方位はカメラ確定時（onMapCameraChange の .onEnd）に取り込む
+    private var compassButton: some View {
+        Button {
+            // リージョン指定に戻すと方位は北（0度）へ戻る
+            position = .region(currentRegion)
+            mapHeading = 0
+        } label: {
+            ZStack {
+                Circle()
+                    .fill(.thinMaterial)
+                    .shadow(color: WanStyle.cocoa.opacity(0.25), radius: 2, x: 0, y: 1)
+                ZStack {
+                    Text("北")
+                        .font(.system(size: 9).bold())
+                        .foregroundStyle(WanStyle.coral)
+                        .offset(y: -14)
+                    Text("東")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+                        .offset(x: 14)
+                    Text("南")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+                        .offset(y: 14)
+                    Text("西")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+                        .offset(x: -14)
+                    Image(systemName: "arrowtriangle.up.fill")
+                        .font(.system(size: 7))
+                        .foregroundStyle(WanStyle.coral)
+                }
+                .rotationEffect(.degrees(-mapHeading))
+            }
+            .frame(width: 44, height: 44)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("コンパス。タップで北を上に戻す")
+        .accessibilityIdentifier("mapCompassButton")
+    }
+
+    /// 現在位置に戻る（ターゲットマーク）。まだ取れていなければ案内を出す
+    private var recenterButton: some View {
+        Button {
+            if let fix = location.currentFix {
+                center(on: fix.coordinate)
+                didCenterInitially = true
+            } else {
+                showStatus("現在地がまだ取れていません")
+            }
+        } label: {
+            ZStack {
+                Circle()
+                    .fill(.thinMaterial)
+                    .shadow(color: WanStyle.cocoa.opacity(0.25), radius: 2, x: 0, y: 1)
+                Image(systemName: "target")
+                    .font(.system(size: 20))
+                    .foregroundStyle(WanStyle.coral)
+            }
+            .frame(width: 44, height: 44)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("現在位置に戻る")
+        .accessibilityIdentifier("mapRecenterButton")
     }
 
     private func togglePresence() {
@@ -1058,6 +1198,7 @@ private struct FacilityCluster: Identifiable {
 /// 友達レールの1人分（端末内データから組み立てる。実通信はまだ無い）
 private struct MapPerson: Identifiable {
     let personName: String
+    let displayName: String            // 犬の名前（無ければ人の表示名）。レールの読み上げ名に使う
     let label: String                  // アイコンに出す頭文字（犬の名前優先）
     let iconAsset: String?             // 犬種アイコンモード時のアセット名（頭文字モードは nil）
     let hasPresence: Bool              // 「今ここ」が出ている人か

@@ -583,8 +583,10 @@ final class WanMapFlowTests: XCTestCase {
                       "地図が表示されませんでした")
         Thread.sleep(forTimeInterval: 2)
         selectMapDay(on: first1)
-        // 友達レールは座標のある予定から組み立てられる（初文字がラベルになる）
-        XCTAssertTrue(app.buttons["ハ"].waitForExistence(timeout: 10),
+        // 友達レールは座標のある予定から組み立てられる。チップの既定が
+        // 犬種アイコン表示になったため（実機フィードバック3、2026-11-14）、
+        // レールのボタンは犬の名前をアクセシビリティラベルに持つので名前で探す
+        XCTAssertTrue(app.buttons["ハス太"].waitForExistence(timeout: 10),
                       "地図の友達レールに登録した犬が出ませんでした")
         attachScreenshot("demo-aichi-04-map")
 
