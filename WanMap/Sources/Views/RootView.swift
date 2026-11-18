@@ -235,21 +235,34 @@ private struct TabSwipeModifier: ViewModifier {
     #endif
 
     func body(content: Content) -> some View {
-        GeometryReader { proxy in
-            let width = proxy.size.width
-            let offset = effectiveOffset(width: width)
-            ZStack {
-                if offset != 0 {
-                    curtainBackdrop(offset: offset, width: width)
-                }
-                content
-                    .offset(x: offset)
+        if edgeOnly {
+            // 地図は従来どおり GeometryReader で幅を取る（この形は従来から
+            // 地図側で使われていて実績がある）
+            GeometryReader { proxy in
+                curtainStack(content: content, width: proxy.size.width)
             }
-            .simultaneousGesture(swipeGesture(width: width))
-            .onAppear {
-                // 切り替え直後に前タブ側のオフセットが残らないための保険
-                if dragLock == .undecided { dragOffset = 0 }
+        } else {
+            // カレンダー側は GeometryReader で包まない。カレンダー内部にも
+            // GeometryReader（装飾フッターのレイアウト計算）があり、二重に
+            // 包むと月スクロールの着地が1か月分ズレる回帰が CI で 2/2 再現した
+            // （フロー7、run 44254780991。切り分けとして外側を外した形）
+            curtainStack(content: content, width: UIScreen.main.bounds.width)
+        }
+    }
+
+    private func curtainStack(content: Content, width: CGFloat) -> some View {
+        let offset = effectiveOffset(width: width)
+        return ZStack {
+            if offset != 0 {
+                curtainBackdrop(offset: offset, width: width)
             }
+            content
+                .offset(x: offset)
+        }
+        .simultaneousGesture(swipeGesture(width: width))
+        .onAppear {
+            // 切り替え直後に前タブ側のオフセットが残らないための保険
+            if dragLock == .undecided { dragOffset = 0 }
         }
     }
 
