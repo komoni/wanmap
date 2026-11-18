@@ -300,6 +300,17 @@ final class WanMapScreenshotTests: XCTestCase {
         attachScreenshot("theme-calendar-cool")
     }
 
+    /// ⑰ カーテン方式タブ切り替えの試作（第3ラウンド項目4、2026-11-18）：
+    /// カレンダーを左へ半分強スライドさせた固定状態で撮影し、後ろの面
+    /// （「地図へ移動 >>」＋恐竜ハスキー）が覗く形を目視確認する。
+    /// 実ジェスチャの追従・バネの感触はシミュレータ撮影では判定できないため
+    /// 実機（TestFlight）での評価に回す。ここでは表示の形だけを担保する。
+    func test17_curtainPreview() throws {
+        app.launchArguments += ["-wmCurtainPreview"]
+        launchAndSettleOnCalendar()
+        attachScreenshot("curtain-preview-calendar")
+    }
+
     // MARK: - 共通処理
 
     /// ヘッダー要素が画面（window）の内側に収まっていることの回帰ガード。

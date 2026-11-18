@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 #if DEBUG
 import CoreLocation
 import SwiftLocation
@@ -103,6 +104,8 @@ struct RootView: View {
         TabView(selection: $selectedTab) {
             CalendarView()
                 .modifier(TabSwipeModifier(edgeOnly: false,
+                                           nextLabel: "地図へ移動 >>",
+                                           previousLabel: nil,
                                            onNext: { moveTab(by: 1) },
                                            onPrevious: { moveTab(by: -1) }))
                 .tabItem { Label("カレンダー", systemImage: "calendar") }
@@ -110,6 +113,8 @@ struct RootView: View {
 
             DogMapView()
                 .modifier(TabSwipeModifier(edgeOnly: true,
+                                           nextLabel: nil,
+                                           previousLabel: "<< カレンダーへ移動",
                                            onNext: { moveTab(by: 1) },
                                            onPrevious: { moveTab(by: -1) }))
                 .tabItem { Label("地図", systemImage: "map") }
@@ -186,42 +191,193 @@ enum AppTab: Hashable {
 }
 
 /// 横スワイプでタブを切り替えるジェスチャ（実機フィードバック④、2026-11-14）。
-/// - 通常画面：横方向がはっきり勝ったドラッグの終了時だけ切り替える
-///   （縦スクロールやタップと取り違えないための閾値）。
+/// 第3ラウンド項目4の試作として「カーテン方式」に作り替えた（2026-11-18、本人の発案）：
+/// 遷移先の実画面を指に追従させる代わりに、現在の画面そのものを指でスライドさせ、
+/// 普段見えない後ろの面（行き先ラベル＋恐竜ハスキー）を覗かせる。半分程度
+/// スライドしたら切り替え、届かなければバネで戻る。素早いフリックは
+/// 予測到達位置（predictedEndTranslation）で半分を超えるか判定する。
+/// - 通常画面：横方向がはっきり勝ったドラッグだけをカーテンに使う
+///   （縦スクロールやタップと取り違えないための方向ロック）。
 /// - 地図（edgeOnly）：横ドラッグは地図パンそのものなので、画面の左右端
-///   44pt以内から始まったドラッグだけをタブ切り替えに使う（代案方式。
-///   第2ラウンドで「端が掴みにくい」との所感を受け、28→44ptへ拡大し、
-///   地図自体にも左右10ptの余白を持たせた）。
+///   44pt以内から始まったドラッグだけをタブ切り替えに使う（従来どおり。
+///   左端開始は右方向だけ、右端開始は左方向だけを受け付ける）。
+/// - 「動きを減らす」設定時はスライドさせず、従来どおり終了時判定だけで切り替える。
 /// 切り替え自体は selection の変更のみで、タブバー操作・状態保持は通常の TabView と同じ。
 private struct TabSwipeModifier: ViewModifier {
     let edgeOnly: Bool
+    /// 左方向スワイプ（次へ）で後ろに出るラベル。nil の方向へはスライドしない
+    let nextLabel: String?
+    /// 右方向スワイプ（前へ）で後ろに出るラベル
+    let previousLabel: String?
     let onNext: () -> Void
     let onPrevious: () -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var dragOffset: CGFloat = 0
+    @State private var dragLock: DragLock = .undecided
+
+    private enum DragLock {
+        case undecided, horizontal, vertical, outside
+    }
+
+    /// 背面に出す恐竜ハスキー（DecorationFooter と同じ同梱PNGを読む。
+    /// 読み込めない場合はラベルだけで出す）
+    private static let dinoImage: UIImage? = {
+        guard let url = Bundle.main.url(forResource: "husky-dino-peek", withExtension: "png") else { return nil }
+        return UIImage(contentsOfFile: url.path)
+    }()
+
+    #if DEBUG
+    /// 画面撮影専用（-wmCurtainPreview）：カーテンを半分強開けた状態で固定表示する
+    private var previewRatio: CGFloat? {
+        ProcessInfo.processInfo.arguments.contains("-wmCurtainPreview") ? -0.55 : nil
+    }
+    #endif
+
     func body(content: Content) -> some View {
-        if edgeOnly {
-            GeometryReader { proxy in
-                content.simultaneousGesture(swipeGesture(width: proxy.size.width))
+        GeometryReader { proxy in
+            let width = proxy.size.width
+            let offset = effectiveOffset(width: width)
+            ZStack {
+                if offset != 0 {
+                    curtainBackdrop(offset: offset, width: width)
+                }
+                content
+                    .offset(x: offset)
             }
-        } else {
-            content.simultaneousGesture(swipeGesture(width: nil))
+            .simultaneousGesture(swipeGesture(width: width))
+            .onAppear {
+                // 切り替え直後に前タブ側のオフセットが残らないための保険
+                if dragLock == .undecided { dragOffset = 0 }
+            }
         }
     }
 
-    private func swipeGesture(width: CGFloat?) -> some Gesture {
-        DragGesture(minimumDistance: 24, coordinateSpace: .local)
-            .onEnded { value in
+    private func effectiveOffset(width: CGFloat) -> CGFloat {
+        #if DEBUG
+        if let previewRatio { return width * previewRatio }
+        #endif
+        return dragOffset
+    }
+
+    /// 後ろの面：行き先ラベル＋恐竜ハスキーを、覗いている側に寄せて置く
+    @ViewBuilder
+    private func curtainBackdrop(offset: CGFloat, width: CGFloat) -> some View {
+        ZStack {
+            WanStyle.canvas
+            if offset < 0, let nextLabel {
+                HStack {
+                    Spacer()
+                    curtainPanel(label: nextLabel, panelWidth: width * 0.55)
+                }
+            } else if offset > 0, let previousLabel {
+                HStack {
+                    curtainPanel(label: previousLabel, panelWidth: width * 0.55)
+                    Spacer()
+                }
+            }
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    private func curtainPanel(label: String, panelWidth: CGFloat) -> some View {
+        VStack(spacing: 10) {
+            if let dino = Self.dinoImage {
+                Image(uiImage: dino)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(height: 170)
+            }
+            Text(label)
+                .font(.title3.bold())
+                .foregroundStyle(WanStyle.cocoa)
+        }
+        .frame(width: panelWidth)
+    }
+
+    private func swipeGesture(width: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 12, coordinateSpace: .local)
+            .onChanged { value in
+                guard !reduceMotion else { return }
+                #if DEBUG
+                if previewRatio != nil { return }
+                #endif
                 let dx = value.translation.width
                 let dy = value.translation.height
-                // 横が縦の2.2倍を超え、64pt以上動いた時だけ「横スワイプ」とみなす
-                guard abs(dx) > 64, abs(dx) > abs(dy) * 2.2 else { return }
-                if let width {
-                    // 地図：端から始まったドラッグだけ（左端→前へ／右端→次へ）
-                    let startX = value.startLocation.x
-                    if dx > 0, startX > 44 { return }
-                    if dx < 0, startX < width - 44 { return }
+                if dragLock == .undecided {
+                    if edgeOnly {
+                        // 端ゾーン外から始まったドラッグは対象外（地図パンに譲る）
+                        let startX = value.startLocation.x
+                        guard startX <= 44 || startX >= width - 44 else {
+                            dragLock = .outside
+                            return
+                        }
+                    }
+                    if abs(dy) > 14, abs(dy) > abs(dx) {
+                        dragLock = .vertical
+                    } else if abs(dx) > 16, abs(dx) > abs(dy) * 1.4 {
+                        dragLock = .horizontal
+                    } else {
+                        return
+                    }
                 }
-                if dx < 0 { onNext() } else { onPrevious() }
+                guard dragLock == .horizontal else { return }
+                var proposed = dx
+                if proposed < 0, nextLabel == nil { proposed = 0 }
+                if proposed > 0, previousLabel == nil { proposed = 0 }
+                if edgeOnly {
+                    // 地図：左端開始は右方向だけ、右端開始は左方向だけ
+                    let startX = value.startLocation.x
+                    if startX <= 44, proposed < 0 { proposed = 0 }
+                    if startX >= width - 44, proposed > 0 { proposed = 0 }
+                }
+                dragOffset = max(-width, min(width, proposed))
+            }
+            .onEnded { value in
+                let wasHorizontal = dragLock == .horizontal
+                let offset = dragOffset
+                dragLock = .undecided
+                if reduceMotion {
+                    // 動きを減らす設定では従来どおり、終了時の判定だけで切り替える
+                    let dx = value.translation.width
+                    let dy = value.translation.height
+                    guard abs(dx) > 64, abs(dx) > abs(dy) * 2.2 else { return }
+                    if edgeOnly {
+                        let startX = value.startLocation.x
+                        if dx > 0, startX > 44 { return }
+                        if dx < 0, startX < width - 44 { return }
+                    }
+                    if dx < 0, nextLabel != nil { onNext() }
+                    if dx > 0, previousLabel != nil { onPrevious() }
+                    return
+                }
+                guard wasHorizontal, offset != 0 else {
+                    dragOffset = 0
+                    return
+                }
+                // 半分程度スライドしたら切り替え（フリックは予測到達位置で判定）
+                let commitDistance = width / 2
+                let predicted = value.predictedEndTranslation.width
+                let commits = abs(offset) >= commitDistance
+                    || (offset < 0 ? predicted <= -commitDistance : predicted >= commitDistance)
+                if commits {
+                    let goNext = offset < 0
+                    withAnimation(.easeIn(duration: 0.16)) {
+                        dragOffset = goNext ? -width : width
+                    }
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(170))
+                        if goNext { onNext() } else { onPrevious() }
+                        var transaction = Transaction()
+                        transaction.disablesAnimations = true
+                        withTransaction(transaction) { dragOffset = 0 }
+                    }
+                } else {
+                    withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+                        dragOffset = 0
+                    }
+                }
             }
     }
 }
