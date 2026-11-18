@@ -305,9 +305,19 @@ final class WanMapScreenshotTests: XCTestCase {
     /// （「地図へ移動 >>」＋恐竜ハスキー）が覗く形を目視確認する。
     /// 実ジェスチャの追従・バネの感触はシミュレータ撮影では判定できないため
     /// 実機（TestFlight）での評価に回す。ここでは表示の形だけを担保する。
+    /// プレビューではタブバーごと左へずれてタブボタンが画面外へ出るため、
+    /// 通常の launchAndSettleOnCalendar（タブのタップで位置情報アラートを
+    /// 捌く）は使えない。タブは叩かず、無害な位置のタップで割り込み
+    /// モニタだけを働かせる（run 44266324885 の失敗を受けて変更）。
     func test17_curtainPreview() throws {
         app.launchArguments += ["-wmCurtainPreview"]
-        launchAndSettleOnCalendar()
+        app.launch()
+        let calendarTab = app.tabBars.buttons["カレンダー"]
+        XCTAssertTrue(calendarTab.waitForExistence(timeout: 30),
+                      "タブバーが表示されませんでした")
+        Thread.sleep(forTimeInterval: 2)
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.78, dy: 0.45)).tap()
+        Thread.sleep(forTimeInterval: 1)
         attachScreenshot("curtain-preview-calendar")
     }
 
