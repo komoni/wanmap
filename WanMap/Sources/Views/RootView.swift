@@ -90,8 +90,21 @@ struct RootView: View {
     }
 
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// 選択中のタブ（横スワイプでの切り替えにも使う。実機フィードバック④）
     @State private var selectedTab: AppTab = .calendar
+    /// カーテン方式タブ切り替え（第3ラウンド項目4の試作、2026-11-18）のドラッグ量。
+    /// TabView の外側（RootView）で保持し、各タブの中身には一切包みを足さない。
+    /// タブの中身を ZStack 等で包む形は、カレンダーの月スクロールの着地が
+    /// 1か月ズレる回帰を CI で 3/3 再現したため採らない（run 44254780991／
+    /// 44262846155。包みを外す切り分けで確定したら DEV_LESSONS へ記録する）
+    @State private var curtainOffset: CGFloat = 0
+    @State private var curtainLock: CurtainDragLock = .undecided
+
+    private enum CurtainDragLock {
+        case undecided, horizontal, vertical, outside
+    }
+
     /// 共有シートから保留された取り込み（フェーズJ）。開いたら中身は破棄済み
     @State private var sharedImport: SharedImportRequest?
 
@@ -101,24 +114,21 @@ struct RootView: View {
     }
 
     var body: some View {
-        TabView(selection: $selectedTab) {
-            CalendarView()
-                .modifier(TabSwipeModifier(edgeOnly: false,
-                                           nextLabel: "地図へ移動 >>",
-                                           previousLabel: nil,
-                                           onNext: { moveTab(by: 1) },
-                                           onPrevious: { moveTab(by: -1) }))
-                .tabItem { Label("カレンダー", systemImage: "calendar") }
-                .tag(AppTab.calendar)
+        ZStack {
+            if effectiveCurtainOffset != 0 {
+                curtainBackdrop(offset: effectiveCurtainOffset)
+            }
+            TabView(selection: $selectedTab) {
+                CalendarView()
+                    .tabItem { Label("カレンダー", systemImage: "calendar") }
+                    .tag(AppTab.calendar)
 
-            DogMapView()
-                .modifier(TabSwipeModifier(edgeOnly: true,
-                                           nextLabel: nil,
-                                           previousLabel: "<< カレンダーへ移動",
-                                           onNext: { moveTab(by: 1) },
-                                           onPrevious: { moveTab(by: -1) }))
-                .tabItem { Label("地図", systemImage: "map") }
-                .tag(AppTab.map)
+                DogMapView()
+                    .tabItem { Label("地図", systemImage: "map") }
+                    .tag(AppTab.map)
+            }
+            .offset(x: effectiveCurtainOffset)
+            .simultaneousGesture(curtainGesture)
         }
         .tint(WanStyle.coral)
         .environment(facilityStore)
@@ -181,111 +191,55 @@ struct RootView: View {
         guard order.indices.contains(next) else { return }
         selectedTab = order[next]
     }
-}
 
-/// タブの識別（並び順は TabView の宣言順と一致させる）。
-/// イベントは旧タブを廃止し、カレンダーのボタンから開く形に統合した
-/// （実機フィードバック⑩、2026-11-14）
-enum AppTab: Hashable {
-    case calendar, map
-}
+    // MARK: - カーテン方式タブ切り替え（第3ラウンド項目4の試作、2026-11-18・本人の発案）
 
-/// 横スワイプでタブを切り替えるジェスチャ（実機フィードバック④、2026-11-14）。
-/// 第3ラウンド項目4の試作として「カーテン方式」に作り替えた（2026-11-18、本人の発案）：
-/// 遷移先の実画面を指に追従させる代わりに、現在の画面そのものを指でスライドさせ、
-/// 普段見えない後ろの面（行き先ラベル＋恐竜ハスキー）を覗かせる。半分程度
-/// スライドしたら切り替え、届かなければバネで戻る。素早いフリックは
-/// 予測到達位置（predictedEndTranslation）で半分を超えるか判定する。
-/// - 通常画面：横方向がはっきり勝ったドラッグだけをカーテンに使う
-///   （縦スクロールやタップと取り違えないための方向ロック）。
-/// - 地図（edgeOnly）：横ドラッグは地図パンそのものなので、画面の左右端
-///   44pt以内から始まったドラッグだけをタブ切り替えに使う（従来どおり。
-///   左端開始は右方向だけ、右端開始は左方向だけを受け付ける）。
-/// - 「動きを減らす」設定時はスライドさせず、従来どおり終了時判定だけで切り替える。
-/// 切り替え自体は selection の変更のみで、タブバー操作・状態保持は通常の TabView と同じ。
-private struct TabSwipeModifier: ViewModifier {
-    let edgeOnly: Bool
-    /// 左方向スワイプ（次へ）で後ろに出るラベル。nil の方向へはスライドしない
-    let nextLabel: String?
+    /// 画面幅（タブの中身は全幅なので画面幅と一致する）
+    private var curtainWidth: CGFloat { UIScreen.main.bounds.width }
+
+    /// 左方向スワイプ（次へ）で後ろに出るラベル。無い方向へはスライドしない
+    private var curtainNextLabel: String? {
+        selectedTab == .calendar ? "地図へ移動 >>" : nil
+    }
+
     /// 右方向スワイプ（前へ）で後ろに出るラベル
-    let previousLabel: String?
-    let onNext: () -> Void
-    let onPrevious: () -> Void
+    private var curtainPreviousLabel: String? {
+        selectedTab == .map ? "<< カレンダーへ移動" : nil
+    }
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var dragOffset: CGFloat = 0
-    @State private var dragLock: DragLock = .undecided
+    /// 地図タブでは端ゾーン開始のドラッグだけを対象にする（地図パンと競合回避）
+    private var curtainEdgeOnly: Bool { selectedTab == .map }
 
-    private enum DragLock {
-        case undecided, horizontal, vertical, outside
+    private var effectiveCurtainOffset: CGFloat {
+        #if DEBUG
+        // 画面撮影専用（-wmCurtainPreview）：カーテンを半分強開けた状態で固定表示する
+        if ProcessInfo.processInfo.arguments.contains("-wmCurtainPreview") {
+            return curtainWidth * -0.55
+        }
+        #endif
+        return curtainOffset
     }
 
     /// 背面に出す恐竜ハスキー（DecorationFooter と同じ同梱PNGを読む。
     /// 読み込めない場合はラベルだけで出す）
-    private static let dinoImage: UIImage? = {
+    private static let curtainDinoImage: UIImage? = {
         guard let url = Bundle.main.url(forResource: "husky-dino-peek", withExtension: "png") else { return nil }
         return UIImage(contentsOfFile: url.path)
     }()
 
-    #if DEBUG
-    /// 画面撮影専用（-wmCurtainPreview）：カーテンを半分強開けた状態で固定表示する
-    private var previewRatio: CGFloat? {
-        ProcessInfo.processInfo.arguments.contains("-wmCurtainPreview") ? -0.55 : nil
-    }
-    #endif
-
-    func body(content: Content) -> some View {
-        if edgeOnly {
-            // 地図は従来どおり GeometryReader で幅を取る（この形は従来から
-            // 地図側で使われていて実績がある）
-            GeometryReader { proxy in
-                curtainStack(content: content, width: proxy.size.width)
-            }
-        } else {
-            // カレンダー側は GeometryReader で包まない。カレンダー内部にも
-            // GeometryReader（装飾フッターのレイアウト計算）があり、二重に
-            // 包むと月スクロールの着地が1か月分ズレる回帰が CI で 2/2 再現した
-            // （フロー7、run 44254780991。切り分けとして外側を外した形）
-            curtainStack(content: content, width: UIScreen.main.bounds.width)
-        }
-    }
-
-    private func curtainStack(content: Content, width: CGFloat) -> some View {
-        let offset = effectiveOffset(width: width)
-        return ZStack {
-            if offset != 0 {
-                curtainBackdrop(offset: offset, width: width)
-            }
-            content
-                .offset(x: offset)
-        }
-        .simultaneousGesture(swipeGesture(width: width))
-        .onAppear {
-            // 切り替え直後に前タブ側のオフセットが残らないための保険
-            if dragLock == .undecided { dragOffset = 0 }
-        }
-    }
-
-    private func effectiveOffset(width: CGFloat) -> CGFloat {
-        #if DEBUG
-        if let previewRatio { return width * previewRatio }
-        #endif
-        return dragOffset
-    }
-
     /// 後ろの面：行き先ラベル＋恐竜ハスキーを、覗いている側に寄せて置く
     @ViewBuilder
-    private func curtainBackdrop(offset: CGFloat, width: CGFloat) -> some View {
+    private func curtainBackdrop(offset: CGFloat) -> some View {
         ZStack {
             WanStyle.canvas
-            if offset < 0, let nextLabel {
+            if offset < 0, let label = curtainNextLabel {
                 HStack {
                     Spacer()
-                    curtainPanel(label: nextLabel, panelWidth: width * 0.55)
+                    curtainPanel(label: label)
                 }
-            } else if offset > 0, let previousLabel {
+            } else if offset > 0, let label = curtainPreviousLabel {
                 HStack {
-                    curtainPanel(label: previousLabel, panelWidth: width * 0.55)
+                    curtainPanel(label: label)
                     Spacer()
                 }
             }
@@ -294,9 +248,9 @@ private struct TabSwipeModifier: ViewModifier {
         .accessibilityHidden(true)
     }
 
-    private func curtainPanel(label: String, panelWidth: CGFloat) -> some View {
+    private func curtainPanel(label: String) -> some View {
         VStack(spacing: 10) {
-            if let dino = Self.dinoImage {
+            if let dino = Self.curtainDinoImage {
                 Image(uiImage: dino)
                     .resizable()
                     .scaledToFit()
@@ -306,70 +260,77 @@ private struct TabSwipeModifier: ViewModifier {
                 .font(.title3.bold())
                 .foregroundStyle(WanStyle.cocoa)
         }
-        .frame(width: panelWidth)
+        .frame(width: curtainWidth * 0.55)
     }
 
-    private func swipeGesture(width: CGFloat) -> some Gesture {
+    /// 現在の画面そのものを指でスライドさせるドラッグ。半分程度スライドしたら
+    /// 切り替え、届かなければバネで戻る。素早いフリックは予測到達位置
+    /// （predictedEndTranslation）で半分を超えるか判定する。
+    /// 「動きを減らす」設定時はスライドさせず、従来どおり終了時判定だけで切り替える。
+    private var curtainGesture: some Gesture {
         DragGesture(minimumDistance: 12, coordinateSpace: .local)
             .onChanged { value in
                 guard !reduceMotion else { return }
                 #if DEBUG
-                if previewRatio != nil { return }
+                if ProcessInfo.processInfo.arguments.contains("-wmCurtainPreview") { return }
                 #endif
+                let width = curtainWidth
                 let dx = value.translation.width
                 let dy = value.translation.height
-                if dragLock == .undecided {
-                    if edgeOnly {
+                if curtainLock == .undecided {
+                    if curtainEdgeOnly {
                         // 端ゾーン外から始まったドラッグは対象外（地図パンに譲る）
                         let startX = value.startLocation.x
                         guard startX <= 44 || startX >= width - 44 else {
-                            dragLock = .outside
+                            curtainLock = .outside
                             return
                         }
                     }
                     if abs(dy) > 14, abs(dy) > abs(dx) {
-                        dragLock = .vertical
+                        curtainLock = .vertical
                     } else if abs(dx) > 16, abs(dx) > abs(dy) * 1.4 {
-                        dragLock = .horizontal
+                        curtainLock = .horizontal
                     } else {
                         return
                     }
                 }
-                guard dragLock == .horizontal else { return }
+                guard curtainLock == .horizontal else { return }
                 var proposed = dx
-                if proposed < 0, nextLabel == nil { proposed = 0 }
-                if proposed > 0, previousLabel == nil { proposed = 0 }
-                if edgeOnly {
+                if proposed < 0, curtainNextLabel == nil { proposed = 0 }
+                if proposed > 0, curtainPreviousLabel == nil { proposed = 0 }
+                if curtainEdgeOnly {
                     // 地図：左端開始は右方向だけ、右端開始は左方向だけ
                     let startX = value.startLocation.x
                     if startX <= 44, proposed < 0 { proposed = 0 }
                     if startX >= width - 44, proposed > 0 { proposed = 0 }
                 }
-                dragOffset = max(-width, min(width, proposed))
+                curtainOffset = max(-width, min(width, proposed))
             }
             .onEnded { value in
-                let wasHorizontal = dragLock == .horizontal
-                let offset = dragOffset
-                dragLock = .undecided
+                let wasHorizontal = curtainLock == .horizontal
+                let offset = curtainOffset
+                curtainLock = .undecided
                 if reduceMotion {
                     // 動きを減らす設定では従来どおり、終了時の判定だけで切り替える
                     let dx = value.translation.width
                     let dy = value.translation.height
                     guard abs(dx) > 64, abs(dx) > abs(dy) * 2.2 else { return }
-                    if edgeOnly {
+                    if curtainEdgeOnly {
+                        let width = curtainWidth
                         let startX = value.startLocation.x
                         if dx > 0, startX > 44 { return }
                         if dx < 0, startX < width - 44 { return }
                     }
-                    if dx < 0, nextLabel != nil { onNext() }
-                    if dx > 0, previousLabel != nil { onPrevious() }
+                    if dx < 0, curtainNextLabel != nil { moveTab(by: 1) }
+                    if dx > 0, curtainPreviousLabel != nil { moveTab(by: -1) }
                     return
                 }
                 guard wasHorizontal, offset != 0 else {
-                    dragOffset = 0
+                    curtainOffset = 0
                     return
                 }
                 // 半分程度スライドしたら切り替え（フリックは予測到達位置で判定）
+                let width = curtainWidth
                 let commitDistance = width / 2
                 let predicted = value.predictedEndTranslation.width
                 let commits = abs(offset) >= commitDistance
@@ -377,22 +338,29 @@ private struct TabSwipeModifier: ViewModifier {
                 if commits {
                     let goNext = offset < 0
                     withAnimation(.easeIn(duration: 0.16)) {
-                        dragOffset = goNext ? -width : width
+                        curtainOffset = goNext ? -width : width
                     }
                     Task { @MainActor in
                         try? await Task.sleep(for: .milliseconds(170))
-                        if goNext { onNext() } else { onPrevious() }
+                        moveTab(by: goNext ? 1 : -1)
                         var transaction = Transaction()
                         transaction.disablesAnimations = true
-                        withTransaction(transaction) { dragOffset = 0 }
+                        withTransaction(transaction) { curtainOffset = 0 }
                     }
                 } else {
                     withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
-                        dragOffset = 0
+                        curtainOffset = 0
                     }
                 }
             }
     }
+}
+
+/// タブの識別（並び順は TabView の宣言順と一致させる）。
+/// イベントは旧タブを廃止し、カレンダーのボタンから開く形に統合した
+/// （実機フィードバック⑩、2026-11-14）
+enum AppTab: Hashable {
+    case calendar, map
 }
 
 /// イベント一覧：イベント（募集）の予定だけを開催日が近い順に並べ、過去分は自動で隠す。
