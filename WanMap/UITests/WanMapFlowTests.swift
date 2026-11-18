@@ -1039,6 +1039,52 @@ final class WanMapFlowTests: XCTestCase {
                       "カレンダーに戻れませんでした")
     }
 
+    // MARK: - フロー11：地図ピッカーが開くこと（実機クラッシュの再現確認）
+
+    /// 予定追加フォームの「地図で選ぶ（検索もできます）」から地図ピッカーが
+    /// 開くことを確認する。ビルド5の実機チェックで「開くと落ちる」と報告が
+    /// あり（2026-11-19）、ASCにクラッシュレポートは届いていなかったため、
+    /// シミュレータで再現するかを見るために追加した。従来のフローは
+    /// ピッカーを開いていなかった（カバレッジの穴）。
+    func test11_placeMapPickerOpens() throws {
+        launchAndSettleOnCalendar()
+        openTodayDayPlans()
+
+        let addButton = app.buttons["dayPlansAddButton"]
+        XCTAssertTrue(addButton.waitForExistence(timeout: 10),
+                      "予定追加ボタンが見つかりませんでした")
+        addButton.tap()
+        XCTAssertTrue(app.navigationBars["予定を追加"].waitForExistence(timeout: 10),
+                      "予定追加フォームが開きませんでした")
+
+        // 「地図で選ぶ」ボタンまでフォームをスクロールして出す
+        let pickerButton = app.buttons["地図で選ぶ（検索もできます）"]
+        var scrolls = 0
+        while !pickerButton.exists && scrolls < 8 {
+            app.swipeUp()
+            scrolls += 1
+        }
+        XCTAssertTrue(pickerButton.waitForExistence(timeout: 10),
+                      "「地図で選ぶ」ボタンが見つかりませんでした")
+        if !pickerButton.isHittable {
+            pickerButton.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        } else {
+            pickerButton.tap()
+        }
+
+        // ピッカーが開くこと（クラッシュせず、地図画面の部品が見えること）
+        XCTAssertTrue(app.navigationBars["地図で場所を選ぶ"].waitForExistence(timeout: 15),
+                      "地図ピッカーが開きませんでした")
+        XCTAssertTrue(app.buttons["ここにする"].waitForExistence(timeout: 10),
+                      "ピッカーの確定ボタンが見えませんでした")
+        attachScreenshot("flow11-place-map-picker")
+
+        // キャンセルでフォームへ戻れること
+        app.buttons["キャンセル"].tap()
+        XCTAssertTrue(app.navigationBars["予定を追加"].waitForExistence(timeout: 10),
+                      "ピッカーを閉じてフォームへ戻れませんでした")
+    }
+
     // MARK: - 共通処理
 
     /// シード付きで起動し、カレンダー表示で落ち着かせる（画面撮影側と同じ手順）
