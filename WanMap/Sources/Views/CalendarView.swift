@@ -125,11 +125,12 @@ struct CalendarView: View {
                          defaultDogName: planStore.lastDogName)
         }
         .sheet(isPresented: $showMonthPicker) {
-            MonthPickerView(currentMonth: displayedMonth) { picked in
+            MonthPickerView(currentMonth: displayedMonth,
+                            monthRange: (streamMonths.first ?? displayedMonth)...(streamMonths.last ?? displayedMonth)) { picked in
                 setMonth(picked)
                 showYear = false
             }
-            .presentationDetents([.medium])
+            .presentationDetents([.medium, .large])
         }
     }
 
@@ -685,6 +686,10 @@ private struct MonthPickerView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var year: Int
     private let currentMonth: Date
+    /// 月表示が実際に表示できる範囲（月初の日付）。範囲外の月は選べない
+    /// （ちゃぴ検品の指摘、2026-11-19：選べても表示先が丸められ、
+    /// 選んだ月と違う月が表示される食い違いがあった）
+    private let monthRange: ClosedRange<Date>
     private let onSelect: (Date) -> Void
 
     private static let gregorian: Calendar = {
@@ -694,14 +699,26 @@ private struct MonthPickerView: View {
         return c
     }()
 
-    init(currentMonth: Date, onSelect: @escaping (Date) -> Void) {
+    init(currentMonth: Date, monthRange: ClosedRange<Date>, onSelect: @escaping (Date) -> Void) {
         self.currentMonth = currentMonth
+        self.monthRange = monthRange
         self.onSelect = onSelect
         _year = State(initialValue: Self.gregorian.component(.year, from: currentMonth))
     }
 
     private var currentYear: Int { Self.gregorian.component(.year, from: currentMonth) }
     private var currentMonthNumber: Int { Self.gregorian.component(.month, from: currentMonth) }
+    private var earliestYear: Int { Self.gregorian.component(.year, from: monthRange.lowerBound) }
+    private var latestYear: Int { Self.gregorian.component(.year, from: monthRange.upperBound) }
+
+    private func monthStart(_ month: Int) -> Date? {
+        Self.gregorian.date(from: DateComponents(year: year, month: month, day: 1))
+    }
+
+    private func isInRange(_ month: Int) -> Bool {
+        guard let start = monthStart(month) else { return false }
+        return monthRange.contains(start)
+    }
 
     var body: some View {
         NavigationStack {
@@ -710,41 +727,51 @@ private struct MonthPickerView: View {
                     Button { year -= 1 } label: {
                         Image(systemName: "chevron.left")
                             .font(.system(size: 20, weight: .semibold))
-                            .foregroundStyle(WanStyle.cocoa)
+                            .foregroundStyle(year <= earliestYear ? Color.primary.opacity(0.3) : Color.primary)
                     }
                     .buttonStyle(WanPressButtonStyle())
+                    .disabled(year <= earliestYear)
                     .accessibilityIdentifier("monthPickerPrevYearButton")
                     Spacer()
+                    // シートの背景は端末のダーク設定に追随するため、年表示と
+                    // 年送りは固定色でなく .primary で描く（ちゃぴ検品の指摘）
                     Text("\(year)年")
                         .font(.title3.bold())
-                        .foregroundStyle(WanStyle.cocoa)
+                        .foregroundStyle(Color.primary)
                     Spacer()
                     Button { year += 1 } label: {
                         Image(systemName: "chevron.right")
                             .font(.system(size: 20, weight: .semibold))
-                            .foregroundStyle(WanStyle.cocoa)
+                            .foregroundStyle(year >= latestYear ? Color.primary.opacity(0.3) : Color.primary)
                     }
                     .buttonStyle(WanPressButtonStyle())
+                    .disabled(year >= latestYear)
                     .accessibilityIdentifier("monthPickerNextYearButton")
                 }
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 10) {
-                    ForEach(1...12, id: \.self) { month in
-                        let isCurrent = year == currentYear && month == currentMonthNumber
-                        Button {
-                            select(month)
-                        } label: {
-                            Text("\(month)月")
-                                .font(.body.weight(isCurrent ? .bold : .regular))
-                                .foregroundStyle(isCurrent ? Color.white : WanStyle.cocoa)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 12)
-                                .background(isCurrent ? WanStyle.coral : WanStyle.card,
-                                            in: RoundedRectangle(cornerRadius: 10))
+                // 小さい画面や大きい文字でも全月へ届くようグリッドはスクロール可能に
+                // （ちゃぴ検品の指摘、2026-11-19）
+                ScrollView {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 10) {
+                        ForEach(1...12, id: \.self) { month in
+                            let isCurrent = year == currentYear && month == currentMonthNumber
+                            let enabled = isInRange(month)
+                            Button {
+                                select(month)
+                            } label: {
+                                Text("\(month)月")
+                                    .font(.body.weight(isCurrent ? .bold : .regular))
+                                    .foregroundStyle(isCurrent ? Color.white
+                                                      : (enabled ? WanStyle.cocoa : WanStyle.cocoa.opacity(0.35)))
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 12)
+                                    .background(isCurrent ? WanStyle.coral : WanStyle.card,
+                                                in: RoundedRectangle(cornerRadius: 10))
+                            }
+                            .buttonStyle(WanPressButtonStyle())
+                            .disabled(!enabled)
                         }
-                        .buttonStyle(WanPressButtonStyle())
                     }
                 }
-                Spacer()
             }
             .padding()
             .navigationTitle("年月を選ぶ")
@@ -758,7 +785,7 @@ private struct MonthPickerView: View {
     }
 
     private func select(_ month: Int) {
-        if let date = Self.gregorian.date(from: DateComponents(year: year, month: month, day: 1)) {
+        if let date = monthStart(month) {
             onSelect(date)
         }
         dismiss()

@@ -230,6 +230,8 @@ struct DogMapView: View {
                     // 従来は候補を選ぶか文字を消すしか終了手段が無かった）
                     Color.clear
                         .contentShape(Rectangle())
+                        // 地図の左右余白（ZStackへのpadding分）まで覆う
+                        .padding(.horizontal, -20)
                         .onTapGesture {
                             searchText = ""
                             searchFocused = false
@@ -258,7 +260,17 @@ struct DogMapView: View {
             .padding(.horizontal, 20)
             .padding(.bottom, 12)
             dateStrip
+                .modifier(SearchDismissBackground(
+                    active: !isPlacingUserPlace && (searchFocused || !searchText.isEmpty)) {
+                        searchText = ""
+                        searchFocused = false
+                    })
             bandRow
+                .modifier(SearchDismissBackground(
+                    active: !isPlacingUserPlace && (searchFocused || !searchText.isEmpty)) {
+                        searchText = ""
+                        searchFocused = false
+                    })
         }
         .background(WanStyle.canvas)
         .sheet(isPresented: $showYearSheet) {
@@ -1224,6 +1236,25 @@ private struct FacilityCluster: Identifiable {
 }
 
 /// 友達レールの1人分（端末内データから組み立てる。実通信はまだ無い）
+/// 検索中だけ、その行の余白タップで検索を終えられるようにする背景レイヤー
+/// （ちゃぴ検品の指摘で追加、2026-11-19：解除レイヤーが地図内に限られ、
+/// 日付帯・時間帯の行では検索を終えられなかった）。行内のボタンのタップは
+/// 通常どおりボタン側が受ける
+private struct SearchDismissBackground: ViewModifier {
+    let active: Bool
+    let onDismiss: () -> Void
+
+    func body(content: Content) -> some View {
+        content.background {
+            if active {
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture { onDismiss() }
+            }
+        }
+    }
+}
+
 private struct MapPerson: Identifiable {
     let personName: String
     let displayName: String            // 犬の名前（無ければ人の表示名）。レールの読み上げ名に使う
