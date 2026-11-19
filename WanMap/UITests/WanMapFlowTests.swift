@@ -512,7 +512,7 @@ final class WanMapFlowTests: XCTestCase {
                       "年表示への切り替えが見つかりませんでした")
         yearButton.tap()
         let yearTitle = "\(cal.component(.year, from: first3))年"
-        XCTAssertTrue(app.staticTexts[yearTitle].waitForExistence(timeout: 10),
+        XCTAssertTrue(app.buttons[yearTitle].waitForExistence(timeout: 10),
                       "年表示（\(yearTitle)）が開きませんでした")
         attachScreenshot("flow07-year-view")
         app.buttons["月"].tap()
