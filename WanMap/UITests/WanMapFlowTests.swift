@@ -1080,7 +1080,8 @@ final class WanMapFlowTests: XCTestCase {
         attachScreenshot("flow11-place-map-picker")
 
         // キャンセルでフォームへ戻れること
-        app.buttons["キャンセル"].tap()
+        // （背後の予定フォームにも「キャンセル」があるため、ピッカーのバー内に絞る）
+        app.navigationBars["地図で場所を選ぶ"].buttons["キャンセル"].tap()
         XCTAssertTrue(app.navigationBars["予定を追加"].waitForExistence(timeout: 10),
                       "ピッカーを閉じてフォームへ戻れませんでした")
     }
