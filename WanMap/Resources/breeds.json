@@ -391,12 +391,12 @@
     {
      "id": "cream",
      "name": "クリーム",
-     "icon": null
+     "icon": "breed_goldendoodle_cream"
     },
     {
      "id": "apricot",
      "name": "アプリコット",
-     "icon": null
+     "icon": "breed_goldendoodle_apricot"
     }
    ]
   },
@@ -413,7 +413,7 @@
     {
      "id": "white",
      "name": "ホワイト",
-     "icon": null
+     "icon": "breed_maltese_white"
     }
    ]
   },

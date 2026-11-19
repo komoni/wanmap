@@ -28,7 +28,7 @@ final class BreedStoreTests: XCTestCase {
 
     func testBundledMaster_制作済みアイコンは47枚() {
         let iconCount = store.breeds.flatMap(\.colors).filter { $0.icon != nil }.count
-        XCTAssertEqual(iconCount, 47, "ハスキー4＋プードル5＋チワワ5＋ミックス1＋柴4＋マルプー3＋ダックス4＋ポメ5＋ボーダー4＋ゴールデン2＋シュナウザー4＋フレブル4＋チワプー2")
+        XCTAssertEqual(iconCount, 50, "ハスキー4＋プードル5＋チワワ5＋ミックス1＋柴4＋マルプー3＋ダックス4＋ポメ5＋ボーダー4＋ゴールデン2＋シュナウザー4＋フレブル4＋チワプー2＋ゴールデンドゥードル2＋マルチーズ1")
     }
 
     // MARK: - 正規化と検索
