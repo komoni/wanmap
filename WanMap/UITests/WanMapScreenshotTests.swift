@@ -348,9 +348,10 @@ final class WanMapScreenshotTests: XCTestCase {
         assertInside(app.buttons["calendarNextMonthButton"], "次月ボタン")
         assertInside(app.buttons["calendarSettingsButton"], "設定ボタン")
 
-        // 年月タイトル（例「2026年11月」）。カレンダー画面で「年」と「月」を
-        // 両方含む静的テキストはタイトルだけ（日セルは数字、バナーは「11/8（日）」等）
-        let title = app.staticTexts.matching(
+        // 年月タイトル（例「2026年11月」）。タイトルは年月ピッカーを開く
+        // ボタンになった（2026-11-19）ためボタンとして探す。カレンダー画面で
+        // 「年」と「月」を両方含むボタンはタイトルだけ
+        let title = app.buttons.matching(
             NSPredicate(format: "label CONTAINS '年' AND label CONTAINS '月'")).firstMatch
         assertInside(title, "年月タイトル")
         // 全文は 1段（subheadline）でも約75ptある。潰れて省略されると

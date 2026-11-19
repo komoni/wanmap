@@ -898,7 +898,7 @@ final class WanMapFlowTests: XCTestCase {
         }
         displayedMonth = cal.date(from: to)!
         let title = "\(to.year!)年\(to.month!)月"
-        XCTAssertTrue(app.staticTexts[title].waitForExistence(timeout: 10),
+        XCTAssertTrue(app.buttons[title].waitForExistence(timeout: 10),
                       "カレンダーの見出しが \(title) になりませんでした")
     }
 
