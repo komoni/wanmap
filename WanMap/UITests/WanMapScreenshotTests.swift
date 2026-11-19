@@ -197,7 +197,7 @@ final class WanMapScreenshotTests: XCTestCase {
     /// 月ブロックから始まることの撮影。ここでは月のタイトルと初期表示を確認する
     func test10_designCalendarMonthBlock() throws {
         launchAndSettleOnCalendar()
-        XCTAssertTrue(app.staticTexts["2026年11月"].waitForExistence(timeout: 10),
+        XCTAssertTrue(app.buttons["2026年11月"].waitForExistence(timeout: 10),
                       "2026年11月のタイトルが見つかりませんでした")
         attachScreenshot("design-calendar-monthblock")
     }
@@ -212,7 +212,7 @@ final class WanMapScreenshotTests: XCTestCase {
         for _ in 0..<3 {
             prevButton.tap()
         }
-        XCTAssertTrue(app.staticTexts["2026年8月"].waitForExistence(timeout: 10),
+        XCTAssertTrue(app.buttons["2026年8月"].waitForExistence(timeout: 10),
                       "2026年8月のタイトルが見つかりませんでした")
         attachScreenshot("design-calendar-august")
     }

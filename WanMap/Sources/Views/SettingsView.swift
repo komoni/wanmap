@@ -287,7 +287,7 @@ struct SettingsView: View {
                 if !hidden { location.requestPermissionAndStart() }
             }
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button("閉じる") { dismiss() }
                 }
             }

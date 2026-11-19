@@ -39,7 +39,7 @@ struct StoryImportView: View {
             .navigationTitle("テキストから取り込む")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button("閉じる") { dismiss() }
                 }
             }

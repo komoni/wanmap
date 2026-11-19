@@ -46,13 +46,13 @@ struct FriendsView: View {
             }
             .navigationTitle("友達")
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("閉じる") { dismiss() }
-                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { showQRAdd = true } label: {
                         Image(systemName: "qrcode")
                     }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("閉じる") { dismiss() }
                 }
             }
             .sheet(isPresented: $showMyQR) { MyQRView() }

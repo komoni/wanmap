@@ -19,6 +19,10 @@ struct CalendarView: View {
     @State private var showFriends = false
     @State private var showSettings = false
     @State private var showStoryImport = false
+    @State private var showNewPlanForm = false
+    @State private var showMonthPicker = false
+    /// 日タップのズーム遷移（iOS 18+）の名前空間
+    @Namespace private var dayZoomNamespace
 
     // MARK: 月表示（月ブロックの縦スクロール、iPhone純正カレンダー方式）
     //
@@ -78,23 +82,23 @@ struct CalendarView: View {
                 // 週ストリーム時代に外れていたフッターの復活（2026-11-14）
                 VStack(spacing: 6) {
                     weekdayHeader
-                    GeometryReader { geo in
-                        // フッターはスクロールの下端に重ねて出す。レイアウト内の
-                        // 配置だと、ヘッダー拡大後の画面高では余白が足りず犬まで
-                        // 出せない（CIスクショで波だけになるのを確認、2026-11-14）。
-                        // 重ね分（56pt）を余白に足して判定し、最後の月ブロックが
+                    GeometryReader { _ in
+                        // フッターはスクロールの下端に重ねて出す。最後の月ブロックが
                         // フッターに隠れずスクロールし切れるよう、スクロール側に
-                        // 下マージンも持たせる
-                        let layout = MonthDecorationLayout.compute(
-                            availableHeight: geo.size.height - 26 + 56,
-                            weeks: 6, rowSpacing: 6, footerSpacing: 6,
-                            minRowHeight: minRowHeight)
+                        // 下マージン（110pt）を持たせてある。
+                        // 恐竜ハスキーは従来、余白（スラック）の段階判定で出し分け
+                        // していたが、本人の端末では段階が下がって犬が出なかった
+                        // （実機フィードバック B2、2026-11-19）ため、固定高さで
+                        // 常時出す形に寄せた。段階判定の仕組み（MonthDecorationLayout）
+                        // は当面残置する
                         ZStack(alignment: .bottom) {
                             monthBlocks
-                            if layout.footerHeight > 0 {
-                                DecorationFooterView(stage: layout.stage,
-                                                     height: layout.footerHeight)
-                            }
+                            DecorationFooterView(stage: .full, height: 72)
+                        }
+                        .overlay(alignment: .bottomTrailing) {
+                            addPlanFloatingButton
+                                .padding(.trailing, 2)
+                                .padding(.bottom, 88)
                         }
                     }
                 }
@@ -107,11 +111,26 @@ struct CalendarView: View {
         .toolbarColorScheme(themeStore.appTheme == .dark ? .dark : .light, for: .tabBar)
         .sheet(item: $daySelection) { selection in
             DayPlansView(day: selection.day)
+                .modifier(DayZoomDestination(
+                    dayID: calendar.startOfDay(for: selection.day),
+                    namespace: dayZoomNamespace,
+                    reduceMotion: reduceMotion))
         }
         .sheet(isPresented: $showEvents) { EventsView() }
         .sheet(isPresented: $showFriends) { FriendsView() }
         .sheet(isPresented: $showSettings) { SettingsView() }
         .sheet(isPresented: $showStoryImport) { StoryImportView() }
+        .sheet(isPresented: $showNewPlanForm) {
+            PlanFormView(editing: nil, defaultDate: fabDefaultDay,
+                         defaultDogName: planStore.lastDogName)
+        }
+        .sheet(isPresented: $showMonthPicker) {
+            MonthPickerView(currentMonth: displayedMonth) { picked in
+                setMonth(picked)
+                showYear = false
+            }
+            .presentationDetents([.medium])
+        }
     }
 
     private var header: some View {
@@ -178,6 +197,35 @@ struct CalendarView: View {
             .fixedSize(horizontal: true, vertical: false)
     }
 
+    /// 予定追加のフローティングボタン（実機フィードバック第3ラウンド C4、
+    /// 2026-11-19。表現ライブラリ部品カタログのFAB：右下・丸・1画面に1つ、
+    /// タップで予定フォームを直接開く）。恐竜フッター（72pt）の上に逃がし、
+    /// 重ならないようにしてある
+    private var addPlanFloatingButton: some View {
+        Button {
+            showNewPlanForm = true
+        } label: {
+            Image(systemName: "plus")
+                .font(.system(size: 24, weight: .semibold))
+                .foregroundStyle(Color.white)
+                .frame(width: 56, height: 56)
+                .background(WanStyle.coral, in: Circle())
+                .shadow(color: WanStyle.cocoa.opacity(0.35), radius: 4, x: 0, y: 2)
+        }
+        .buttonStyle(WanPressButtonStyle())
+        .accessibilityLabel("予定を追加")
+        .accessibilityIdentifier("calendarAddPlanButton")
+    }
+
+    /// FABで開く予定フォームの初期日：表示中の月が今月なら今日、
+    /// それ以外なら表示中の月の1日
+    private var fabDefaultDay: Date {
+        if calendar.isDate(displayedMonth, equalTo: Date(), toGranularity: .month) {
+            return Date()
+        }
+        return Self.firstOfMonth(displayedMonth)
+    }
+
     /// 年月タイトル＋前後月。
     /// compact＝1段用（タップ枠の幅・タイトルを詰める）。
     /// タイトルは fixedSize＋layoutPriority で圧縮から守る
@@ -194,12 +242,17 @@ struct CalendarView: View {
             .modifier(HeaderTapTarget(compact: compact))
             // アイコンのみのボタンはUIテストから確実に押せるよう識別子を付ける（見た目・挙動は不変）
             .accessibilityIdentifier("calendarPrevMonthButton")
-            Text(headerTitle)
-                .font(.system(size: compact ? 23 : 26, weight: .semibold))
-                .foregroundStyle(themeStore.dayTextColor)
-                .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
-                .layoutPriority(2)
+            Button { showMonthPicker = true } label: {
+                Text(headerTitle)
+                    .font(.system(size: compact ? 23 : 26, weight: .semibold))
+                    .foregroundStyle(themeStore.dayTextColor)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+            }
+            .buttonStyle(WanPressButtonStyle())
+            .layoutPriority(2)
+            .accessibilityIdentifier("calendarTitleButton")
+            .accessibilityHint("年月を選ぶ画面が開きます")
             Button { shift(by: 1) } label: {
                 Image(systemName: "chevron.right")
                     .font(.system(size: compact ? 23 : 26))
@@ -461,6 +514,8 @@ struct CalendarView: View {
         .accessibilityLabel(dayCellAccessibilityLabel(day: day, plans: dayPlans))
         .accessibilityHint("予定一覧が開きます")
         .accessibilityAddTraits(.isButton)
+        .modifier(DayZoomSource(dayID: calendar.startOfDay(for: day),
+                                namespace: dayZoomNamespace))
     }
 
     /// 日セルの読み上げラベル（例：「11月15日（土）、予定3件：ドッグウィズ、sea、ほか1件」）
@@ -619,6 +674,128 @@ private struct HeaderTapTarget: ViewModifier {
                 .contentShape(Rectangle())
         } else {
             content.wanTapTarget()
+        }
+    }
+}
+
+/// 年月ピッカー（ヘッダーのタイトルタップで開くシート）。年を送って月を選ぶと
+/// その月へジャンプする。月は上下スライドで送れるのに年単位の移動手段が
+/// 無かった、という実機フィードバック（第3ラウンド A、2026-11-19）への対応
+private struct MonthPickerView: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var year: Int
+    private let currentMonth: Date
+    private let onSelect: (Date) -> Void
+
+    private static let gregorian: Calendar = {
+        var c = Calendar(identifier: .gregorian)
+        c.locale = Locale(identifier: "ja_JP")
+        c.firstWeekday = 1
+        return c
+    }()
+
+    init(currentMonth: Date, onSelect: @escaping (Date) -> Void) {
+        self.currentMonth = currentMonth
+        self.onSelect = onSelect
+        _year = State(initialValue: Self.gregorian.component(.year, from: currentMonth))
+    }
+
+    private var currentYear: Int { Self.gregorian.component(.year, from: currentMonth) }
+    private var currentMonthNumber: Int { Self.gregorian.component(.month, from: currentMonth) }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 18) {
+                HStack {
+                    Button { year -= 1 } label: {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundStyle(WanStyle.cocoa)
+                    }
+                    .buttonStyle(WanPressButtonStyle())
+                    .accessibilityIdentifier("monthPickerPrevYearButton")
+                    Spacer()
+                    Text("\(year)年")
+                        .font(.title3.bold())
+                        .foregroundStyle(WanStyle.cocoa)
+                    Spacer()
+                    Button { year += 1 } label: {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundStyle(WanStyle.cocoa)
+                    }
+                    .buttonStyle(WanPressButtonStyle())
+                    .accessibilityIdentifier("monthPickerNextYearButton")
+                }
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 10) {
+                    ForEach(1...12, id: \.self) { month in
+                        let isCurrent = year == currentYear && month == currentMonthNumber
+                        Button {
+                            select(month)
+                        } label: {
+                            Text("\(month)月")
+                                .font(.body.weight(isCurrent ? .bold : .regular))
+                                .foregroundStyle(isCurrent ? Color.white : WanStyle.cocoa)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                                .background(isCurrent ? WanStyle.coral : WanStyle.card,
+                                            in: RoundedRectangle(cornerRadius: 10))
+                        }
+                        .buttonStyle(WanPressButtonStyle())
+                    }
+                }
+                Spacer()
+            }
+            .padding()
+            .navigationTitle("年月を選ぶ")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("閉じる") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private func select(_ month: Int) {
+        if let date = Self.gregorian.date(from: DateComponents(year: year, month: month, day: 1)) {
+            onSelect(date)
+        }
+        dismiss()
+    }
+}
+
+/// 日タップのズーム遷移（実機フィードバック第3ラウンド項目1、2026-11-19）。
+/// 日セルからその日の予定シートが広がる、iPhone標準に近い動きにする。
+/// 遷移APIは iOS 18+ のため、17では通常のシート表示に倒れる。
+/// 「動きを減らす」設定時は行き先側で遷移を付けない
+private struct DayZoomSource: ViewModifier {
+    let dayID: Date
+    let namespace: Namespace.ID
+
+    func body(content: Content) -> some View {
+        Group {
+            if #available(iOS 18.0, *) {
+                content.matchedTransitionSource(id: dayID, in: namespace)
+            } else {
+                content
+            }
+        }
+    }
+}
+
+private struct DayZoomDestination: ViewModifier {
+    let dayID: Date
+    let namespace: Namespace.ID
+    let reduceMotion: Bool
+
+    func body(content: Content) -> some View {
+        Group {
+            if #available(iOS 18.0, *), !reduceMotion {
+                content.navigationTransition(.zoom(sourceID: dayID, in: namespace))
+            } else {
+                content
+            }
         }
     }
 }
