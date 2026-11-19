@@ -100,6 +100,10 @@ struct RootView: View {
     /// 44262846155。包みを外す切り分けで確定したら DEV_LESSONS へ記録する）
     @State private var curtainOffset: CGFloat = 0
     @State private var curtainLock: CurtainDragLock = .undecided
+    /// 地図タブでカーテンを掴める端ゾーンの幅（pt）。44から60へ広げた
+    /// （実機フィードバック第3ラウンド項目5、2026-11-19。本人の端末は
+    /// 画面の縁が丸く端そのものが触りにくいため、開始位置を内寄せにした）
+    private static let curtainEdgeWidth: CGFloat = 60
 
     private enum CurtainDragLock {
         case undecided, horizontal, vertical, outside
@@ -281,7 +285,8 @@ struct RootView: View {
                     if curtainEdgeOnly {
                         // 端ゾーン外から始まったドラッグは対象外（地図パンに譲る）
                         let startX = value.startLocation.x
-                        guard startX <= 44 || startX >= width - 44 else {
+                        guard startX <= Self.curtainEdgeWidth
+                                || startX >= width - Self.curtainEdgeWidth else {
                             curtainLock = .outside
                             return
                         }
@@ -301,8 +306,8 @@ struct RootView: View {
                 if curtainEdgeOnly {
                     // 地図：左端開始は右方向だけ、右端開始は左方向だけ
                     let startX = value.startLocation.x
-                    if startX <= 44, proposed < 0 { proposed = 0 }
-                    if startX >= width - 44, proposed > 0 { proposed = 0 }
+                    if startX <= Self.curtainEdgeWidth, proposed < 0 { proposed = 0 }
+                    if startX >= width - Self.curtainEdgeWidth, proposed > 0 { proposed = 0 }
                 }
                 curtainOffset = max(-width, min(width, proposed))
             }
@@ -318,8 +323,8 @@ struct RootView: View {
                     if curtainEdgeOnly {
                         let width = curtainWidth
                         let startX = value.startLocation.x
-                        if dx > 0, startX > 44 { return }
-                        if dx < 0, startX < width - 44 { return }
+                        if dx > 0, startX > Self.curtainEdgeWidth { return }
+                        if dx < 0, startX < width - Self.curtainEdgeWidth { return }
                     }
                     if dx < 0, curtainNextLabel != nil { moveTab(by: 1) }
                     if dx > 0, curtainPreviousLabel != nil { moveTab(by: -1) }

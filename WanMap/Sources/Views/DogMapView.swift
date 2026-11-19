@@ -224,6 +224,17 @@ struct DogMapView: View {
                 if isPlacingUserPlace {
                     placingOverlay
                 }
+                if !isPlacingUserPlace && (searchFocused || !searchText.isEmpty) {
+                    // 検索中は、候補リスト以外の場所のタップで検索を終える
+                    // （実機フィードバック第3ラウンド C2、2026-11-19。
+                    // 従来は候補を選ぶか文字を消すしか終了手段が無かった）
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            searchText = ""
+                            searchFocused = false
+                        }
+                }
                 if !searchResults.isEmpty && !isPlacingUserPlace {
                     searchResultsList
                 }
@@ -241,8 +252,10 @@ struct DogMapView: View {
                 }
             }
             // 地図の左右に余白を持たせ（端スワイプの起点を掴みやすくする）、
-            // 地図と日付の間も広げる（実機フィードバック第2ラウンド、2026-11-14）
-            .padding(.horizontal, 10)
+            // 地図と日付の間も広げる（実機フィードバック第2ラウンド、2026-11-14）。
+            // 第3ラウンド項目5（2026-11-19）で左右はさらに広げた（10→20pt）。
+            // 本人の端末は画面の縁が丸く、端そのものが触りにくいため
+            .padding(.horizontal, 20)
             .padding(.bottom, 12)
             dateStrip
             bandRow
@@ -392,15 +405,6 @@ struct DogMapView: View {
     }
 
     /// 施設クラスタ：件数バッジ（ClusterMap 標準に近い見た目）。タップでその地点へ少し寄せる
-    /// 「今ここ」ボタンの装飾用の足跡1つ（白の透かし。大きさ・濃さ・傾き・上下のずれで歩行の遠近感を出す）
-    private func pawprint(size: CGFloat, opacity: Double, rotation: Double, y: CGFloat) -> some View {
-        Image(systemName: "pawprint.fill")
-            .font(.system(size: size))
-            .foregroundStyle(.white.opacity(opacity))
-            .rotationEffect(.degrees(rotation))
-            .offset(y: y)
-    }
-
     private func clusterMarker(_ cluster: FacilityCluster) -> some View {
         Button {
             zoomIn(on: cluster.coordinate)
@@ -518,24 +522,12 @@ struct DogMapView: View {
     }
 
     private var topBar: some View {
-        // 現在地／取得時刻／地点登録／友達／設定 を1段に。
+        // 取得時刻／地点登録／友達／設定 を1段に。
         // 「今ここ」は実機フィードバック第2ラウンド（2026-11-14）で地図内の
-        // 最下部へ移設した。アイコンは本人の指示で従来の1.5倍サイズ
+        // 最下部へ移設した。アイコンは本人の指示で従来の1.5倍サイズ。
+        // 現在地へ戻るボタンは上部と地図上（右下クラスタ）の2つがあったため、
+        // 第3ラウンド C1（2026-11-19）で上部側を外し、地図上の1つに統一した
         HStack(spacing: 8) {
-            Button {
-                if let fix = location.currentFix {
-                    center(on: fix.coordinate)
-                    didCenterInitially = true
-                }
-            } label: {
-                // 現在地マークは天気予報スペースの現在地ボタン（照準形）に統一
-                // （2026-11-15、本人の指定。SF Symbols では dot.scope が相当）
-                Image(systemName: "dot.scope")
-                    .font(.system(size: 26))
-                    .foregroundStyle(WanStyle.coral)
-            }
-            .buttonStyle(WanPressButtonStyle())
-            .wanTapTarget()
             if let date = location.fixDate {
                 Text(date, style: .time).font(.caption).foregroundStyle(.secondary)
             }
@@ -579,25 +571,10 @@ struct DogMapView: View {
             togglePresence()
         } label: {
             if planStore.ownPresence == nil {
-                // 置く操作だと一目で分かるようピンのアイコンを添える（取消側は文言のみ）。
-                // 足跡の装飾はラベルの流れの中に置く：文字の右に、中心側が大きく
-                // 外へ向けて小さくなる並び＝右から歩いて近づいてくる遠近感。
-                // 背景への重ね置きだとボタン幅によっては文字に触れてしまうため、
-                // レイアウトとして隣に置き、幅によらず文字へ被らない形にした
-                // （2026-11-10、右側配置の実画面で大の足跡が文字端に触れたための構造変更）
-                HStack(spacing: 10) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "mappin")
-                        Text("今ここ")
-                    }
-                    HStack(spacing: 5) {
-                        pawprint(size: 12, opacity: 0.38, rotation: 10, y: 2)
-                        pawprint(size: 10, opacity: 0.26, rotation: -14, y: -3)
-                        pawprint(size: 8, opacity: 0.16, rotation: 16, y: 3)
-                    }
-                    .accessibilityHidden(true)
-                }
-                .frame(maxWidth: .infinity)
+                // 表示は「今ここ」の文字だけに簡素化（実機フィードバック
+                // 第3ラウンド項目3、2026-11-19。ピンと足跡の装飾は外した）
+                Text("今ここ")
+                    .frame(maxWidth: .infinity)
             } else {
                 Text("取消")
                     .frame(maxWidth: .infinity)
@@ -641,8 +618,11 @@ struct DogMapView: View {
         .shadow(color: WanStyle.cocoa.opacity(0.3), radius: 2, x: 0, y: 1)
     }
 
-    /// 登録モード中の重ね表示：中心ピン（当たり判定なし）＋下部の確定バー。
+    /// 登録モード中の重ね表示：中心ピン（当たり判定なし）＋画面中央寄りの確定バー。
     /// ピン先端が画面中心に来るよう少し上にずらす。地図のドラッグはそのまま効く。
+    /// 確定バー（キャンセル／ここにする の選択肢）は従来は画面下部に出していたが、
+    /// 選択肢は画面中央の方が分かりやすいという実機フィードバック
+    /// （第3ラウンド C3、2026-11-19）で、ピンの少し下へ移した
     private var placingOverlay: some View {
         ZStack {
             golfTeePin
@@ -661,7 +641,8 @@ struct DogMapView: View {
                 .padding(.vertical, 8)
                 .background(.thinMaterial)
                 .clipShape(Capsule())
-                .padding(.bottom, 12)
+                .offset(y: 54)
+                Spacer()
             }
         }
     }
