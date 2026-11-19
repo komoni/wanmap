@@ -142,6 +142,18 @@ struct PlanFormView: View {
             } message: {
                 Text(saveErrorMessage ?? "")
             }
+            // 地図ピッカーのシートはフォームの土台（この位置）に付ける。
+            // 以前は「場所」セクションの中に付けていたが、その組み立てでは
+            // 実機で開いてもすぐ閉じ、シミュレータでも表示されなかった
+            // （実機フィードバック第3ラウンド B3、2026-11-19。フローテスト11で再現）
+            .sheet(isPresented: $showMapPicker) {
+                PlaceMapPickerView(initialCoordinate: selectedMapPlace?.coordinate) { picked in
+                    selectedMapPlace = picked
+                    selectedFacility = nil
+                    selectedUserPlace = nil
+                    placeQuery = picked.name
+                }
+            }
             .onAppear(perform: resolvePlaceFromEditingPlan)
             .onAppear {
                 // 新規作成の初期値：プロフィール（自分の犬）の名前が登録済みなら
@@ -262,14 +274,6 @@ struct PlanFormView: View {
             Label("場所", systemImage: "mappin.and.ellipse")
         } footer: {
             Text("施設が見つからなければ、住所をそのまま入力しても大丈夫です")
-        }
-        .sheet(isPresented: $showMapPicker) {
-            PlaceMapPickerView(initialCoordinate: selectedMapPlace?.coordinate) { picked in
-                selectedMapPlace = picked
-                selectedFacility = nil
-                selectedUserPlace = nil
-                placeQuery = picked.name
-            }
         }
     }
 
