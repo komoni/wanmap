@@ -231,21 +231,7 @@ struct DogMapView: View {
                     .padding(.trailing, 64)
                     .padding(.bottom, 8)
                 }
-                if !isPlacingUserPlace && searchResults.isEmpty,
-                   let presence = planStore.ownPresence,
-                   let coord = presence.coordinate {
-                    // 「今ここ発動中」の状態表示（実機フィードバック、2026-11-22）。
-                    // 右下余白に出し、コンパス／現在位置ボタンの上に逃がす
-                    VStack {
-                        Spacer()
-                        HStack {
-                            Spacer()
-                            presenceStatusChip(presence: presence, coordinate: coord)
-                        }
-                    }
-                    .padding(.trailing, 12)
-                    .padding(.bottom, 108)
-                }
+
                 if isPlacingUserPlace {
                     placingOverlay
                 }
@@ -634,16 +620,16 @@ struct DogMapView: View {
         .shadow(color: WanStyle.cocoa.opacity(0.3), radius: 3, x: 0, y: 1)
     }
 
-    /// 「今ここ発動中」チップ（地図の右下余白）：押した時刻と残り時間、
+    /// 「今ここ発動中」チップ（時間帯の右側）：押した時刻と残り時間、
     /// 場所へのワープボタン。残り時間は1分ごとに数え直す
     private func presenceStatusChip(presence: Plan, coordinate: CLLocationCoordinate2D) -> some View {
         TimelineView(.periodic(from: .now, by: 60)) { context in
             let remaining = presence.createdAt.addingTimeInterval(2 * 3600)
                 .timeIntervalSince(context.date)
-            HStack(spacing: 8) {
-                VStack(alignment: .leading, spacing: 1) {
+            HStack(spacing: 6) {
+                VStack(alignment: .leading, spacing: 0) {
                     Text("今ここ発動中")
-                        .font(.caption.bold())
+                        .font(.caption2.bold())
                     Text("\(Self.timeString(presence.createdAt))から・あと\(Self.remainingString(remaining))")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
@@ -652,18 +638,18 @@ struct DogMapView: View {
                     fly(to: coordinate)
                 } label: {
                     Image(systemName: "location.fill")
-                        .font(.system(size: 13))
+                        .font(.system(size: 11))
                         .foregroundStyle(Color.white)
-                        .frame(width: 28, height: 28)
+                        .frame(width: 24, height: 24)
                         .background(WanStyle.coral, in: Circle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("今ここへ移動")
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12))
-            .shadow(color: WanStyle.cocoa.opacity(0.25), radius: 3, x: 0, y: 1)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(WanStyle.card, in: Capsule())
+            .overlay(Capsule().stroke(WanStyle.lavender.opacity(0.6), lineWidth: 1))
         }
     }
 
@@ -1041,6 +1027,11 @@ struct DogMapView: View {
                 .buttonStyle(.plain)
             }
             Spacer()
+            // 画面一番右下の空き（時間帯の右側）に「今ここ発動中」を出す
+            // （実機フィードバック、2026-11-22。本人の置き場所指定）
+            if let presence = planStore.ownPresence, let coord = presence.coordinate {
+                presenceStatusChip(presence: presence, coordinate: coord)
+            }
         }
         .padding(.horizontal, 8)
         // 下端はタブバーとの誤タッチ防止に余白を広めに取る
