@@ -121,7 +121,7 @@ final class PlanStore {
 
     /// 指定日の予定（時間帯の順に並べる）
     func plans(on day: Date, calendar: Calendar = WanMapCalendar.shared) -> [Plan] {
-        let order: [TimeBand] = [.allDay, .morning, .noon, .night]
+        let order: [TimeBand] = [.now, .allDay, .morning, .noon, .night]
         return activePlans
             .filter { calendar.isDate($0.date, inSameDayAs: day) }
             .sorted { order.firstIndex(of: $0.timeBand)! < order.firstIndex(of: $1.timeBand)! }
@@ -565,7 +565,7 @@ final class PlanStore {
                         dogName: lastDogName.isEmpty ? nil : lastDogName,
                         placeName: "", latitude: latitude, longitude: longitude,
                         date: WanMapCalendar.shared.startOfDay(for: Date()),
-                        timeBand: .allDay, level: .going,
+                        timeBand: .now, level: .going,
                         isEvent: false, eventDeadline: nil,
                         isPresence: true, createdAt: Date())
         newPlans.append(plan)

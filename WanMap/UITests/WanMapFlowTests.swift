@@ -151,6 +151,11 @@ final class WanMapFlowTests: XCTestCase {
         }
         XCTAssertTrue(turnedOn,
                       "「今ここ」をタップしても表示が「取消」に切り替わりませんでした")
+        // 発動中は右下に状態チップ（時刻・残り・ワープボタン）が出る
+        XCTAssertTrue(app.staticTexts["今ここ発動中"].waitForExistence(timeout: 10),
+                      "今ここ発動中のチップが表示されませんでした")
+        XCTAssertTrue(app.buttons["今ここへ移動"].exists,
+                      "今ここへのワープボタンが見つかりませんでした")
         attachScreenshot("flow02-presence-on")
 
         offButton.tap()

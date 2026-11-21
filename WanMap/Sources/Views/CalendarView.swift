@@ -482,6 +482,13 @@ struct CalendarView: View {
                             .font(.caption2)
                             .foregroundStyle(WanStyle.cocoa)
                             .lineLimit(1)
+                    } else if plan.isPresence {
+                        // 場所名のない「今ここ」は、アイコンだけだと何の予定か
+                        // 分からないため文字も出す（実機フィードバック、2026-11-22）
+                        Text("今ここ")
+                            .font(.caption2)
+                            .foregroundStyle(WanStyle.cocoa)
+                            .lineLimit(1)
                     }
                 }
                 .padding(.horizontal, 3)

@@ -10,10 +10,16 @@ enum AttendanceLevel: String, Codable, CaseIterable {
 
 /// 時間帯
 enum TimeBand: String, Codable, CaseIterable {
+    /// 「今ここ」専用の時間帯（実機フィードバック、2026-11-22）。
+    /// 予定フォームや地図の時間帯フィルタでは選ばせない（選択肢からは除外する）
+    case now = "今"
     case allDay = "終日"
     case morning = "朝"
     case noon = "昼"
     case night = "夜"
+
+    /// 利用者が選べる時間帯（「今」は今ここ専用なので含めない）
+    static var selectableCases: [TimeBand] { [.allDay, .morning, .noon, .night] }
 }
 
 /// 予定（集まりの予告・「今ここ」も含む）

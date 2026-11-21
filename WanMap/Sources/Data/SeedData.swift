@@ -70,7 +70,7 @@ enum SeedData {
             // ここでは登録済み場所に紐付く形。作成時刻は今なので2時間は表示される）
             plan(person: "タクミ", dog: "ソラ", place: "ドッグウィズ",
                  lat: dogWith.lat, lng: dogWith.lng, date: today,
-                 band: .allDay, level: .going,
+                 band: .now, level: .going,
                  isPresence: true, createdAt: now),
         ]
     }

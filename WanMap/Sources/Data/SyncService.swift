@@ -186,7 +186,7 @@ final class SyncService {
                             latitude: data["latitude"] as? Double,
                             longitude: data["longitude"] as? Double,
                             date: placedAt,
-                            timeBand: .allDay,
+                            timeBand: .now,
                             level: .going,
                             isEvent: false,
                             eventDeadline: nil,

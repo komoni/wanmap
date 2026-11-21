@@ -327,7 +327,7 @@ struct PlanFormView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Label("時間帯", systemImage: "clock")
                 Picker("", selection: $timeBand) {
-                    ForEach(TimeBand.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                    ForEach(TimeBand.selectableCases, id: \.self) { Text($0.rawValue).tag($0) }
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()

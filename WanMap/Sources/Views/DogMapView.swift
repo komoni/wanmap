@@ -231,6 +231,21 @@ struct DogMapView: View {
                     .padding(.trailing, 64)
                     .padding(.bottom, 8)
                 }
+                if !isPlacingUserPlace && searchResults.isEmpty,
+                   let presence = planStore.ownPresence,
+                   let coord = presence.coordinate {
+                    // 「今ここ発動中」の状態表示（実機フィードバック、2026-11-22）。
+                    // 右下余白に出し、コンパス／現在位置ボタンの上に逃がす
+                    VStack {
+                        Spacer()
+                        HStack {
+                            Spacer()
+                            presenceStatusChip(presence: presence, coordinate: coord)
+                        }
+                    }
+                    .padding(.trailing, 12)
+                    .padding(.bottom, 108)
+                }
                 if isPlacingUserPlace {
                     placingOverlay
                 }
@@ -619,6 +634,51 @@ struct DogMapView: View {
         .shadow(color: WanStyle.cocoa.opacity(0.3), radius: 3, x: 0, y: 1)
     }
 
+    /// 「今ここ発動中」チップ（地図の右下余白）：押した時刻と残り時間、
+    /// 場所へのワープボタン。残り時間は1分ごとに数え直す
+    private func presenceStatusChip(presence: Plan, coordinate: CLLocationCoordinate2D) -> some View {
+        TimelineView(.periodic(from: .now, by: 60)) { context in
+            let remaining = presence.createdAt.addingTimeInterval(2 * 3600)
+                .timeIntervalSince(context.date)
+            HStack(spacing: 8) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("今ここ発動中")
+                        .font(.caption.bold())
+                    Text("\(Self.timeString(presence.createdAt))から・あと\(Self.remainingString(remaining))")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                Button {
+                    fly(to: coordinate)
+                } label: {
+                    Image(systemName: "location.fill")
+                        .font(.system(size: 13))
+                        .foregroundStyle(Color.white)
+                        .frame(width: 28, height: 28)
+                        .background(WanStyle.coral, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("今ここへ移動")
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12))
+            .shadow(color: WanStyle.cocoa.opacity(0.25), radius: 3, x: 0, y: 1)
+        }
+    }
+
+    private static func timeString(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "ja_JP")
+        f.dateFormat = "H:mm"
+        return f.string(from: date)
+    }
+
+    private static func remainingString(_ seconds: TimeInterval) -> String {
+        let total = max(0, Int(seconds) / 60)
+        return total >= 60 ? "\(total / 60)時間\(total % 60)分" : "\(total)分"
+    }
+
     // MARK: - 地点登録（中心ピン）
 
     /// ピン立て時の中心ピン：ゴルフティー＋ボールの形（実機フィードバック⑬、
@@ -962,10 +1022,10 @@ struct DogMapView: View {
         return "\(cal.component(.month, from: day))/\(cal.component(.day, from: day))(\(symbols[weekday - 1]))"
     }
 
-    /// 時間帯ボタン（終日／朝／昼／夜）
+    /// 時間帯ボタン（終日／朝／昼／夜。「今」は今ここ専用なので出さない）
     private var bandRow: some View {
         HStack(spacing: 6) {
-            ForEach(TimeBand.allCases, id: \.self) { band in
+            ForEach(TimeBand.selectableCases, id: \.self) { band in
                 Button {
                     selectedBand = band
                 } label: {
