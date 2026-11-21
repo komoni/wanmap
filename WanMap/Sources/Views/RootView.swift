@@ -21,6 +21,7 @@ struct RootView: View {
     @State private var authService = AuthService()
     /// サーバー友達機能（単位2-4）。サインイン＋プロフィール確定で動き出す
     @State private var friendService = FriendService()
+    @State private var syncService = SyncService()
     @State private var location: LocationService
 
     #if DEBUG
@@ -192,14 +193,17 @@ struct RootView: View {
 
     /// サーバー友達機能の開始・停止を認証状態に合わせる（単位2-4）。
     /// uid と表示IDが揃ったら開始し、サインアウトしたら止める。
+    /// 予定・現在地の同期（単位2-5）も同じタイミングで開始・停止する。
     private func syncFriendService() {
         if let uid = authService.uid, let displayId = authService.displayId {
             friendService.start(uid: uid,
                                 displayId: displayId,
                                 displayName: authService.serverDisplayName ?? "",
                                 store: friendStore)
+            syncService.start(uid: uid, planStore: planStore, friendService: friendService)
         } else if authService.uid == nil {
             friendService.stop()
+            syncService.stop()
         }
     }
 

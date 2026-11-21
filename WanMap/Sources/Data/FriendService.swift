@@ -33,6 +33,10 @@ final class FriendService {
     @ObservationIgnored private var friendRelations: [FriendRelation] = []
     @ObservationIgnored private var hiddenTargets: Set<String> = []
     @ObservationIgnored private var friendUids: Set<String> = []
+    /// 友達uidの集合（同期サービスが購読先を決めるのに使う）
+    var currentFriendUids: Set<String> { friendUids }
+    /// 友達の集合が変わった時の通知先（SyncService が差す）
+    @ObservationIgnored var onFriendUidsChanged: ((Set<String>) -> Void)?
     @ObservationIgnored private var profileCache: [String: AppUser] = [:]
     @ObservationIgnored private var fetchingProfiles: Set<String> = []
 
@@ -184,7 +188,10 @@ final class FriendService {
             guard let members = doc.data()["members"] as? [String] else { continue }
             others.append(contentsOf: members.filter { $0 != myUid })
         }
-        friendUids = Set(others)
+        let newUids = Set(others)
+        let changed = newUids != friendUids
+        friendUids = newUids
+        if changed { onFriendUidsChanged?(newUids) }
         for other in others where profileCache[other] == nil {
             fetchProfile(uid: other)
         }

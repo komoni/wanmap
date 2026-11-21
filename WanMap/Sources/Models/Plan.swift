@@ -41,6 +41,9 @@ struct Plan: Codable, Identifiable, Equatable {
     var originalDate: Date? = nil
     /// この回だけ個別に編集されたか
     var isSeriesException: Bool = false
+    /// サーバー同期で友達から受け取った予定の所有者uid。自分の予定（端末内）は nil。
+    /// 友達の予定は表示専用で、編集・削除の対象にしない目印に使う
+    var ownerUid: String? = nil
 
     var coordinate: CLLocationCoordinate2D? {
         guard let latitude, let longitude else { return nil }
@@ -63,7 +66,7 @@ extension Plan {
     private enum CodingKeys: String, CodingKey {
         case id, personName, dogName, placeName, latitude, longitude, date, timeBand, level
         case isEvent, eventDeadline, isPresence, createdAt, hidesOwnLocation
-        case seriesID, occurrenceIndex, originalDate, isSeriesException
+        case seriesID, occurrenceIndex, originalDate, isSeriesException, ownerUid
     }
 
     /// 旧形式との互換デコード。後から足した項目（hidesOwnLocation と繰り返し関連）は
@@ -89,5 +92,6 @@ extension Plan {
         occurrenceIndex = try container.decodeIfPresent(Int.self, forKey: .occurrenceIndex)
         originalDate = try container.decodeIfPresent(Date.self, forKey: .originalDate)
         isSeriesException = try container.decodeIfPresent(Bool.self, forKey: .isSeriesException) ?? false
+        ownerUid = try container.decodeIfPresent(String.self, forKey: .ownerUid)
     }
 }

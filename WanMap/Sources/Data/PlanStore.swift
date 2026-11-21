@@ -105,9 +105,17 @@ final class PlanStore {
 
     // MARK: - 読み取り
 
+    /// サーバー同期で友達から受け取った予定（表示専用。端末へは保存しない）
+    private(set) var friendPlans: [Plan] = []
+
+    /// 友達の予定の受け口（SyncService が購読のたびに差し替える）
+    func applyServerFriendPlans(_ newPlans: [Plan]) {
+        friendPlans = newPlans.sorted { ($0.date, $0.createdAt) < ($1.date, $1.createdAt) }
+    }
+
     /// 期限切れの「今ここ」を除いた、表示対象の予定（日付順）
     var activePlans: [Plan] {
-        plans.filter { !$0.isExpiredPresence }
+        (plans + friendPlans).filter { !$0.isExpiredPresence }
             .sorted { ($0.date, $0.createdAt) < ($1.date, $1.createdAt) }
     }
 

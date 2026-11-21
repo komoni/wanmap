@@ -39,7 +39,8 @@ struct DayPlansView: View {
                     row(for: plan)
                         .contentShape(Rectangle())
                         .onTapGesture {
-                            if !plan.isPresence { editingPlan = plan }
+                            // 友達の予定（ownerUid あり）は表示専用で、編集を開かない
+                            if !plan.isPresence, plan.ownerUid == nil { editingPlan = plan }
                         }
                         // 行の削除は .onDelete でなく .swipeActions 経由にする。
                         // .onDelete は List 側にスワイプ削除の内部状態が残ったまま、
@@ -52,7 +53,10 @@ struct DayPlansView: View {
                         // 件数が衝突して落ちる疑いがあるため、role はダイアログ側の
                         // 実削除ボタンだけに残す。赤い見た目は tint で維持する。
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                            if plan.seriesID != nil {
+                            if plan.ownerUid != nil {
+                                // 友達の予定は削除できない（表示専用）
+                                EmptyView()
+                            } else if plan.seriesID != nil {
                                 Button {
                                     // 対象を先に入れてから表示する（ダイアログ側はこの順序を前提とする）
                                     deletionTarget = plan

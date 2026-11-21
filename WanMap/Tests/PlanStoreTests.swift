@@ -99,3 +99,22 @@ final class PlanStoreTests: XCTestCase {
         }
     }
 }
+
+extension PlanStoreTests {
+    /// 単位2-5：友達の予定は表示対象（activePlans）に混ざるが、
+    /// 自分の予定（plans）には入らない＝端末保存と自分の同期に混入しない
+    func testFriendPlans_表示には混ざるが自分の予定には入らない() {
+        let store = PlanStore(samplePlans: [])
+        let friendPlan = Plan(id: UUID(), personName: "友達", dogName: "ポチ",
+                              placeName: "ドッグラン", latitude: nil, longitude: nil,
+                              date: Date(), timeBand: .morning, level: .going,
+                              isEvent: false, eventDeadline: nil, isPresence: false,
+                              createdAt: Date(), ownerUid: "friend-uid")
+        store.applyServerFriendPlans([friendPlan])
+        XCTAssertEqual(store.plans.count, 0)
+        XCTAssertEqual(store.activePlans.count, 1)
+        XCTAssertEqual(store.plans(on: Date()).count, 1)
+        store.applyServerFriendPlans([])
+        XCTAssertEqual(store.activePlans.count, 0)
+    }
+}
