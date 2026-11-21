@@ -1127,16 +1127,28 @@ final class WanMapFlowTests: XCTestCase {
     /// バグと勘違いされやすい／予定一覧にも「閉じる」が欲しい、への対応の検証。
     func test13_emptyDayPlansShowsEmptyState() throws {
         launchAndSettleOnCalendar()
-        // 予定の無い日セル（読み上げラベルに「、予定なし」が付く）を開く
-        let emptyDayCell = app.buttons.matching(
-            NSPredicate(format: "label CONTAINS '、予定なし'")).firstMatch
-        XCTAssertTrue(emptyDayCell.waitForExistence(timeout: 15),
+        // 予定の無い日セル（読み上げラベルに「、予定なし」が付く）のうち、
+        // 画面内にある（タップできる）ものを開く。前後の月セクションのセルは
+        // 階層に存在しても画面外で、座標タップが別の場所に落ちてシートが
+        // 開かないため、必ず hittable なセルを選ぶ（CI 2回で切り分け済み）
+        let emptyDayCells = app.buttons.matching(
+            NSPredicate(format: "label CONTAINS '、予定なし'"))
+        XCTAssertTrue(emptyDayCells.firstMatch.waitForExistence(timeout: 15),
                       "予定の無い日のセルが見つかりませんでした")
-        if emptyDayCell.isHittable {
-            emptyDayCell.tap()
-        } else {
-            emptyDayCell.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        var targetCell: XCUIElement?
+        for index in 0..<emptyDayCells.count {
+            let cell = emptyDayCells.element(boundBy: index)
+            if cell.exists && cell.isHittable {
+                targetCell = cell
+                break
+            }
         }
+        let emptyDayCell = try XCTUnwrap(targetCell, "画面内に予定の無い日のセルがありませんでした")
+        emptyDayCell.tap()
+        // まずシート自体が開いたことを「閉じる」で確認する（開いていないのに
+        // 空状態だけを探すと、原因の切り分けができないため）
+        XCTAssertTrue(app.buttons["閉じる"].waitForExistence(timeout: 15),
+                      "日別予定のシートが開きませんでした")
         XCTAssertTrue(app.staticTexts["予定なし"].waitForExistence(timeout: 15),
                       "予定の無い日で「予定なし」が表示されませんでした")
 
