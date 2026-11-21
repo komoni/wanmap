@@ -78,9 +78,9 @@ final class AuthService {
             isBusy = true
             defer { isBusy = false }
             do {
-                let oauthCredential = OAuthProvider.credential(providerID: "apple.com",
-                                                               idToken: idToken,
-                                                               rawNonce: nonce)
+                let oauthCredential = OAuthProvider.appleCredential(withIDToken: idToken,
+                                                                    rawNonce: nonce,
+                                                                    fullName: credential.fullName)
                 let authResult = try await Auth.auth().signIn(with: oauthCredential)
                 let appleName = credential.fullName.map {
                     PersonNameComponentsFormatter().string(from: $0)
