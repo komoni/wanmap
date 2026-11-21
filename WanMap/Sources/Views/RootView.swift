@@ -17,6 +17,8 @@ struct RootView: View {
     @State private var appearanceStore: AppearanceStore
     @State private var feedbackSettings: FeedbackSettings
     @State private var feedbackService: FeedbackService
+    /// サーバーアカウント（フェーズ2）。起動だけでは通信しない
+    @State private var authService = AuthService()
     @State private var location: LocationService
 
     #if DEBUG
@@ -145,6 +147,7 @@ struct RootView: View {
         .environment(appearanceStore)
         .environment(feedbackSettings)
         .environment(feedbackService)
+        .environment(authService)
         .environment(location)
         .task {
             await facilityStore.refreshFromRemote()

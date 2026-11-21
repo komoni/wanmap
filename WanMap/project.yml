@@ -113,6 +113,10 @@ targets:
       properties:
         com.apple.security.application-groups:
           - group.jp.wanmap.app
+        # Appleサインイン（フェーズ2単位2-3）。App ID側の有効化と
+        # 配布プロファイルへの含有は確認済み（2026-11-21）
+        com.apple.developer.applesignin:
+          - Default
     info:
       path: Sources/Info.plist
       properties:

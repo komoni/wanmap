@@ -1,3 +1,4 @@
+import AuthenticationServices
 import SwiftUI
 
 /// 設定画面
@@ -17,6 +18,7 @@ struct SettingsView: View {
     @Environment(AppearanceStore.self) private var appearanceStore
     @Environment(FeedbackSettings.self) private var feedbackSettings
     @Environment(FeedbackService.self) private var feedback
+    @Environment(AuthService.self) private var authService
     @Environment(BreedStore.self) private var breedStore
     @Environment(MarkerSettings.self) private var markerSettings
     @Environment(PlanStore.self) private var planStore
@@ -43,6 +45,55 @@ struct SettingsView: View {
         @Bindable var markerSettings = markerSettings
         NavigationStack {
             List {
+                // サーバーアカウント（フェーズ2）。友達・共有に使う。
+                // 未サインインでも端末内の機能は従来どおり使える。
+                Section("アカウント") {
+                    if authService.isSignedIn {
+                        HStack {
+                            Text("サーバー表示ID")
+                            Spacer()
+                            Text(authService.displayId ?? "発行中…")
+                                .foregroundStyle(.secondary)
+                                .textSelection(.enabled)
+                        }
+                        if let name = authService.serverDisplayName, !name.isEmpty {
+                            HStack {
+                                Text("表示名")
+                                Spacer()
+                                Text(name)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        Button("サインアウト", role: .destructive) {
+                            authService.signOut()
+                        }
+                    } else {
+                        SignInWithAppleButton(.signIn) { request in
+                            authService.configureAppleRequest(request)
+                        } onCompletion: { result in
+                            Task { await authService.completeAppleSignIn(result) }
+                        }
+                        .signInWithAppleButtonStyle(.black)
+                        .frame(height: 44)
+                        Text("友達と予定や「今ここ」を共有するには、Apple IDでのサインインが必要です。サインインしなくても、端末内の機能は今までどおり使えます。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    if authService.isBusy {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                            Text("サインイン中…")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    if let message = authService.errorMessage {
+                        Text(message)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+                }
+
                 Section("自分のID") {
                     HStack {
                         Text("表示ID")
@@ -431,6 +482,7 @@ struct SettingsView: View {
         .environment(AppearanceStore())
         .environment(FeedbackSettings())
         .environment(FeedbackService(settings: FeedbackSettings()))
+        .environment(AuthService())
         .environment(PlanStore(samplePlans: []))
         .environment(UserPlaceStore(samplePlaces: []))
         .environment(LocationService())
