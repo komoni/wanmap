@@ -1229,21 +1229,22 @@ final class WanMapFlowTests: XCTestCase {
     }
 
     /// 設定リスト内のボタンを、画面内に出るまでスクロールしてからタップする。
-    /// 設定に項目が増えると下の方の項目は初期表示の外に出るため、
-    /// 存在確認だけでタップすると空振りする（事例22と同じ構図）。
+    /// 設定に項目が増えると下の方の項目は初期表示の外に出る。List は遅延描画で
+    /// 画面外の行は階層に存在すらしないため、先に存在確認で待つ形は使えない
+    /// （事例22・23）。スクロールしながら出現を待つ。
     private func tapSettingsButton(_ label: String,
                                    file: StaticString = #filePath, line: UInt = #line) {
         let button = app.buttons[label]
-        XCTAssertTrue(button.waitForExistence(timeout: 10),
-                      "\(label)が見つかりませんでした", file: file, line: line)
         var attempts = 0
-        while !button.isHittable && attempts < 8 {
+        while attempts < 10 {
+            if button.exists && button.isHittable {
+                button.tap()
+                return
+            }
             app.swipeUp()
             attempts += 1
         }
-        XCTAssertTrue(button.isHittable,
-                      "\(label)が画面内に現れませんでした", file: file, line: line)
-        button.tap()
+        XCTFail("\(label)が画面内に現れませんでした", file: file, line: line)
     }
 
     /// 一番上のシートを下ドラッグで閉じる（日別予定シートには閉じるボタンが無いため）
