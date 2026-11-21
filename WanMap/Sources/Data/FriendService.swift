@@ -38,16 +38,16 @@ final class FriendService {
 
     // MARK: - ID の組み立て（ルール側の約束と一致させる。単体テスト対象）
 
-    static func pairId(_ a: String, _ b: String) -> String {
+    nonisolated static func pairId(_ a: String, _ b: String) -> String {
         a < b ? "\(a)_\(b)" : "\(b)_\(a)"
     }
 
-    static func requestId(from: String, to: String) -> String {
+    nonisolated static func requestId(from: String, to: String) -> String {
         "\(from)_\(to)"
     }
 
     /// 検索入力の正規化：前後の空白・先頭の @ を落として小文字化する
-    static func normalizeCode(_ raw: String) -> String {
+    nonisolated static func normalizeCode(_ raw: String) -> String {
         var s = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         if s.hasPrefix("@") { s.removeFirst() }
         return s
