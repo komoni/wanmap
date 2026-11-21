@@ -9,6 +9,12 @@ packages:
   SwiftLocation:
     url: https://github.com/malcommac/SwiftLocation
     from: 6.0.0
+  # Firebase（Auth＋Firestore）。フェーズ2（サーバー同期）で導入（2026-11-21）。
+  # 11.x系で固定する（SPM の upToNextMajorVersion）。Analytics は入れない
+  # （フェーズ0で無効化済み。プロジェクト wanmap-e4a66、Sparkプラン）。
+  Firebase:
+    url: https://github.com/firebase/firebase-ios-sdk
+    from: 11.0.0
 options:
   # バンドルIDの接頭辞（フェーズLで正式ドメインに統一）。
   # 本体は settings で jp.wanmap.app を明示し、拡張は jp.wanmap.app.share を明示する。
@@ -36,6 +42,14 @@ targets:
         product: ClusterMapSwiftUI
       - package: SwiftLocation
         product: SwiftLocation
+      # Firebase（フェーズ2）。Core は初期化用、Auth は Appleサインイン用、
+      # Firestore は同期用。Analytics は入れない
+      - package: Firebase
+        product: FirebaseCore
+      - package: Firebase
+        product: FirebaseAuth
+      - package: Firebase
+        product: FirebaseFirestore
       # 共有シート拡張（アプリに埋め込まれる。フェーズJ）
       - target: WanMapShare
     sources:
@@ -71,6 +85,10 @@ targets:
       # プライバシーマニフェスト（申請時に必須。UserDefaults は Required Reason API のため
       # 理由コード CA92.1 を宣言。フェーズ2で Firebase 等を入れたら収集データの申告も実態に合わせて更新する）
       - path: Resources/PrivacyInfo.xcprivacy
+        buildPhase: resources
+      # Firebase の接続設定（公開識別子のみのファイル。フェーズ2、2026-11-21）。
+      # 正本は hidden_files/firebase/ に保管し、こちらは同梱用の写し
+      - path: Resources/GoogleService-Info.plist
         buildPhase: resources
     settings:
       base:
