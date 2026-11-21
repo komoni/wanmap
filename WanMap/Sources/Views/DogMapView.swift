@@ -206,7 +206,11 @@ struct DogMapView: View {
                 MapReader { proxy in
                     mapView(proxy: proxy)
                 }
-                friendRail
+                if !isPlacingUserPlace {
+                    // 地点登録中は隠す。レールは下から積み上がるため、人数が多いと
+                    // 上端が右上の確定バーに届いて重なる（ちゃぴ検品の指摘、2026-11-21）
+                    friendRail
+                }
                 if !isPlacingUserPlace && searchResults.isEmpty {
                     mapControlCluster
                 }
