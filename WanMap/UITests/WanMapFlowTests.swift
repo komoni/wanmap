@@ -278,6 +278,14 @@ final class WanMapFlowTests: XCTestCase {
         XCTAssertTrue(app.navigationBars["友達"].waitForExistence(timeout: 15),
                       "友達画面が開きませんでした")
 
+        // 自分のIDはタッチでコピーでき、「コピーしました」が出る
+        let copyButton = app.buttons["IDをコピー"]
+        XCTAssertTrue(copyButton.waitForExistence(timeout: 10),
+                      "IDのコピーボタンが見つかりませんでした")
+        copyButton.tap()
+        XCTAssertTrue(app.staticTexts["コピーしました"].waitForExistence(timeout: 10),
+                      "コピーの完了表示が出ませんでした")
+
         // シードの受信申請（ムギ）がある
         let approveButton = app.buttons["承認"]
         XCTAssertTrue(approveButton.waitForExistence(timeout: 10),

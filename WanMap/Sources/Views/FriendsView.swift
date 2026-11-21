@@ -85,12 +85,36 @@ struct FriendsView: View {
         authService.displayId ?? friendStore.me.publicId
     }
 
+    /// 自分のIDをタッチでコピーした直後の表示
+    @State private var copiedMyId = false
+
+    private func copyMyId() {
+        UIPasteboard.general.string = shareableId
+        copiedMyId = true
+        Task {
+            try? await Task.sleep(for: .seconds(2))
+            copiedMyId = false
+        }
+    }
+
     private var myIdSection: some View {
         Section("自分のID") {
             VStack(alignment: .leading, spacing: 4) {
-                Text(shareableId)
-                    .font(.title2.bold())
-                    .textSelection(.enabled)
+                HStack(spacing: 8) {
+                    Text(shareableId)
+                        .font(.title2.bold())
+                        .onTapGesture { copyMyId() }
+                    Button { copyMyId() } label: {
+                        Image(systemName: copiedMyId ? "checkmark" : "doc.on.doc")
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel("IDをコピー")
+                }
+                if copiedMyId {
+                    Text("コピーしました")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 if authService.displayId != nil {
                     Text("サーバー表示ID（友達検索で使われるID）")
                         .font(.caption)
@@ -360,6 +384,8 @@ struct MyQRView: View {
     /// サインイン中はサーバー表示ID（検索で実際に引ける方）を出す
     private var effectiveId: String { authService.displayId ?? friendStore.me.publicId }
 
+    @State private var copied = false
+
     var body: some View {
         NavigationStack {
             VStack(spacing: 16) {
@@ -372,7 +398,19 @@ struct MyQRView: View {
                 }
                 Text(effectiveId)
                     .font(.title3.bold())
-                    .textSelection(.enabled)
+                    .onTapGesture {
+                        UIPasteboard.general.string = effectiveId
+                        copied = true
+                        Task {
+                            try? await Task.sleep(for: .seconds(2))
+                            copied = false
+                        }
+                    }
+                if copied {
+                    Text("コピーしました")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 Text("相手にこのQRを読んでもらうか、IDを入力してもらうと友達追加できます。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
