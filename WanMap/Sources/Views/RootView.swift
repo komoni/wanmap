@@ -19,6 +19,8 @@ struct RootView: View {
     @State private var feedbackService: FeedbackService
     /// サーバーアカウント（フェーズ2）。起動だけでは通信しない
     @State private var authService = AuthService()
+    /// サーバー友達機能（単位2-4）。サインイン＋プロフィール確定で動き出す
+    @State private var friendService = FriendService()
     @State private var location: LocationService
 
     #if DEBUG
@@ -148,8 +150,12 @@ struct RootView: View {
         .environment(feedbackSettings)
         .environment(feedbackService)
         .environment(authService)
+        .environment(friendService)
         .environment(location)
+        .onChange(of: authService.uid) { _, _ in syncFriendService() }
+        .onChange(of: authService.displayId) { _, _ in syncFriendService() }
         .task {
+            syncFriendService()
             await facilityStore.refreshFromRemote()
             await breedStore.refreshFromRemote()
             // 「今ここ」は位置情報で自動的には動かさない（フェーズQレビュー R7）。
@@ -181,6 +187,19 @@ struct RootView: View {
         }
         .sheet(item: $sharedImport) { request in
             StoryImportView(initialText: request.text)
+        }
+    }
+
+    /// サーバー友達機能の開始・停止を認証状態に合わせる（単位2-4）。
+    /// uid と表示IDが揃ったら開始し、サインアウトしたら止める。
+    private func syncFriendService() {
+        if let uid = authService.uid, let displayId = authService.displayId {
+            friendService.start(uid: uid,
+                                displayId: displayId,
+                                displayName: authService.serverDisplayName ?? "",
+                                store: friendStore)
+        } else if authService.uid == nil {
+            friendService.stop()
         }
     }
 

@@ -24,6 +24,29 @@ final class FriendStore {
 
     private let persists: Bool
 
+    /// サーバー連携中か（フェーズ2単位2-4）。連携中は relations が
+    /// サーバー状態の写しになり、端末ファイルへは保存しない。
+    /// サインアウトで連携が終わると、端末内の状態へ戻る。
+    private(set) var serverDriven = false
+
+    /// 連携中の「見せない」切り替えの転送先（FriendService が設定する）
+    @ObservationIgnored var serverHideHandler: ((String, Bool) -> Void)?
+
+    /// サーバー状態の反映（FriendService から呼ばれる）
+    func applyServerRelations(_ newRelations: [FriendRelation]) {
+        serverDriven = true
+        relations = newRelations
+    }
+
+    /// サーバー連携の終了。端末内に保存済みの状態へ戻す
+    func exitServerMode() {
+        guard serverDriven else { return }
+        serverDriven = false
+        if !load() {
+            relations = Self.seedRelations
+        }
+    }
+
     private var fileURL: URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("friends.json")
@@ -120,13 +143,16 @@ final class FriendStore {
     // MARK: - 申請・承認（モック）
 
     /// 申請を送る。モックでは端末内で即時に自動承認され、そのまま友達になる。
+    /// サーバー連携中は何もしない（画面側が FriendService を使う）。
     func sendRequest(to user: AppUser) {
+        guard !serverDriven else { return }
         upsert(user: user, state: .friends)
         save()
     }
 
     /// 受信申請を承認する
     func approve(internalId: String) {
+        guard !serverDriven else { return }
         guard let index = relations.firstIndex(where: { $0.user.internalId == internalId }) else { return }
         relations[index].state = .friends
         save()
@@ -134,6 +160,7 @@ final class FriendStore {
 
     /// 受信申請を断る（関係自体を消す）
     func reject(internalId: String) {
+        guard !serverDriven else { return }
         relations.removeAll { $0.user.internalId == internalId }
         save()
     }
@@ -147,6 +174,8 @@ final class FriendStore {
     /// QRコード／手入力のIDで友達追加する。表示ID（@付き含む）・アプリ発行ID・内部IDの
     /// いずれでも照合する。見つかればモックとして相互同意済みの扱いで友達になる。
     func add(byCode code: String) -> AddByCodeResult {
+        // サーバー連携中はモックのコード追加は使わない（友達画面の検索から申請する）
+        guard !serverDriven else { return .notFound }
         let q = FacilityStore.normalize(code)
         guard !q.isEmpty,
               let user = Self.mockDirectory.first(where: {
@@ -190,10 +219,16 @@ final class FriendStore {
 
     /// 「この人には自分の位置・存在を見せない」の切り替え。
     /// 友達画面と設定画面はこの同じデータを触るので、片方の変更がもう片方にも反映される。
+    /// サーバー連携中はサービスへ転送し、手元の表示だけ先に切り替える
+    /// （確定はスナップショットで戻ってくる）。
     func setHide(internalId: String, _ hide: Bool) {
         guard let index = relations.firstIndex(where: { $0.user.internalId == internalId }) else { return }
         relations[index].hideFromMe = hide
-        save()
+        if serverDriven {
+            serverHideHandler?(internalId, hide)
+        } else {
+            save()
+        }
     }
 
     // MARK: - リセット
