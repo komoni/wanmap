@@ -185,6 +185,12 @@ struct DogMapView: View {
         return Array((places + facilities).prefix(8))
     }
 
+    /// この画面のシートが1つでも開いているか（検索フォーカスの解除に使う）
+    private var anySheetPresented: Bool {
+        showYearSheet || showFriends || showSettings || showUserPlaceForm
+            || selectedUserPlace != nil || selectedFacility != nil
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             // 広告／イベント告知バナー（フロー内・固定高。地図のカメラには影響しない）
@@ -273,6 +279,13 @@ struct DogMapView: View {
                     })
         }
         .background(WanStyle.canvas)
+        .onChange(of: anySheetPresented) { _, presented in
+            // シートを開く時は検索のフォーカスを外しておく。フォーカスを
+            // 持ったままシートを閉じると検索欄へフォーカスが戻って
+            // キーボードが再表示され、検索状態が閉じなくなる
+            // （実機フィードバック第4ラウンド F2、2026-11-21）
+            if presented { searchFocused = false }
+        }
         .sheet(isPresented: $showYearSheet) {
             yearSheet
                 .presentationDetents([.medium])
@@ -633,32 +646,37 @@ struct DogMapView: View {
         .shadow(color: WanStyle.cocoa.opacity(0.3), radius: 2, x: 0, y: 1)
     }
 
-    /// 登録モード中の重ね表示：中心ピン（当たり判定なし）＋画面中央寄りの確定バー。
+    /// 登録モード中の重ね表示：中心ピン（当たり判定なし）＋確定バー。
     /// ピン先端が画面中心に来るよう少し上にずらす。地図のドラッグはそのまま効く。
-    /// 確定バー（キャンセル／ここにする の選択肢）は従来は画面下部に出していたが、
-    /// 選択肢は画面中央の方が分かりやすいという実機フィードバック
-    /// （第3ラウンド C3、2026-11-19）で、ピンの少し下へ移した
+    /// 確定バー（キャンセル／ここにする の選択肢）の位置は実機フィードバックで
+    /// 2回動いている：画面下部→画面中央（第3ラウンド C3、2026-11-19）→
+    /// 地図の上部・右寄り（第4ラウンド、2026-11-21）。中央では地味で
+    /// 見つけにくいため、開始ボタン（上部バーの＋）のすぐ近くへ寄せた
     private var placingOverlay: some View {
         ZStack {
             golfTeePin
                 .offset(y: -18)
                 .allowsHitTesting(false)
             VStack {
-                Spacer()
-                HStack(spacing: 12) {
-                    Button("キャンセル") { isPlacingUserPlace = false }
-                        .buttonStyle(.bordered)
-                    Button("ここにする") { confirmPlacing() }
-                        .buttonStyle(WanPrimaryButtonStyle(fill: appearanceStore.primaryColor,
-                                                           horizontalPadding: 14, verticalPadding: 8))
+                HStack {
+                    Spacer()
+                    HStack(spacing: 12) {
+                        Button("キャンセル") { isPlacingUserPlace = false }
+                            .buttonStyle(.bordered)
+                        Button("ここにする") { confirmPlacing() }
+                            .buttonStyle(WanPrimaryButtonStyle(fill: appearanceStore.primaryColor,
+                                                               horizontalPadding: 14, verticalPadding: 8))
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(.thinMaterial)
+                    .clipShape(Capsule())
+                    .shadow(color: WanStyle.cocoa.opacity(0.3), radius: 3, x: 0, y: 1)
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(.thinMaterial)
-                .clipShape(Capsule())
-                .offset(y: 54)
                 Spacer()
             }
+            .padding(.top, 10)
+            .padding(.trailing, 4)
         }
     }
 

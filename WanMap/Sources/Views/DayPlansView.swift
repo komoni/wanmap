@@ -5,6 +5,7 @@ import SwiftUI
 /// 「今ここ」は地図側で管理するものなので、ここでは表示と削除だけ（編集フォームは開かない）。
 struct DayPlansView: View {
     @Environment(PlanStore.self) private var planStore
+    @Environment(\.dismiss) private var dismiss
 
     let day: Date
 
@@ -71,6 +72,14 @@ struct DayPlansView: View {
                         }
                 }
             }
+            // 予定が無い日は真っ白でバグと勘違いされやすいため、空状態を明示する
+            // （実機フィードバック第4ラウンド F1、2026-11-21）
+            .overlay {
+                if plans.isEmpty {
+                    ContentUnavailableView("予定なし", systemImage: "calendar",
+                                           description: Text("この日の予定はまだありません"))
+                }
+            }
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -78,6 +87,11 @@ struct DayPlansView: View {
                     Button { showNewForm = true } label: { Image(systemName: "plus") }
                         // アイコンのみのボタンはUIテストから確実に押せるよう識別子を付ける（見た目・挙動は不変）
                         .accessibilityIdentifier("dayPlansAddButton")
+                }
+                // 他の画面と揃えて右上に「閉じる」を置く
+                // （実機フィードバック第4ラウンド F4、2026-11-21）
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("閉じる") { dismiss() }
                 }
             }
             .alert("削除できませんでした", isPresented: $showDeleteFailure) {

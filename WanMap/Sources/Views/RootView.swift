@@ -372,6 +372,7 @@ enum AppTab: Hashable {
 /// 募集への参加・承認機能は未実装（使う人が増えてからのバージョンアップで入れる想定）。
 struct EventsView: View {
     @Environment(PlanStore.self) private var planStore
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
@@ -399,6 +400,13 @@ struct EventsView: View {
                 }
             }
             .navigationTitle("イベント")
+            // 他の画面と揃えて右上に「閉じる」を置く
+            // （実機フィードバック第4ラウンド F4、2026-11-21）
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("閉じる") { dismiss() }
+                }
+            }
         }
     }
 
