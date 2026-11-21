@@ -168,10 +168,7 @@ final class WanMapFlowTests: XCTestCase {
         launchAndSettleOnCalendar()
         openSettings()
 
-        let mint = app.buttons["ミント"]
-        XCTAssertTrue(mint.waitForExistence(timeout: 10),
-                      "ミントのスウォッチが見つかりませんでした")
-        mint.tap()
+        tapSettingsButton("ミント")
         // 選択中の色名表示が「ミント」に変わる（スウォッチ自体はボタンなので、
         // staticText で拾えるのは下部の色名表示だけ）
         XCTAssertTrue(app.staticTexts["ミント"].waitForExistence(timeout: 10),
@@ -188,10 +185,7 @@ final class WanMapFlowTests: XCTestCase {
 
         // 後片付け：デフォルト（ラベンダー）に戻し、後続の画面撮影に影響を残さない
         openSettings()
-        let lavender = app.buttons["ラベンダー"]
-        XCTAssertTrue(lavender.waitForExistence(timeout: 10),
-                      "ラベンダーのスウォッチが見つかりませんでした")
-        lavender.tap()
+        tapSettingsButton("ラベンダー")
         XCTAssertTrue(app.staticTexts["ラベンダー"].waitForExistence(timeout: 10),
                       "選択中の色名がラベンダーに戻りませんでした")
         app.buttons["閉じる"].tap()
@@ -1232,6 +1226,24 @@ final class WanMapFlowTests: XCTestCase {
         settingsButton.tap()
         XCTAssertTrue(app.navigationBars["設定"].waitForExistence(timeout: 15),
                       "設定画面が開きませんでした")
+    }
+
+    /// 設定リスト内のボタンを、画面内に出るまでスクロールしてからタップする。
+    /// 設定に項目が増えると下の方の項目は初期表示の外に出るため、
+    /// 存在確認だけでタップすると空振りする（事例22と同じ構図）。
+    private func tapSettingsButton(_ label: String,
+                                   file: StaticString = #filePath, line: UInt = #line) {
+        let button = app.buttons[label]
+        XCTAssertTrue(button.waitForExistence(timeout: 10),
+                      "\(label)が見つかりませんでした", file: file, line: line)
+        var attempts = 0
+        while !button.isHittable && attempts < 8 {
+            app.swipeUp()
+            attempts += 1
+        }
+        XCTAssertTrue(button.isHittable,
+                      "\(label)が画面内に現れませんでした", file: file, line: line)
+        button.tap()
     }
 
     /// 一番上のシートを下ドラッグで閉じる（日別予定シートには閉じるボタンが無いため）
