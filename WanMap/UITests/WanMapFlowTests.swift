@@ -1086,6 +1086,93 @@ final class WanMapFlowTests: XCTestCase {
                       "ピッカーを閉じてフォームへ戻れませんでした")
     }
 
+    // MARK: - フロー12〜14：第4ラウンド（ビルド6実機判定）の直し
+
+    /// 地図で検索中に設定シートを開いて閉じた後、キーボードが残らないこと。
+    /// 実機フィードバック第4ラウンド F2（2026-11-21）：実機では検索中に設定を
+    /// 開くと検索状態が閉じなくなり、キーボードが残り続けたという報告の再現テスト。
+    func test12_mapSearchSettingsKeyboard() throws {
+        launchAndSettleOnCalendar()
+        app.tabBars.buttons["地図"].tap()
+        XCTAssertTrue(app.maps.firstMatch.waitForExistence(timeout: 15),
+                      "地図が表示されませんでした")
+
+        let searchField = app.textFields["施設名で検索"]
+        XCTAssertTrue(searchField.waitForExistence(timeout: 15),
+                      "地図の検索欄が見つかりませんでした")
+        searchField.tap()
+        searchField.typeText("a")
+        let keyboard = app.keyboards.element
+        XCTAssertTrue(keyboard.waitForExistence(timeout: 10),
+                      "検索欄タップでキーボードが出ませんでした")
+
+        let settingsButton = app.buttons["mapSettingsButton"]
+        XCTAssertTrue(settingsButton.waitForExistence(timeout: 10),
+                      "地図の設定ボタンが見つかりませんでした")
+        settingsButton.tap()
+        XCTAssertTrue(app.navigationBars["設定"].waitForExistence(timeout: 15),
+                      "設定画面が開きませんでした")
+        app.buttons["閉じる"].tap()
+        XCTAssertTrue(searchField.waitForExistence(timeout: 15),
+                      "設定を閉じて地図へ戻れませんでした")
+
+        let keyboardGone = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == false"), object: keyboard)
+        XCTAssertEqual(XCTWaiter().wait(for: [keyboardGone], timeout: 8), .completed,
+                       "設定から戻った後もキーボードが残っています")
+    }
+
+    /// 予定の無い日の日別予定で「予定なし」が出て、右上の「閉じる」で閉じられること。
+    /// 実機フィードバック第4ラウンド F1・F4（2026-11-21）：空の状態が真っ白で
+    /// バグと勘違いされやすい／予定一覧にも「閉じる」が欲しい、への対応の検証。
+    func test13_emptyDayPlansShowsEmptyState() throws {
+        launchAndSettleOnCalendar()
+        // 予定の無い日セル（読み上げラベルに「、予定なし」が付く）を開く
+        let emptyDayCell = app.buttons.matching(
+            NSPredicate(format: "label CONTAINS '、予定なし'")).firstMatch
+        XCTAssertTrue(emptyDayCell.waitForExistence(timeout: 15),
+                      "予定の無い日のセルが見つかりませんでした")
+        if emptyDayCell.isHittable {
+            emptyDayCell.tap()
+        } else {
+            emptyDayCell.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        }
+        XCTAssertTrue(app.staticTexts["予定なし"].waitForExistence(timeout: 15),
+                      "予定の無い日で「予定なし」が表示されませんでした")
+
+        let closeButton = app.buttons["閉じる"]
+        XCTAssertTrue(closeButton.waitForExistence(timeout: 10),
+                      "日別予定に「閉じる」がありませんでした")
+        closeButton.tap()
+        let emptyStateGone = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == false"),
+            object: app.staticTexts["予定なし"])
+        XCTAssertEqual(XCTWaiter().wait(for: [emptyStateGone], timeout: 8), .completed,
+                       "「閉じる」で日別予定が閉じませんでした")
+    }
+
+    /// イベント一覧に右上の「閉じる」があり、押すと閉じられること。
+    /// 実機フィードバック第4ラウンド F4（2026-11-21）。
+    func test14_eventsSheetHasCloseButton() throws {
+        launchAndSettleOnCalendar()
+        let eventsButton = app.buttons["calendarEventsButton"]
+        XCTAssertTrue(eventsButton.waitForExistence(timeout: 15),
+                      "イベントボタンが見つかりませんでした")
+        eventsButton.tap()
+        XCTAssertTrue(app.navigationBars["イベント"].waitForExistence(timeout: 15),
+                      "イベント一覧が開きませんでした")
+
+        let closeButton = app.buttons["閉じる"]
+        XCTAssertTrue(closeButton.waitForExistence(timeout: 10),
+                      "イベント一覧に「閉じる」がありませんでした")
+        closeButton.tap()
+        let eventsGone = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == false"),
+            object: app.navigationBars["イベント"])
+        XCTAssertEqual(XCTWaiter().wait(for: [eventsGone], timeout: 8), .completed,
+                       "「閉じる」でイベント一覧が閉じませんでした")
+    }
+
     // MARK: - 共通処理
 
     /// シード付きで起動し、カレンダー表示で落ち着かせる（画面撮影側と同じ手順）

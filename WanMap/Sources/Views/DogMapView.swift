@@ -554,6 +554,7 @@ struct DogMapView: View {
             }
             .buttonStyle(WanPressButtonStyle())
             .wanTapTarget()
+            .accessibilityIdentifier("mapAddPlaceButton")
 
             Button { showFriends = true } label: {
                 Image(systemName: "person.2")
@@ -562,6 +563,7 @@ struct DogMapView: View {
             }
             .buttonStyle(WanPressButtonStyle())
             .wanTapTarget()
+            .accessibilityIdentifier("mapFriendsButton")
 
             Button { showSettings = true } label: {
                 Image(systemName: "gearshape")
@@ -570,6 +572,7 @@ struct DogMapView: View {
             }
             .buttonStyle(WanPressButtonStyle())
             .wanTapTarget()
+            .accessibilityIdentifier("mapSettingsButton")
         }
         .frame(height: 44)
         .padding(.horizontal, 8)
