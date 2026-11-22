@@ -468,12 +468,16 @@ struct CalendarView: View {
             ForEach(dayPlans.prefix(2)) { plan in
                 HStack(spacing: 2) {
                     ZStack {
-                        Circle().fill(WanStyle.card).frame(width: 12, height: 12)
                         if plan.isPresence {
+                            // 人型は白地に差し色の小さい字だと実機で読めなかったため、
+                            // 差し色の丸＋白抜きで確実に見える形にする
+                            // （実機フィードバック、2026-11-23）
+                            Circle().fill(WanStyle.coral).frame(width: 14, height: 14)
                             Image(systemName: "person.fill")
-                                .font(.system(size: 7))
-                                .foregroundStyle(themeStore.accentColor)
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundStyle(Color.white)
                         } else {
+                            Circle().fill(WanStyle.card).frame(width: 12, height: 12)
                             Text("🐶").font(.system(size: 8))
                         }
                     }
