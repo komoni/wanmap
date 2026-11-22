@@ -1192,6 +1192,19 @@ final class WanMapFlowTests: XCTestCase {
                        "「閉じる」でイベント一覧が閉じませんでした")
     }
 
+    /// フロー15：設定から要望フォームを開くと、未サインインでは
+    /// サインインの案内が出る（単位2-6。送信にはサインインが要る）
+    func test15_feedbackFormShowsSignInNotice() throws {
+        launchAndSettleOnCalendar()
+        openSettings()
+        tapSettingsButton("ご意見・ご要望を送る")
+        XCTAssertTrue(app.navigationBars["ご意見・ご要望"].waitForExistence(timeout: 15),
+                      "要望フォームが開きませんでした")
+        let notice = app.staticTexts["feedbackSignInNotice"]
+        XCTAssertTrue(notice.waitForExistence(timeout: 10),
+                      "未サインインの案内が出ていませんでした")
+    }
+
     // MARK: - 共通処理
 
     /// シード付きで起動し、カレンダー表示で落ち着かせる（画面撮影側と同じ手順）

@@ -315,6 +315,19 @@ struct SettingsView: View {
                     Text(locationFooterText)
                 }
 
+                // ご意見・ご要望（単位2-6）。サーバーの共通受け口へ送る。
+                // 送信にはサインインが要る（フォーム側で案内する）。
+                Section {
+                    NavigationLink {
+                        FeedbackFormView()
+                    } label: {
+                        Text("ご意見・ご要望を送る")
+                    }
+                    .accessibilityIdentifier("feedbackFormLink")
+                } footer: {
+                    Text("要望や不具合の報告は、開発側へ直接届きます。")
+                }
+
                 Section("データ") {
                     Button("データをリセット", role: .destructive) {
                         showResetConfirm = true
