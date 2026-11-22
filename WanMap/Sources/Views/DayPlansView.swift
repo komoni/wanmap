@@ -5,6 +5,8 @@ import SwiftUI
 /// 「今ここ」は地図側で管理するものなので、ここでは表示と削除だけ（編集フォームは開かない）。
 struct DayPlansView: View {
     @Environment(PlanStore.self) private var planStore
+    @Environment(FriendStore.self) private var friendStore
+    @Environment(BreedStore.self) private var breedStore
     @Environment(\.dismiss) private var dismiss
 
     let day: Date
@@ -133,10 +135,12 @@ struct DayPlansView: View {
     private func row(for plan: Plan) -> some View {
         HStack(spacing: 10) {
             ZStack {
-                Circle().fill(WanStyle.lavender.opacity(0.55)).frame(width: 34, height: 34)
                 if plan.isPresence {
-                    Image(systemName: "person.fill").foregroundStyle(WanStyle.coral)
+                    // 「今ここ」は人型でなく、登録している犬のアイコンで出す
+                    // （実機フィードバック、2026-11-23。カレンダーと揃える）
+                    BreedIconView(asset: dogIconAsset(for: plan), size: 34)
                 } else {
+                    Circle().fill(WanStyle.lavender.opacity(0.55)).frame(width: 34, height: 34)
                     Text("🐶")
                 }
             }
@@ -159,6 +163,16 @@ struct DayPlansView: View {
                     .foregroundStyle(.secondary)
             }
         }
+    }
+
+    /// 予定の犬アイコン：自分の「今ここ」は自分の犬、友達分はその人の犬
+    private func dogIconAsset(for plan: Plan) -> String {
+        if let own = planStore.ownPresence, own.id == plan.id {
+            return breedStore.markerIconAsset(breedId: friendStore.me.breedId,
+                                              colorId: friendStore.me.dogColorId)
+        }
+        let user = friendStore.relations.first { $0.user.displayName == plan.personName }?.user
+        return breedStore.markerIconAsset(breedId: user?.breedId, colorId: user?.dogColorId)
     }
 
     private func subtitle(for plan: Plan) -> String {

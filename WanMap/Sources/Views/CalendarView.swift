@@ -7,6 +7,8 @@ import SwiftUI
 /// 予定は PlanStore の実データを表示し、日タップでその日の予定一覧シートを開く。
 struct CalendarView: View {
     @Environment(PlanStore.self) private var planStore
+    @Environment(FriendStore.self) private var friendStore
+    @Environment(BreedStore.self) private var breedStore
     @Environment(ThemeStore.self) private var themeStore
     @Environment(AppearanceStore.self) private var appearanceStore
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -469,13 +471,9 @@ struct CalendarView: View {
                 HStack(spacing: 2) {
                     ZStack {
                         if plan.isPresence {
-                            // 人型は白地に差し色の小さい字だと実機で読めなかったため、
-                            // 差し色の丸＋白抜きで確実に見える形にする
+                            // 「今ここ」は人型でなく、登録している犬のアイコンで出す
                             // （実機フィードバック、2026-11-23）
-                            Circle().fill(WanStyle.coral).frame(width: 14, height: 14)
-                            Image(systemName: "person.fill")
-                                .font(.system(size: 9, weight: .bold))
-                                .foregroundStyle(Color.white)
+                            BreedIconView(asset: dogIconAsset(for: plan), size: 14)
                         } else {
                             Circle().fill(WanStyle.card).frame(width: 12, height: 12)
                             Text("🐶").font(.system(size: 8))
@@ -531,6 +529,17 @@ struct CalendarView: View {
     }
 
     /// 日セルの読み上げラベル（例：「11月15日（土）、予定3件：ドッグウィズ、sea、ほか1件」）
+    /// 予定の犬アイコン：自分の「今ここ」は自分の犬、友達分はその人の犬。
+    /// 犬種・毛色が未登録なら汎用アイコンになる
+    private func dogIconAsset(for plan: Plan) -> String {
+        if let own = planStore.ownPresence, own.id == plan.id {
+            return breedStore.markerIconAsset(breedId: friendStore.me.breedId,
+                                              colorId: friendStore.me.dogColorId)
+        }
+        let user = friendStore.relations.first { $0.user.displayName == plan.personName }?.user
+        return breedStore.markerIconAsset(breedId: user?.breedId, colorId: user?.dogColorId)
+    }
+
     private func dayCellAccessibilityLabel(day: Date, plans: [Plan]) -> String {
         let f = DateFormatter()
         f.locale = Locale(identifier: "ja_JP")
