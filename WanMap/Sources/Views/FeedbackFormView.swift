@@ -11,6 +11,7 @@ struct FeedbackFormView: View {
     @State private var attachDeviceInfo = false
     @State private var sent = false
     @State private var failed = false
+    @FocusState private var bodyFocused: Bool
 
     var body: some View {
         Form {
@@ -44,6 +45,7 @@ struct FeedbackFormView: View {
                 Section("内容") {
                     TextEditor(text: $bodyText)
                         .frame(minHeight: 140)
+                        .focused($bodyFocused)
                         .accessibilityIdentifier("feedbackBodyEditor")
                     Text("\(bodyText.count) / 2000")
                         .font(.caption2)
@@ -82,6 +84,15 @@ struct FeedbackFormView: View {
         }
         .navigationTitle("ご意見・ご要望")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("閉じる") {
+                    bodyFocused = false
+                }
+                .accessibilityIdentifier("feedbackKeyboardCloseButton")
+            }
+        }
     }
 
     private var canSend: Bool {
