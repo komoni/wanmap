@@ -78,9 +78,9 @@ struct AccountDeletionView: View {
                     .accessibilityIdentifier("deletionErrorText")
             }
         }
-        .confirmationDialog("本当に削除しますか？",
-                            isPresented: $showConfirm,
-                            titleVisibility: .visible) {
+        // 確認は alert で出す。confirmationDialog はポップオーバー表示になると
+        // 「やめる」が明示されず外タップでしか閉じられないため（ビルド16の実機指摘）
+        .alert("本当に削除しますか？", isPresented: $showConfirm) {
             Button("削除する", role: .destructive) {
                 Task { await startDeletion() }
             }
