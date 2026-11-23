@@ -1205,6 +1205,19 @@ final class WanMapFlowTests: XCTestCase {
                       "未サインインの案内が出ていませんでした")
     }
 
+    /// フロー16：設定からアカウント削除を開くと、未サインインでは
+    /// サインインの案内が出る（単位2-7。削除にはサインインが要る）
+    func test16_accountDeletionShowsSignInNotice() throws {
+        launchAndSettleOnCalendar()
+        openSettings()
+        tapSettingsButton("アカウントを削除")
+        XCTAssertTrue(app.navigationBars["アカウントを削除"].waitForExistence(timeout: 15),
+                      "アカウント削除の画面が開きませんでした")
+        let notice = app.staticTexts["deletionSignInNotice"]
+        XCTAssertTrue(notice.waitForExistence(timeout: 10),
+                      "未サインインの案内が出ていませんでした")
+    }
+
     // MARK: - 共通処理
 
     /// シード付きで起動し、カレンダー表示で落ち着かせる（画面撮影側と同じ手順）

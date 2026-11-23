@@ -138,6 +138,15 @@ struct RootView: View {
             }
             .offset(x: effectiveCurtainOffset)
             .simultaneousGesture(curtainGesture)
+
+            // アカウント削除の再開ゲート（単位2-7）：削除の途中状態が
+            // サーバーに残っていたら、通常画面の上から再開画面で覆い、
+            // 削除を終えるまで他の画面へ進ませない
+            if authService.deletionPending {
+                NavigationStack {
+                    AccountDeletionView(isResumeGate: true)
+                }
+            }
         }
         .tint(WanStyle.coral)
         .environment(facilityStore)

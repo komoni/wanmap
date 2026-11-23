@@ -11,7 +11,9 @@ import Observation
 ///   displayIds コレクションで一意に採番する
 /// - サインインは友達・共有機能のためのもの。未サインインでも
 ///   端末内の機能は従来どおり使える（アプリをゲートしない）
-/// - アカウント削除の再開処理は単位2-7でここへ足す
+/// - 単位2-7：サインイン時に deletionJobs（削除の状態旗）が残っていたら
+///   deletionPending を立て、RootView が削除の再開画面を差し込む。
+///   あわせて lastActiveAt を更新する（ルールの休眠ゲートの材料）
 @MainActor
 @Observable
 final class AuthService {
@@ -24,6 +26,9 @@ final class AuthService {
     private(set) var serverDisplayName: String?
     /// サインイン処理中
     private(set) var isBusy = false
+    /// 削除の途中状態がサーバーに残っている（単位2-7）。
+    /// true の間、RootView は通常画面の代わりに削除の再開画面を出す
+    private(set) var deletionPending = false
     /// 設定画面へ出す失敗メッセージ（成功時は nil）
     var errorMessage: String?
 
@@ -39,10 +44,11 @@ final class AuthService {
             Task { @MainActor in
                 self.uid = user?.uid
                 if let user {
-                    await self.ensureProfile(uid: user.uid, appleDisplayName: nil)
+                    await self.handleSignedIn(uid: user.uid, appleDisplayName: nil)
                 } else {
                     self.displayId = nil
                     self.serverDisplayName = nil
+                    self.deletionPending = false
                 }
             }
         }
@@ -85,7 +91,7 @@ final class AuthService {
                 let appleName = credential.fullName.map {
                     PersonNameComponentsFormatter().string(from: $0)
                 }
-                await ensureProfile(uid: authResult.user.uid, appleDisplayName: appleName)
+                await handleSignedIn(uid: authResult.user.uid, appleDisplayName: appleName)
             } catch {
                 errorMessage = "サインインできませんでした。通信状態を確認してもう一度お試しください"
             }
@@ -98,6 +104,56 @@ final class AuthService {
             errorMessage = nil
         } catch {
             errorMessage = "サインアウトできませんでした"
+        }
+    }
+
+    /// アカウント削除の最終段（Auth ユーザー削除）で再認証が要る時に使う。
+    /// configureAppleRequest で nonce を用意してから、SignInWithAppleButton の
+    /// onCompletion の結果をここへ渡す。成功したら true。
+    func reauthenticateApple(_ result: Result<ASAuthorization, Error>) async -> Bool {
+        guard case .success(let authorization) = result,
+              let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
+              let tokenData = credential.identityToken,
+              let idToken = String(data: tokenData, encoding: .utf8),
+              let nonce = currentNonce,
+              let user = Auth.auth().currentUser else {
+            return false
+        }
+        currentNonce = nil
+        let oauthCredential = OAuthProvider.appleCredential(withIDToken: idToken,
+                                                            rawNonce: nonce,
+                                                            fullName: credential.fullName)
+        do {
+            try await user.reauthenticate(with: oauthCredential)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    // MARK: - サインイン後の共通処理（削除の再開チェック→プロフィール）
+
+    /// 削除の状態旗（deletionJobs/{uid}）が残っていたら、プロフィールには
+    /// 触らず deletionPending を立てる（削除の再開が優先。設計 v0.3）。
+    private func handleSignedIn(uid: String, appleDisplayName: String?) async {
+        if await hasDeletionJob(uid: uid) {
+            deletionPending = true
+            displayId = nil
+            serverDisplayName = nil
+            return
+        }
+        deletionPending = false
+        await ensureProfile(uid: uid, appleDisplayName: appleDisplayName)
+    }
+
+    private func hasDeletionJob(uid: String) async -> Bool {
+        do {
+            let doc = try await Firestore.firestore()
+                .collection("deletionJobs").document(uid).getDocument()
+            return doc.exists
+        } catch {
+            // 読めない時は通常の流れへ（次回サインインで再判定される）
+            return false
         }
     }
 
@@ -120,6 +176,13 @@ final class AuthService {
             if let data = snapshot.data() {
                 displayId = data["displayId"] as? String
                 serverDisplayName = data["displayName"] as? String
+                // users 側の deleting 旗だけが残っている場合も再開扱いにする
+                if data["deleting"] as? Bool == true {
+                    deletionPending = true
+                }
+                // 最終ログインを記録する（休眠ゲートの材料。失敗しても流れは止めない）
+                try? await userRef.setData(
+                    ["lastActiveAt": FieldValue.serverTimestamp()], merge: true)
                 return
             }
         } catch {
@@ -137,6 +200,7 @@ final class AuthService {
                 "displayId": candidate,
                 "displayName": name,
                 "createdAt": FieldValue.serverTimestamp(),
+                "lastActiveAt": FieldValue.serverTimestamp(),
                 "schemaVersion": 1,
             ], forDocument: userRef)
             do {

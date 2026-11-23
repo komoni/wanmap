@@ -137,7 +137,7 @@ final class WanMapScreenshotTests: XCTestCase {
             swipes += 1
         }
         XCTAssertTrue(deleteRow.waitForExistence(timeout: 5),
-                      "「アカウントを削除」の仮項目が見つかりませんでした")
+                      "「アカウントを削除」の項目が見つかりませんでした")
         attachScreenshot("05-settings-bottom")
     }
 

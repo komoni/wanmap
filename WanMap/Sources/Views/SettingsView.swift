@@ -7,8 +7,8 @@ import SwiftUI
 /// - 見た目の比較案（ボタンの色／カレンダーヘッダーの段数。AppearanceStore）
 /// - 音と触覚（効果音・触覚のON/OFFと試聴。FeedbackSettings／FeedbackService）
 /// - 「見せない相手」リスト：友達画面と同じ FriendStore のデータを触るので連動する
-/// - 将来機能の仮項目（ブロックした人・アカウント削除）：
-///   項目だけ先に置き、タップでは「準備中」を正直に表示する（嘘の動作はしない）
+/// - アカウント削除（単位2-7で実装。AccountDeletionView へ遷移）と、
+///   将来機能の仮項目（ブロックした人。タップでは「準備中」を正直に表示する）
 /// - Instagram連携は行わない（公式APIの制約により2026-11-13に不採用を決定）
 /// - 位置情報の扱い（端末内のみ・「今ここ」は2時間で消去）の説明と非表示モード
 /// - ローカルデータ（予定・友達・追加した場所）のリセット（確認ダイアログ付き）
@@ -262,8 +262,8 @@ struct SettingsView: View {
                     Text("ここでオンにした相手には、自分の位置と存在が見えません。友達画面の「見せない」と同じリストです。")
                 }
 
-                // プライバシー・安全（仮項目）。ブロックとアカウント削除は
-                // アカウント機能の提供に合わせて実装する。今は置き場だけ作り、
+                // プライバシー・安全。アカウント削除は単位2-7で実装済み
+                // （AccountDeletionView へ遷移）。ブロックした人は仮項目のままで、
                 // タップでは「準備中」を正直に表示する。
                 Section {
                     Button {
@@ -279,21 +279,17 @@ struct SettingsView: View {
                         }
                     }
                     .accessibilityIdentifier("blockedPeopleRow")
-                    Button {
-                        showComingSoon = true
+                    NavigationLink {
+                        AccountDeletionView()
                     } label: {
-                        HStack {
-                            Text("アカウントを削除")
-                                .foregroundStyle(.primary)
-                            Spacer()
-                            comingSoonBadge
-                        }
+                        Text("アカウントを削除")
+                            .foregroundStyle(.primary)
                     }
                     .accessibilityIdentifier("deleteAccountRow")
                 } header: {
                     Text("プライバシー・安全")
                 } footer: {
-                    Text("ブロックとアカウント削除は、アカウント機能の提供に合わせて使えるようになります。")
+                    Text("アカウント削除はサインイン中に行えます。サーバーに保存されたプロフィール・予定・友達関係が削除されます。")
                 }
 
                 Section {
